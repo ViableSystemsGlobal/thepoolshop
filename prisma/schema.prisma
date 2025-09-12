@@ -38,6 +38,41 @@ enum UserRole {
   EXECUTIVE_VIEWER
 }
 
+// Currency Management
+model Currency {
+  id        String   @id @default(cuid())
+  code      String   @unique // USD, GHS, EUR, etc.
+  name      String   // US Dollar, Ghana Cedi, Euro
+  symbol    String   // $, ₵, €
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  exchangeRates ExchangeRate[]
+
+  @@map("currencies")
+}
+
+model ExchangeRate {
+  id           String   @id @default(cuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Decimal  @db.Decimal(10, 6) // High precision for exchange rates
+  source       String   // "manual", "api", "bank"
+  effectiveFrom DateTime @default(now())
+  effectiveTo   DateTime?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  currency Currency @relation(fields: [fromCurrency], references: [code])
+
+  @@unique([fromCurrency, toCurrency, effectiveFrom])
+  @@map("exchange_rates")
+}
+
 // Product Management
 model Category {
   id          String   @id @default(cuid())
@@ -64,6 +99,9 @@ model Product {
   attributes  Json?    // JSON for variant attributes
   uomBase     String   @default("pcs") // Unit of measure base
   uomSell     String   @default("pcs") // Unit of measure for selling
+  price       Decimal? @db.Decimal(10, 2) // Base price in import currency
+  cost        Decimal? @db.Decimal(10, 2) // Cost in import currency
+  importCurrency String @default("USD") // Currency used for imports
   active      Boolean  @default(true)
   categoryId  String
   createdAt   DateTime @default(now())
@@ -99,7 +137,9 @@ model PriceListItem {
   id          String   @id @default(cuid())
   productId   String
   priceListId String
-  unitPrice   Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2) // Price in price list currency
+  basePrice   Decimal? @db.Decimal(10, 2) // Original price in product's import currency
+  exchangeRate Decimal? @db.Decimal(10, 6) // Exchange rate used for conversion
   overrides   Json?    // JSON for price overrides
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
