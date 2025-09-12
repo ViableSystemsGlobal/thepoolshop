@@ -74,6 +74,7 @@ model Product {
   priceListItems PriceListItem[]
   quotationLines QuotationLine[]
   proformaLines  ProformaLine[]
+  stockItem     StockItem?
 
   @@map("products")
 }
@@ -177,7 +178,7 @@ model Lead {
   updatedAt   DateTime   @updatedAt
 
   // Relations
-  owner Owner @relation(fields: [ownerId], references: [id])
+  owner User @relation(fields: [ownerId], references: [id])
 
   @@map("leads")
 }

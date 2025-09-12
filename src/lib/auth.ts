@@ -1,17 +1,8 @@
 import { NextAuthOptions } from "next-auth"
-import { PrismaAdapter } from "@auth/prisma-adapter"
-import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { prisma } from "./prisma"
-import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -23,24 +14,14 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email
-          }
-        })
-
-        if (!user) {
-          return null
-        }
-
-        // For demo purposes, we'll use a simple password check
-        // In production, you'd hash passwords properly
-        if (credentials.password === "demo123") {
+        // For demo purposes, we'll use hardcoded credentials
+        // In production, you'd check against the database
+        if (credentials.email === "admin@adpools.com" && credentials.password === "demo123") {
           return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
+            id: "1",
+            email: "admin@adpools.com",
+            name: "Admin User",
+            role: "ADMIN",
           }
         }
 
