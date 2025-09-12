@@ -1,0 +1,349 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  role      UserRole @default(SALES_REP)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  accounts  Account[]
+  leads     Lead[]
+  quotations Quotation[]
+  proformas Proforma[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+  INVENTORY_MANAGER
+  FINANCE_OFFICER
+  EXECUTIVE_VIEWER
+}
+
+// Product Management
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  sku         String   @unique
+  name        String
+  description String?
+  images      String[] // Array of image URLs
+  attributes  Json?    // JSON for variant attributes
+  uomBase     String   @default("pcs") // Unit of measure base
+  uomSell     String   @default("pcs") // Unit of measure for selling
+  active      Boolean  @default(true)
+  categoryId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  category      Category      @relation(fields: [categoryId], references: [id])
+  priceListItems PriceListItem[]
+  quotationLines QuotationLine[]
+  proformaLines  ProformaLine[]
+
+  @@map("products")
+}
+
+model PriceList {
+  id           String   @id @default(cuid())
+  name         String
+  channel      String   @default("direct") // direct, distributor, pos
+  currency     String   @default("USD")
+  effectiveFrom DateTime @default(now())
+  effectiveTo   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  items PriceListItem[]
+
+  @@map("price_lists")
+}
+
+model PriceListItem {
+  id          String   @id @default(cuid())
+  productId   String
+  priceListId String
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  overrides   Json?    // JSON for price overrides
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  product   Product   @relation(fields: [productId], references: [id])
+  priceList PriceList @relation(fields: [priceListId], references: [id])
+
+  @@unique([productId, priceListId])
+  @@map("price_list_items")
+}
+
+// CRM
+model Account {
+  id          String      @id @default(cuid())
+  name        String
+  type        AccountType @default(INDIVIDUAL)
+  email       String?
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  country     String?
+  website     String?
+  notes       String?
+  ownerId     String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  owner       User        @relation(fields: [ownerId], references: [id])
+  contacts    Contact[]
+  opportunities Opportunity[]
+  quotations  Quotation[]
+  proformas   Proforma[]
+
+  @@map("accounts")
+}
+
+enum AccountType {
+  INDIVIDUAL
+  COMPANY
+  PROJECT
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  position  String?
+  accountId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@map("contacts")
+}
+
+model Lead {
+  id          String     @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  company     String?
+  source      String?    // How they found us
+  status      LeadStatus @default(NEW)
+  score       Int        @default(0) // AI lead score
+  notes       String?
+  ownerId     String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  owner Owner @relation(fields: [ownerId], references: [id])
+
+  @@map("leads")
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+model Opportunity {
+  id          String           @id @default(cuid())
+  name        String
+  stage       OpportunityStage @default(NEW)
+  value       Decimal?         @db.Decimal(10, 2)
+  probability Int              @default(0) // Percentage
+  closeDate   DateTime?
+  accountId   String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@map("opportunities")
+}
+
+enum OpportunityStage {
+  NEW
+  QUALIFIED
+  PROPOSAL
+  QUOTATION
+  NEGOTIATION
+  WON
+  LOST
+}
+
+// Sales Documents
+model Quotation {
+  id          String         @id @default(cuid())
+  number      String         @unique
+  status      QuotationStatus @default(DRAFT)
+  subject     String
+  validUntil  DateTime?
+  notes       String?
+  subtotal    Decimal        @db.Decimal(10, 2) @default(0)
+  tax         Decimal        @db.Decimal(10, 2) @default(0)
+  total       Decimal        @db.Decimal(10, 2) @default(0)
+  accountId   String
+  ownerId     String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  account Account         @relation(fields: [accountId], references: [id])
+  owner   User            @relation(fields: [ownerId], references: [id])
+  lines   QuotationLine[]
+  proformas Proforma[]
+
+  @@map("quotations")
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model QuotationLine {
+  id           String   @id @default(cuid())
+  quotationId  String
+  productId    String
+  quantity     Decimal  @db.Decimal(10, 2)
+  unitPrice    Decimal  @db.Decimal(10, 2)
+  discount     Decimal  @db.Decimal(5, 2) @default(0) // Percentage
+  lineTotal    Decimal  @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  quotation Quotation @relation(fields: [quotationId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@map("quotation_lines")
+}
+
+model Proforma {
+  id          String        @id @default(cuid())
+  number      String        @unique
+  status      ProformaStatus @default(DRAFT)
+  subject     String
+  validUntil  DateTime?
+  notes       String?
+  subtotal    Decimal       @db.Decimal(10, 2) @default(0)
+  tax         Decimal       @db.Decimal(10, 2) @default(0)
+  total       Decimal       @db.Decimal(10, 2) @default(0)
+  quotationId String?
+  accountId   String
+  ownerId     String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  quotation Quotation?    @relation(fields: [quotationId], references: [id])
+  account   Account       @relation(fields: [accountId], references: [id])
+  owner     User          @relation(fields: [ownerId], references: [id])
+  lines     ProformaLine[]
+
+  @@map("proformas")
+}
+
+enum ProformaStatus {
+  DRAFT
+  SENT
+  PAID
+  CREDIT_APPROVED
+  CANCELLED
+}
+
+model ProformaLine {
+  id          String   @id @default(cuid())
+  proformaId  String
+  productId   String
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  discount    Decimal  @db.Decimal(5, 2) @default(0)
+  lineTotal   Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  proforma Proforma @relation(fields: [proformaId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@map("proforma_lines")
+}
+
+// Basic Inventory
+model StockItem {
+  id         String   @id @default(cuid())
+  productId  String   @unique
+  quantity   Decimal  @db.Decimal(10, 2) @default(0)
+  reserved   Decimal  @db.Decimal(10, 2) @default(0)
+  available  Decimal  @db.Decimal(10, 2) @default(0) // quantity - reserved
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("stock_items")
+}
+
+// Activity Logging
+model Activity {
+  id        String   @id @default(cuid())
+  entityType String  // "quotation", "proforma", etc.
+  entityId   String
+  action     String  // "created", "updated", "sent", etc.
+  details    Json?   // Additional details
+  userId     String?
+  createdAt  DateTime @default(now())
+
+  @@map("activities")
+}
