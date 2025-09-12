@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MainLayout } from "@/components/layout/main-layout";
+import { AddProductModal } from "@/components/modals/add-product-modal";
 import { 
   Plus, 
   Search, 
@@ -56,6 +57,7 @@ const mockProducts = [
 export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const filteredProducts = mockProducts.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -75,7 +77,10 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <p className="text-gray-600">Manage your product catalog and inventory</p>
         </div>
-        <Button className="bg-orange-600 hover:bg-orange-700">
+        <Button 
+          className="bg-orange-600 hover:bg-orange-700"
+          onClick={() => setIsAddModalOpen(true)}
+        >
           <Plus className="mr-2 h-4 w-4" />
           Add Product
         </Button>
@@ -280,6 +285,16 @@ export default function ProductsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Product Modal */}
+      <AddProductModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={() => {
+          // Refresh the products list or show success message
+          console.log('Product created successfully!');
+        }}
+      />
       </div>
     </MainLayout>
   );

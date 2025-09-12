@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MainLayout } from "@/components/layout/main-layout";
+import { AddPriceListModal } from "@/components/modals/add-price-list-modal";
 import { 
   Plus, 
   Search, 
@@ -71,6 +72,7 @@ const mockPriceLists = [
 export default function PriceListsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("all");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const filteredPriceLists = mockPriceLists.filter(priceList => {
     const matchesSearch = priceList.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -116,7 +118,10 @@ export default function PriceListsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Price Lists</h1>
           <p className="text-gray-600">Manage pricing for different channels and customer segments</p>
         </div>
-        <Button className="bg-orange-600 hover:bg-orange-700">
+        <Button 
+          className="bg-orange-600 hover:bg-orange-700"
+          onClick={() => setIsAddModalOpen(true)}
+        >
           <Plus className="mr-2 h-4 w-4" />
           Create Price List
         </Button>
@@ -312,6 +317,16 @@ export default function PriceListsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Price List Modal */}
+      <AddPriceListModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={() => {
+          // Refresh the price lists or show success message
+          console.log('Price list created successfully!');
+        }}
+      />
       </div>
     </MainLayout>
   );
