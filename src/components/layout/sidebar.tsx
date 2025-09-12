@@ -1,93 +1,328 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { useState } from "react";
 import {
   LayoutDashboard,
-  Package,
   Users,
-  FileText,
+  Handshake,
   ShoppingCart,
-  BarChart3,
-  Settings,
-  User,
-  Building2,
-  FileCheck,
-  Truck,
+  Package,
   CreditCard,
-} from "lucide-react"
+  MessageSquare,
+  UserCheck,
+  BarChart3,
+  Building2,
+  ChevronDown,
+  ChevronRight,
+  HelpCircle,
+  Settings,
+  FileText,
+} from "lucide-react";
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Products", href: "/products", icon: Package },
-  { name: "Customers", href: "/customers", icon: Users },
-  { name: "Leads", href: "/leads", icon: User },
-  { name: "Quotations", href: "/quotations", icon: FileText },
-  { name: "Proformas", href: "/proformas", icon: FileCheck },
-  { name: "Sales Orders", href: "/sales-orders", icon: ShoppingCart },
-  { name: "Inventory", href: "/inventory", icon: Truck },
-  { name: "Reports", href: "/reports", icon: BarChart3 },
-  { name: "Settings", href: "/settings", icon: Settings },
-]
+  { 
+    name: "Home", 
+    href: "/dashboard", 
+    icon: LayoutDashboard,
+    badge: null
+  },
+  { 
+    name: "CRM", 
+    href: "/crm", 
+    icon: Users,
+    badge: null,
+    children: [
+      { name: "Leads", href: "/leads", icon: UserCheck },
+      { name: "Opportunities", href: "/opportunities", icon: BarChart3 },
+      { name: "Quotations", href: "/quotations", icon: FileText },
+      { name: "Accounts", href: "/accounts", icon: Building2 },
+      { name: "Contacts", href: "/contacts", icon: Users },
+    ]
+  },
+  { 
+    name: "DRM", 
+    href: "/drm", 
+    icon: Handshake,
+    badge: null,
+    children: [
+      { name: "Distributors", href: "/distributors", icon: Building2 },
+      { name: "Agreements", href: "/agreements", icon: FileText },
+      { name: "Orders", href: "/drm-orders", icon: Package },
+    ]
+  },
+  { 
+    name: "Sales", 
+    href: "/sales", 
+    icon: ShoppingCart,
+    badge: null,
+    children: [
+      { name: "Orders", href: "/orders", icon: ShoppingCart },
+      { name: "Proformas", href: "/proformas", icon: FileText },
+      { name: "Invoices", href: "/invoices", icon: FileText },
+      { name: "Payments", href: "/payments", icon: CreditCard },
+      { name: "Returns", href: "/returns", icon: Package },
+    ]
+  },
+  { 
+    name: "Inventory", 
+    href: "/inventory", 
+    icon: Package,
+    badge: null,
+    children: [
+      { name: "Products", href: "/products", icon: Package },
+      { name: "Price Lists", href: "/price-lists", icon: FileText },
+      { name: "Warehouses", href: "/warehouses", icon: Building2 },
+      { name: "Stock", href: "/stock", icon: BarChart3 },
+      { name: "Backorders", href: "/backorders", icon: Package },
+    ]
+  },
+  { 
+    name: "POS", 
+    href: "/pos", 
+    icon: CreditCard,
+    badge: null,
+    children: [
+      { name: "Register", href: "/pos/register", icon: CreditCard },
+      { name: "End of Day", href: "/pos/end-of-day", icon: BarChart3 },
+    ]
+  },
+  { 
+    name: "Communication", 
+    href: "/communication", 
+    icon: MessageSquare,
+    badge: null,
+    children: [
+      { name: "Templates", href: "/templates", icon: FileText },
+      { name: "Logs", href: "/communication-logs", icon: BarChart3 },
+    ]
+  },
+  { 
+    name: "Agents", 
+    href: "/agents", 
+    icon: UserCheck,
+    badge: null,
+    children: [
+      { name: "Agents", href: "/agents", icon: Users },
+      { name: "Commissions", href: "/commissions", icon: CreditCard },
+    ]
+  },
+  { 
+    name: "Reports", 
+    href: "/reports", 
+    icon: BarChart3,
+    badge: null
+  },
+];
 
-export function Sidebar() {
-  const pathname = usePathname()
+const shortcuts = [
+  { name: "Approvals", href: "/approvals", icon: UserCheck, badge: "3", badgeColor: "bg-indigo-500" },
+  { name: "Overdue Invoices", href: "/overdue", icon: FileText, badge: "7", badgeColor: "bg-red-500" },
+  { name: "Low Stock", href: "/low-stock", icon: Package, badge: "12", badgeColor: "bg-amber-500" },
+];
+
+export default function Sidebar() {
+  const pathname = usePathname();
+  const [expandedSections, setExpandedSections] = useState<string[]>([]);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const toggleSection = (sectionName: string) => {
+    setExpandedSections(prev => 
+      prev.includes(sectionName) 
+        ? prev.filter(name => name !== sectionName)
+        : [...prev, sectionName]
+    );
+  };
+
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <div className="flex h-full w-64 flex-col bg-white border-r border-gray-200">
-      {/* Logo */}
-      <div className="flex h-16 items-center px-6 border-b border-gray-100">
-        <div className="flex items-center">
-          <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+    <div className={cn(
+      "flex h-full flex-col bg-white border-r border-gray-200 transition-all duration-200",
+      collapsed ? "w-16" : "w-64"
+    )}>
+      {/* Header */}
+      <div className="flex h-16 items-center justify-center border-b border-gray-200 px-4">
+        {!collapsed && (
+          <div className="flex items-center space-x-2">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+              <Building2 className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-lg font-semibold text-gray-900">AD Pools</span>
+          </div>
+        )}
+        {collapsed && (
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
             <Building2 className="h-5 w-5 text-white" />
           </div>
-          <div className="ml-3">
-            <span className="text-lg font-semibold text-gray-900">AD Pools</span>
-            <div className="text-xs text-gray-500 -mt-1">Sales Management</div>
-          </div>
+        )}
+      </div>
+
+      {/* Test Mode Pill */}
+      <div className="px-4 py-2">
+        <div className="flex items-center justify-center">
+          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+            Test Mode
+          </span>
         </div>
       </div>
-      
+
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-6 space-y-1">
+      <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
         {navigation.map((item) => {
-          const isActive = pathname === item.href
+          const hasChildren = item.children && item.children.length > 0;
+          const isExpanded = expandedSections.includes(item.name);
+          const isActiveItem = isActive(item.href);
+
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200",
-                isActive
-                  ? "bg-orange-50 text-orange-700 border border-orange-200 shadow-sm"
-                  : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+            <div key={item.name}>
+              {hasChildren ? (
+                <button
+                  onClick={() => toggleSection(item.name)}
+                  className={cn(
+                    "group flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActiveItem
+                      ? "bg-orange-50 text-orange-700 border-l-2 border-orange-500"
+                      : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                  )}
+                >
+                  <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                  {!collapsed && (
+                    <>
+                      {item.name}
+                      <span className="ml-auto text-gray-400">
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActiveItem
+                      ? "bg-orange-50 text-orange-700 border-l-2 border-orange-500"
+                      : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                  )}
+                >
+                  <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                  {!collapsed && item.name}
+                </Link>
               )}
-            >
-              <item.icon
-                className={cn(
-                  "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
-                  isActive 
-                    ? "text-orange-600" 
-                    : "text-gray-400 group-hover:text-gray-600"
-                )}
-              />
-              <span className="truncate">{item.name}</span>
-              {isActive && (
-                <div className="ml-auto w-2 h-2 bg-orange-500 rounded-full"></div>
+
+              {/* Children */}
+              {hasChildren && isExpanded && !collapsed && (
+                <div className="ml-6 mt-1 space-y-1">
+                  {item.children!.map((child) => (
+                    <Link
+                      key={child.name}
+                      href={child.href}
+                      className={cn(
+                        "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                        isActive(child.href)
+                          ? "bg-orange-50 text-orange-700"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
+                      {child.name}
+                    </Link>
+                  ))}
+                </div>
               )}
-            </Link>
-          )
+            </div>
+          );
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-gray-100">
-        <div className="text-xs text-gray-500 text-center">
-          <div className="font-medium text-gray-700">AD Pools SM</div>
-          <div>Version 1.0.0</div>
+      {/* Shortcuts */}
+      {!collapsed && (
+        <div className="px-4 py-2">
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+            Shortcuts
+          </div>
+          <div className="space-y-1">
+            {shortcuts.map((shortcut) => (
+              <Link
+                key={shortcut.name}
+                href={shortcut.href}
+                className="group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              >
+                <div className="flex items-center">
+                  <shortcut.icon className="mr-3 h-4 w-4 flex-shrink-0" />
+                  {shortcut.name}
+                </div>
+                <span className={cn(
+                  "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white",
+                  shortcut.badgeColor
+                )}>
+                  {shortcut.badge}
+                </span>
+              </Link>
+            ))}
+          </div>
         </div>
+      )}
+
+      {/* Footer */}
+      <div className="border-t border-gray-200 p-4">
+        {!collapsed ? (
+          <>
+            {/* Business Unit Switch */}
+            <div className="mb-4">
+              <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                <option>Retail</option>
+                <option>Projects</option>
+                <option>Wholesale</option>
+              </select>
+            </div>
+
+            {/* User Menu */}
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+                <span className="text-white text-sm font-medium">DU</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  Demo User
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  demo@adpools.com
+                </p>
+              </div>
+            </div>
+
+            {/* Help */}
+            <div className="flex items-center text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
+              <HelpCircle className="mr-2 h-4 w-4" />
+              Help & Keyboard shortcuts
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center space-y-2">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+              <span className="text-white text-sm font-medium">DU</span>
+            </div>
+            <button className="text-gray-500 hover:text-gray-700">
+              <HelpCircle className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Collapse Toggle */}
+      <div className="border-t border-gray-200 p-2">
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="w-full rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? "▶" : "◀"}
+        </button>
       </div>
     </div>
-  )
+  );
 }

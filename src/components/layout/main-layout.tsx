@@ -1,6 +1,6 @@
 "use client"
 
-import { Sidebar } from "./sidebar"
+import Sidebar from "./sidebar"
 import { Header } from "./header"
 
 interface MainLayoutProps {

@@ -69,9 +69,71 @@ Live Documents: left form, right preview tabs (PDF | Email | Public page), one c
 
 App shell: left sidebar (modules) + top bar (global search, test mode, notifications, help, user menu).
 
+Layout (top → bottom)
+
+Header
+
+Company logo + app name (click = Home).
+
+Tiny "Test mode" pill (mirrors the topbar toggle).
+
+Primary nav (modules)
+
+Home
+
+CRM ▾ (Leads, Opportunities, Quotations, Accounts, Contacts)
+
+DRM ▾ (Distributors, Agreements, Orders)
+
+Sales ▾ (Orders, Proformas, Invoices, Payments, Returns)
+
+Inventory ▾ (Products, Price lists, Warehouses, Stock, Backorders)
+
+POS (optional, feature-flag) ▾ (Register, End of day)
+
+Communication ▾ (Templates, Logs)
+
+Agents ▾ (Agents, Commissions)
+
+Reports
+
+Shortcuts (small, Stripe-style "Shortcuts" group)
+
+Approvals badge (e.g., "3")
+
+Overdue invoices red pill (e.g., "7")
+
+Low-stock amber pill (e.g., "12")
+
+Footer
+
+Business Unit switch (Retail / Projects / Wholesale)
+
+Org/account menu (avatar, company name)
+
+Help & Keyboard shortcuts ("?")
+
+Behaviors (Stripe-y)
+
+Collapse (⌘/Ctrl B): show icons only; tooltips appear on hover.
+
+Section memory: last expanded/collapsed state is remembered.
+
+Active item: rounded pill, left 2px accent bar, bold label.
+
+Counts/badges: small rounded pills; colors:
+
+Approvals (indigo), Overdue (red), Low stock (amber).
+
+RBAC/ABAC: items auto-hide when the role lacks access (e.g., Finance sees Sales/Invoices, not Comms/Templates).
+
+Keyboard nav: ↑/↓ to move, Enter to open; "g i" goes to Invoices, "g o" to Orders (Stripe-style "go to" combos).
+
+Example information architecture (labels & icons)
+
 List pages: dense, filter pills, zebra rows, status badges, bulk actions.
 
-Detail pages: header (title + human ID + status + actions), Recent activity timeline, line items, right “Details” column (ID, created, terms, customer, metadata).
+Detail pages: header (title + human ID + status + actions), Recent activity timeline, line items, right "Details" column (ID, created, terms, customer, metadata).
 
 Create/Edit: right drawer/sheet; never lose context.
 
@@ -472,3 +534,66 @@ Week 7-8: AI & Optimization
 - Performance optimization
 - Security hardening
 - Production deployment
+
+
+Layout (top → bottom)
+
+Header
+
+Company logo + app name (click = Home).
+
+Tiny “Test mode” pill (mirrors the topbar toggle).
+
+Primary nav (modules)
+
+Home
+
+CRM ▾ (Leads, Opportunities, Quotations, Accounts, Contacts)
+
+DRM ▾ (Distributors, Agreements, Orders)
+
+Sales ▾ (Orders, Proformas, Invoices, Payments, Returns)
+
+Inventory ▾ (Products, Price lists, Warehouses, Stock, Backorders)
+
+POS (optional, feature-flag) ▾ (Register, End of day)
+
+Communication ▾ (Templates, Logs)
+
+Agents ▾ (Agents, Commissions)
+
+Reports
+
+Shortcuts (small, Stripe-style “Shortcuts” group)
+
+Approvals badge (e.g., “3”)
+
+Overdue invoices red pill (e.g., “7”)
+
+Low-stock amber pill (e.g., “12”)
+
+Footer
+
+Business Unit switch (Retail / Projects / Wholesale)
+
+Org/account menu (avatar, company name)
+
+Help & Keyboard shortcuts (“?”)
+
+Behaviors (Stripe-y)
+
+Collapse (⌘/Ctrl B): show icons only; tooltips appear on hover.
+
+Section memory: last expanded/collapsed state is remembered.
+
+Active item: rounded pill, left 2px accent bar, bold label.
+
+Counts/badges: small rounded pills; colors:
+
+Approvals (indigo), Overdue (red), Low stock (amber).
+
+RBAC/ABAC: items auto-hide when the role lacks access (e.g., Finance sees Sales/Invoices, not Comms/Templates).
+
+Keyboard nav: ↑/↓ to move, Enter to open; “g i” goes to Invoices, “g o” to Orders (Stripe-style “go to” combos).
+
+Example information architecture (labels & icons)
