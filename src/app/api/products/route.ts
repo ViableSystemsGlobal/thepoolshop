@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       uomBase,
       uomSell,
       attributes,
+      images,
       active = true,
     } = body;
 
@@ -108,6 +109,7 @@ export async function POST(request: NextRequest) {
         uomBase,
         uomSell,
         attributes: attributes || {},
+        images: images || null,
         active,
       },
       include: {

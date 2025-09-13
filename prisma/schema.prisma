@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 // User Management
@@ -58,7 +58,7 @@ model ExchangeRate {
   id           String   @id @default(cuid())
   fromCurrency String
   toCurrency   String
-  rate         Decimal  @db.Decimal(10, 6) // High precision for exchange rates
+  rate         Float    // Exchange rate
   source       String   // "manual", "api", "bank"
   effectiveFrom DateTime @default(now())
   effectiveTo   DateTime?
@@ -95,12 +95,12 @@ model Product {
   sku         String   @unique
   name        String
   description String?
-  images      String[] // Array of image URLs
+  images      String?   // JSON string of image URLs
   attributes  Json?    // JSON for variant attributes
   uomBase     String   @default("pcs") // Unit of measure base
   uomSell     String   @default("pcs") // Unit of measure for selling
-  price       Decimal? @db.Decimal(10, 2) // Base price in import currency
-  cost        Decimal? @db.Decimal(10, 2) // Cost in import currency
+  price       Float?   // Base price in import currency
+  cost        Float?   // Cost in import currency
   importCurrency String @default("USD") // Currency used for imports
   active      Boolean  @default(true)
   categoryId  String
@@ -113,6 +113,7 @@ model Product {
   quotationLines QuotationLine[]
   proformaLines  ProformaLine[]
   stockItem     StockItem?
+  movements     StockMovement[]
 
   @@map("products")
 }
@@ -137,9 +138,9 @@ model PriceListItem {
   id          String   @id @default(cuid())
   productId   String
   priceListId String
-  unitPrice   Decimal  @db.Decimal(10, 2) // Price in price list currency
-  basePrice   Decimal? @db.Decimal(10, 2) // Original price in product's import currency
-  exchangeRate Decimal? @db.Decimal(10, 6) // Exchange rate used for conversion
+  unitPrice   Float    // Price in price list currency
+  basePrice   Float?   // Original price in product's import currency
+  exchangeRate Float?   // Exchange rate used for conversion
   overrides   Json?    // JSON for price overrides
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -235,7 +236,7 @@ model Opportunity {
   id          String           @id @default(cuid())
   name        String
   stage       OpportunityStage @default(NEW)
-  value       Decimal?         @db.Decimal(10, 2)
+  value       Float?
   probability Int              @default(0) // Percentage
   closeDate   DateTime?
   accountId   String
@@ -266,9 +267,9 @@ model Quotation {
   subject     String
   validUntil  DateTime?
   notes       String?
-  subtotal    Decimal        @db.Decimal(10, 2) @default(0)
-  tax         Decimal        @db.Decimal(10, 2) @default(0)
-  total       Decimal        @db.Decimal(10, 2) @default(0)
+  subtotal    Float         @default(0)
+  tax         Float         @default(0)
+  total       Float         @default(0)
   accountId   String
   ownerId     String
   createdAt   DateTime       @default(now())
@@ -295,10 +296,10 @@ model QuotationLine {
   id           String   @id @default(cuid())
   quotationId  String
   productId    String
-  quantity     Decimal  @db.Decimal(10, 2)
-  unitPrice    Decimal  @db.Decimal(10, 2)
-  discount     Decimal  @db.Decimal(5, 2) @default(0) // Percentage
-  lineTotal    Decimal  @db.Decimal(10, 2)
+  quantity     Float
+  unitPrice    Float
+  discount     Float   @default(0) // Percentage
+  lineTotal    Float
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -316,9 +317,9 @@ model Proforma {
   subject     String
   validUntil  DateTime?
   notes       String?
-  subtotal    Decimal       @db.Decimal(10, 2) @default(0)
-  tax         Decimal       @db.Decimal(10, 2) @default(0)
-  total       Decimal       @db.Decimal(10, 2) @default(0)
+  subtotal    Float         @default(0)
+  tax         Float         @default(0)
+  total       Float         @default(0)
   quotationId String?
   accountId   String
   ownerId     String
@@ -346,10 +347,10 @@ model ProformaLine {
   id          String   @id @default(cuid())
   proformaId  String
   productId   String
-  quantity    Decimal  @db.Decimal(10, 2)
-  unitPrice   Decimal  @db.Decimal(10, 2)
-  discount    Decimal  @db.Decimal(5, 2) @default(0)
-  lineTotal   Decimal  @db.Decimal(10, 2)
+  quantity    Float
+  unitPrice   Float
+  discount    Float   @default(0)
+  lineTotal   Float
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -364,16 +365,50 @@ model ProformaLine {
 model StockItem {
   id         String   @id @default(cuid())
   productId  String   @unique
-  quantity   Decimal  @db.Decimal(10, 2) @default(0)
-  reserved   Decimal  @db.Decimal(10, 2) @default(0)
-  available  Decimal  @db.Decimal(10, 2) @default(0) // quantity - reserved
+  quantity   Float   @default(0)
+  reserved   Float   @default(0)
+  available  Float   @default(0) // quantity - reserved
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   // Relations
   product Product @relation(fields: [productId], references: [id])
+  movements StockMovement[]
 
   @@map("stock_items")
+}
+
+// Stock Movement Tracking
+model StockMovement {
+  id          String   @id @default(cuid())
+  productId   String
+  stockItemId String
+  type        StockMovementType
+  quantity    Float    // Positive for IN, Negative for OUT
+  reference   String?  // Reference number (PO, SO, etc.)
+  reason      String?  // Reason for movement
+  notes       String?  // Additional notes
+  userId      String?  // User who made the movement
+  createdAt   DateTime @default(now())
+
+  // Relations
+  product   Product   @relation(fields: [productId], references: [id])
+  stockItem StockItem @relation(fields: [stockItemId], references: [id])
+
+  @@map("stock_movements")
+}
+
+enum StockMovementType {
+  RECEIPT        // Stock received from supplier
+  ADJUSTMENT     // Manual stock adjustment
+  TRANSFER_IN    // Stock transferred in from another location
+  TRANSFER_OUT   // Stock transferred out to another location
+  SALE           // Stock sold to customer
+  RETURN         // Stock returned from customer
+  DAMAGE         // Stock damaged/lost
+  THEFT          // Stock stolen
+  EXPIRY         // Stock expired
+  OTHER          // Other reasons
 }
 
 // Activity Logging

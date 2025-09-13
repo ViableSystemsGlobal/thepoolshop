@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       if (parentId === "null") {
         where.parentId = null;
       } else {
-        where.parentId = parseInt(parentId);
+        where.parentId = parentId;
       }
     }
 
@@ -30,15 +30,6 @@ export async function GET(request: NextRequest) {
       include: {
         parent: true,
         children: true,
-        products: {
-          select: { id: true },
-        },
-        _count: {
-          select: {
-            products: true,
-            children: true,
-          },
-        },
       },
       orderBy: [
         { parentId: "asc" },
@@ -60,7 +51,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, parentId, active = true } = body;
+    const { name, description, parentId } = body;
 
     // Validate required fields
     if (!name) {
@@ -104,17 +95,10 @@ export async function POST(request: NextRequest) {
         name,
         description,
         parentId: parentId || null,
-        active,
       },
       include: {
         parent: true,
         children: true,
-        _count: {
-          select: {
-            products: true,
-            children: true,
-          },
-        },
       },
     });
 

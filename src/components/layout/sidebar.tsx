@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useTheme } from "@/contexts/theme-context";
 import {
   LayoutDashboard,
   Users,
@@ -14,12 +15,14 @@ import {
   MessageSquare,
   UserCheck,
   BarChart3,
-  Building2,
+  Building,
+  Warehouse,
   ChevronDown,
   ChevronRight,
   HelpCircle,
   Settings,
   FileText,
+  Folder,
 } from "lucide-react";
 
 const navigation = [
@@ -38,7 +41,7 @@ const navigation = [
       { name: "Leads", href: "/leads", icon: UserCheck },
       { name: "Opportunities", href: "/opportunities", icon: BarChart3 },
       { name: "Quotations", href: "/quotations", icon: FileText },
-      { name: "Accounts", href: "/accounts", icon: Building2 },
+      { name: "Accounts", href: "/accounts", icon: Building },
       { name: "Contacts", href: "/contacts", icon: Users },
     ]
   },
@@ -48,7 +51,7 @@ const navigation = [
     icon: Handshake,
     badge: null,
     children: [
-      { name: "Distributors", href: "/distributors", icon: Building2 },
+      { name: "Distributors", href: "/distributors", icon: Building },
       { name: "Agreements", href: "/agreements", icon: FileText },
       { name: "Orders", href: "/drm-orders", icon: Package },
     ]
@@ -67,15 +70,25 @@ const navigation = [
     ]
   },
   { 
-    name: "Inventory", 
-    href: "/inventory", 
+    name: "Products", 
+    href: "/products", 
     icon: Package,
     badge: null,
     children: [
-      { name: "Products", href: "/products", icon: Package },
+      { name: "All Products", href: "/products", icon: Package },
       { name: "Price Lists", href: "/price-lists", icon: FileText },
-      { name: "Warehouses", href: "/warehouses", icon: Building2 },
-      { name: "Stock", href: "/stock", icon: BarChart3 },
+      { name: "Categories", href: "/settings/products/categories", icon: Folder },
+    ]
+  },
+  { 
+    name: "Inventory", 
+    href: "/inventory", 
+    icon: Warehouse,
+    badge: null,
+    children: [
+      { name: "Stock Overview", href: "/inventory/stock", icon: BarChart3 },
+      { name: "Stock Movements", href: "/inventory/stock-movements", icon: BarChart3 },
+      { name: "Warehouses", href: "/warehouses", icon: Building },
       { name: "Backorders", href: "/backorders", icon: Package },
     ]
   },
@@ -115,18 +128,31 @@ const navigation = [
     icon: BarChart3,
     badge: null
   },
+  { 
+    name: "Settings", 
+    href: "/settings", 
+    icon: Settings,
+    badge: null,
+    children: [
+      { name: "Product Settings", href: "/settings/products", icon: Package },
+      { name: "Business Settings", href: "/settings/business", icon: Building },
+      { name: "System Settings", href: "/settings/system", icon: Settings },
+    ]
+  },
 ];
 
 const shortcuts = [
-  { name: "Approvals", href: "/approvals", icon: UserCheck, badge: "3", badgeColor: "bg-indigo-500" },
-  { name: "Overdue Invoices", href: "/overdue", icon: FileText, badge: "7", badgeColor: "bg-red-500" },
-  { name: "Low Stock", href: "/low-stock", icon: Package, badge: "12", badgeColor: "bg-amber-500" },
+  { name: "Approvals", href: "/approvals", icon: UserCheck, badge: "3", badgeColor: "bg-purple-600" },
+  { name: "Overdue Invoices", href: "/overdue", icon: FileText, badge: "7", badgeColor: "bg-purple-600" },
+  { name: "Low Stock", href: "/low-stock", icon: Package, badge: "12", badgeColor: "bg-purple-600" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const [collapsed, setCollapsed] = useState(false);
+  const { getThemeClasses, customLogo } = useTheme();
+  const theme = getThemeClasses();
 
   const toggleSection = (sectionName: string) => {
     setExpandedSections(prev => 
@@ -138,6 +164,27 @@ export default function Sidebar() {
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
+  // Auto-expand sections when on child pages
+  useEffect(() => {
+    const shouldExpandSections: string[] = [];
+    
+    navigation.forEach(section => {
+      if (section.children) {
+        const hasActiveChild = section.children.some(child => isActive(child.href));
+        if (hasActiveChild) {
+          shouldExpandSections.push(section.name);
+        }
+      }
+    });
+    
+    if (shouldExpandSections.length > 0) {
+      setExpandedSections(prev => {
+        const newExpanded = [...new Set([...prev, ...shouldExpandSections])];
+        return newExpanded;
+      });
+    }
+  }, [pathname]);
+
   return (
     <div className={cn(
       "flex h-full flex-col bg-white border-r border-gray-200 transition-all duration-200",
@@ -147,23 +194,39 @@ export default function Sidebar() {
       <div className="flex h-16 items-center justify-center border-b border-gray-200 px-4">
         {!collapsed && (
           <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
-              <Building2 className="h-5 w-5 text-white" />
-            </div>
+            {customLogo ? (
+              <img 
+                src={customLogo} 
+                alt="Logo" 
+                className="h-8 w-8 rounded-lg object-cover"
+              />
+            ) : (
+              <div className={`h-8 w-8 rounded-lg bg-gradient-to-br from-${theme.primary} to-${theme.primaryDark} flex items-center justify-center`}>
+                <Building className="h-5 w-5 text-white" />
+              </div>
+            )}
             <span className="text-lg font-semibold text-gray-900">AD Pools</span>
           </div>
         )}
         {collapsed && (
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
-            <Building2 className="h-5 w-5 text-white" />
-          </div>
+          customLogo ? (
+            <img 
+              src={customLogo} 
+              alt="Logo" 
+              className="h-8 w-8 rounded-lg object-cover"
+            />
+          ) : (
+            <div className={`h-8 w-8 rounded-lg bg-gradient-to-br from-${theme.primary} to-${theme.primaryDark} flex items-center justify-center`}>
+              <Building className="h-5 w-5 text-white" />
+            </div>
+          )
         )}
       </div>
 
       {/* Test Mode Pill */}
       <div className="px-4 py-2">
         <div className="flex items-center justify-center">
-          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+          <span className={`inline-flex items-center rounded-full bg-${theme.primaryBg} px-2 py-1 text-xs font-medium text-${theme.primaryText}`}>
             Test Mode
           </span>
         </div>
@@ -174,7 +237,7 @@ export default function Sidebar() {
         {navigation.map((item) => {
           const hasChildren = item.children && item.children.length > 0;
           const isExpanded = expandedSections.includes(item.name);
-          const isActiveItem = isActive(item.href);
+          const isActiveItem = isActive(item.href) || (hasChildren && item.children!.some(child => isActive(child.href)));
 
           return (
             <div key={item.name}>
@@ -184,8 +247,8 @@ export default function Sidebar() {
                   className={cn(
                     "group flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActiveItem
-                      ? "bg-orange-50 text-orange-700 border-l-2 border-orange-500"
-                      : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      ? `bg-${theme.primaryBg} text-${theme.primaryText} border-l-2 border-${theme.primaryBorder}`
+                      : `text-gray-700 hover:bg-${theme.primaryBg} hover:text-${theme.primaryText}`
                   )}
                 >
                   <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
@@ -204,8 +267,8 @@ export default function Sidebar() {
                   className={cn(
                     "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActiveItem
-                      ? "bg-orange-50 text-orange-700 border-l-2 border-orange-500"
-                      : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      ? `bg-${theme.primaryBg} text-${theme.primaryText} border-l-2 border-${theme.primaryBorder}`
+                      : `text-gray-700 hover:bg-${theme.primaryBg} hover:text-${theme.primaryText}`
                   )}
                 >
                   <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
@@ -223,8 +286,8 @@ export default function Sidebar() {
                       className={cn(
                         "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                         isActive(child.href)
-                          ? "bg-orange-50 text-orange-700"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          ? `bg-${theme.primaryBg} text-${theme.primaryText}`
+                          : `text-gray-600 hover:bg-${theme.primaryBg} hover:text-${theme.primaryText}`
                       )}
                     >
                       <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
@@ -255,10 +318,7 @@ export default function Sidebar() {
                   <shortcut.icon className="mr-3 h-4 w-4 flex-shrink-0" />
                   {shortcut.name}
                 </div>
-                <span className={cn(
-                  "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white",
-                  shortcut.badgeColor
-                )}>
+                <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white bg-${theme.primary}`}>
                   {shortcut.badge}
                 </span>
               </Link>
@@ -273,7 +333,7 @@ export default function Sidebar() {
           <>
             {/* Business Unit Switch */}
             <div className="mb-4">
-              <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+              <select className={`w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}>
                 <option>Retail</option>
                 <option>Projects</option>
                 <option>Wholesale</option>
@@ -282,7 +342,7 @@ export default function Sidebar() {
 
             {/* User Menu */}
             <div className="flex items-center space-x-3 mb-3">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+              <div className={`h-8 w-8 rounded-full bg-gradient-to-br from-${theme.primaryLight} to-${theme.primary} flex items-center justify-center`}>
                 <span className="text-white text-sm font-medium">DU</span>
               </div>
               <div className="flex-1 min-w-0">

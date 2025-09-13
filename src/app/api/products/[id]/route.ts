@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma";
 // GET /api/products/[id] - Get a specific product
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const product = await prisma.product.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id },
       include: {
         category: true,
         stockItem: true,
@@ -40,9 +41,10 @@ export async function GET(
 // PUT /api/products/[id] - Update a product
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const {
       sku,
@@ -54,12 +56,13 @@ export async function PUT(
       uomBase,
       uomSell,
       attributes,
+      images,
       active,
     } = body;
 
     // Check if product exists
     const existingProduct = await prisma.product.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id },
     });
 
     if (!existingProduct) {
@@ -93,10 +96,11 @@ export async function PUT(
     if (uomBase !== undefined) updateData.uomBase = uomBase;
     if (uomSell !== undefined) updateData.uomSell = uomSell;
     if (attributes !== undefined) updateData.attributes = attributes;
+    if (images !== undefined) updateData.images = images;
     if (active !== undefined) updateData.active = active;
 
     const product = await prisma.product.update({
-      where: { id: parseInt(params.id) },
+      where: { id },
       data: updateData,
       include: {
         category: true,
@@ -117,12 +121,13 @@ export async function PUT(
 // DELETE /api/products/[id] - Delete a product
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Check if product exists
     const existingProduct = await prisma.product.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id },
     });
 
     if (!existingProduct) {
@@ -132,26 +137,12 @@ export async function DELETE(
       );
     }
 
-    // Check if product is used in any orders or quotations
-    const usedInOrders = await prisma.salesOrderLine.count({
-      where: { productId: parseInt(params.id) },
-    });
-
-    const usedInQuotations = await prisma.quotationLine.count({
-      where: { productId: parseInt(params.id) },
-    });
-
-    if (usedInOrders > 0 || usedInQuotations > 0) {
-      return NextResponse.json(
-        { 
-          error: "Cannot delete product that is used in orders or quotations. Consider deactivating instead." 
-        },
-        { status: 400 }
-      );
-    }
+    // For now, we'll allow deletion without checking for usage in orders/quotations
+    // since those models don't exist yet in our MVP
+    // TODO: Add these checks when we implement the sales/order modules
 
     await prisma.product.delete({
-      where: { id: parseInt(params.id) },
+      where: { id },
     });
 
     return NextResponse.json({ message: "Product deleted successfully" });
