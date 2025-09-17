@@ -1,0 +1,142 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type');
+    const search = searchParams.get('search');
+
+    const where: any = {
+      ownerId: userId,
+    };
+
+    if (type) {
+      where.type = type;
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const accounts = await prisma.account.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true },
+        },
+        contacts: {
+          select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+        },
+        opportunities: {
+          select: { id: true, name: true, stage: true, value: true, closeDate: true },
+        },
+        _count: {
+          select: { contacts: true, opportunities: true, quotations: true, proformas: true },
+        },
+      },
+    });
+
+    return NextResponse.json(accounts);
+  } catch (error) {
+    console.error('Error fetching accounts:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch accounts' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      name,
+      type = 'INDIVIDUAL',
+      email,
+      phone,
+      address,
+      city,
+      state,
+      country,
+      website,
+      notes,
+    } = body;
+
+    if (!name) {
+      return NextResponse.json(
+        { error: 'Account name is required' },
+        { status: 400 }
+      );
+    }
+
+    const account = await prisma.account.create({
+      data: {
+        name,
+        type,
+        email,
+        phone,
+        address,
+        city,
+        state,
+        country,
+        website,
+        notes,
+        ownerId: userId,
+      },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true },
+        },
+        contacts: true,
+        opportunities: true,
+      },
+    });
+
+    // Log activity
+    await prisma.activity.create({
+      data: {
+        entityType: 'Account',
+        entityId: account.id,
+        action: 'created',
+        details: { account: { name, type, email } },
+        userId: userId,
+      },
+    });
+
+    return NextResponse.json(account, { status: 201 });
+  } catch (error) {
+    console.error('Error creating account:', error);
+    return NextResponse.json(
+      { error: 'Failed to create account' },
+      { status: 500 }
+    );
+  }
+}

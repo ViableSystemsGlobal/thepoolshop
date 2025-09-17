@@ -12,7 +12,11 @@ export async function GET(
       where: { id },
       include: {
         category: true,
-        stockItem: true,
+        stockItem: {
+          include: {
+            warehouse: true
+          }
+        },
         priceListItems: {
           include: {
             priceList: true,
@@ -53,6 +57,16 @@ export async function PUT(
       categoryId,
       price,
       cost,
+      costCurrency,
+      sellingCurrency,
+      exchangeRateMode,
+      customExchangeRate,
+      originalPrice,
+      originalCost,
+      originalPriceCurrency,
+      originalCostCurrency,
+      exchangeRateAtImport,
+      baseCurrency,
       uomBase,
       uomSell,
       attributes,
@@ -93,6 +107,12 @@ export async function PUT(
     if (categoryId !== undefined) updateData.categoryId = categoryId;
     if (price !== undefined) updateData.price = parseFloat(price);
     if (cost !== undefined) updateData.cost = parseFloat(cost);
+    if (originalPrice !== undefined) updateData.originalPrice = parseFloat(originalPrice);
+    if (originalCost !== undefined) updateData.originalCost = parseFloat(originalCost);
+    if (originalPriceCurrency !== undefined) updateData.originalPriceCurrency = originalPriceCurrency;
+    if (originalCostCurrency !== undefined) updateData.originalCostCurrency = originalCostCurrency;
+    if (exchangeRateAtImport !== undefined) updateData.exchangeRateAtImport = parseFloat(exchangeRateAtImport);
+    if (baseCurrency !== undefined) updateData.baseCurrency = baseCurrency;
     if (uomBase !== undefined) updateData.uomBase = uomBase;
     if (uomSell !== undefined) updateData.uomSell = uomSell;
     if (attributes !== undefined) updateData.attributes = attributes;
@@ -104,7 +124,11 @@ export async function PUT(
       data: updateData,
       include: {
         category: true,
-        stockItem: true,
+        stockItem: {
+          include: {
+            warehouse: true
+          }
+        },
       },
     });
 
@@ -137,12 +161,37 @@ export async function DELETE(
       );
     }
 
-    // For now, we'll allow deletion without checking for usage in orders/quotations
-    // since those models don't exist yet in our MVP
-    // TODO: Add these checks when we implement the sales/order modules
+    // Delete related records first due to foreign key constraints
+    await prisma.$transaction(async (tx) => {
+      // Delete stock movements
+      await tx.stockMovement.deleteMany({
+        where: { productId: id },
+      });
 
-    await prisma.product.delete({
-      where: { id },
+      // Delete stock item
+      await tx.stockItem.deleteMany({
+        where: { productId: id },
+      });
+
+      // Delete price list items
+      await tx.priceListItem.deleteMany({
+        where: { productId: id },
+      });
+
+      // Delete quotation lines
+      await tx.quotationLine.deleteMany({
+        where: { productId: id },
+      });
+
+      // Delete proforma lines
+      await tx.proformaLine.deleteMany({
+        where: { productId: id },
+      });
+
+      // Finally delete the product
+      await tx.product.delete({
+        where: { id },
+      });
     });
 
     return NextResponse.json({ message: "Product deleted successfully" });

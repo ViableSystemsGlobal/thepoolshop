@@ -17,6 +17,7 @@ import {
   BarChart3,
   Building,
   Warehouse,
+  DollarSign,
   ChevronDown,
   ChevronRight,
   HelpCircle,
@@ -38,11 +39,11 @@ const navigation = [
     icon: Users,
     badge: null,
     children: [
-      { name: "Leads", href: "/leads", icon: UserCheck },
-      { name: "Opportunities", href: "/opportunities", icon: BarChart3 },
-      { name: "Quotations", href: "/quotations", icon: FileText },
-      { name: "Accounts", href: "/accounts", icon: Building },
-      { name: "Contacts", href: "/contacts", icon: Users },
+      { name: "Leads", href: "/crm/leads", icon: UserCheck },
+      { name: "Opportunities", href: "/crm/opportunities", icon: BarChart3 },
+      { name: "Quotations", href: "/crm/quotations", icon: FileText },
+      { name: "Accounts", href: "/crm/accounts", icon: Building },
+      { name: "Contacts", href: "/crm/contacts", icon: Users },
     ]
   },
   { 
@@ -135,6 +136,7 @@ const navigation = [
     badge: null,
     children: [
       { name: "Product Settings", href: "/settings/products", icon: Package },
+      { name: "Currency Settings", href: "/settings/currency", icon: DollarSign },
       { name: "Business Settings", href: "/settings/business", icon: Building },
       { name: "System Settings", href: "/settings/system", icon: Settings },
     ]
@@ -153,6 +155,38 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { getThemeClasses, customLogo } = useTheme();
   const theme = getThemeClasses();
+
+  // Helper function to get proper background classes
+  const getBackgroundClasses = (isActive: boolean, isHover: boolean = false) => {
+    const prefix = isHover ? 'hover:' : '';
+    const colorMap: { [key: string]: string } = {
+      'purple-600': `${prefix}bg-purple-600`,
+      'blue-600': `${prefix}bg-blue-600`,
+      'green-600': `${prefix}bg-green-600`,
+      'orange-600': `${prefix}bg-orange-600`,
+      'red-600': `${prefix}bg-red-600`,
+      'indigo-600': `${prefix}bg-indigo-600`,
+      'pink-600': `${prefix}bg-pink-600`,
+      'teal-600': `${prefix}bg-teal-600`,
+    };
+    return colorMap[theme.primary] || `${prefix}bg-blue-600`;
+  };
+
+  // Helper function to get proper text color classes
+  const getTextColorClasses = (isHover: boolean = false) => {
+    const prefix = isHover ? 'hover:' : '';
+    const colorMap: { [key: string]: string } = {
+      'purple-600': `${prefix}text-purple-600`,
+      'blue-600': `${prefix}text-blue-600`,
+      'green-600': `${prefix}text-green-600`,
+      'orange-600': `${prefix}text-orange-600`,
+      'red-600': `${prefix}text-red-600`,
+      'indigo-600': `${prefix}text-indigo-600`,
+      'pink-600': `${prefix}text-pink-600`,
+      'teal-600': `${prefix}text-teal-600`,
+    };
+    return colorMap[theme.primary] || `${prefix}text-blue-600`;
+  };
 
   const toggleSection = (sectionName: string) => {
     setExpandedSections(prev => 
@@ -247,15 +281,18 @@ export default function Sidebar() {
                   className={cn(
                     "group flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActiveItem
-                      ? `bg-${theme.primaryBg} text-${theme.primaryText} border-l-2 border-${theme.primaryBorder}`
-                      : `text-gray-700 hover:bg-${theme.primaryBg} hover:text-${theme.primaryText}`
+                      ? `${getBackgroundClasses(true)} text-white`
+                      : `text-gray-700 hover:bg-blue-600 hover:text-white`
                   )}
                 >
                   <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                   {!collapsed && (
                     <>
                       {item.name}
-                      <span className="ml-auto text-gray-400">
+                      <span className={cn(
+                        "ml-auto",
+                        isActiveItem ? "text-white" : "text-gray-400"
+                      )}>
                         {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </span>
                     </>
@@ -267,8 +304,8 @@ export default function Sidebar() {
                   className={cn(
                     "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActiveItem
-                      ? `bg-${theme.primaryBg} text-${theme.primaryText} border-l-2 border-${theme.primaryBorder}`
-                      : `text-gray-700 hover:bg-${theme.primaryBg} hover:text-${theme.primaryText}`
+                      ? `${getBackgroundClasses(true)} text-white`
+                      : `text-gray-700 ${getBackgroundClasses(true, true)} hover:text-white`
                   )}
                 >
                   <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
@@ -286,8 +323,8 @@ export default function Sidebar() {
                       className={cn(
                         "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                         isActive(child.href)
-                          ? `bg-${theme.primaryBg} text-${theme.primaryText}`
-                          : `text-gray-600 hover:bg-${theme.primaryBg} hover:text-${theme.primaryText}`
+                          ? "text-blue-600"
+                          : "text-gray-600 hover:text-blue-600"
                       )}
                     >
                       <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
@@ -312,7 +349,7 @@ export default function Sidebar() {
               <Link
                 key={shortcut.name}
                 href={shortcut.href}
-                className="group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                className={`group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-gray-700 ${getBackgroundClasses(true, true)} hover:text-white transition-colors`}
               >
                 <div className="flex items-center">
                   <shortcut.icon className="mr-3 h-4 w-4 flex-shrink-0" />

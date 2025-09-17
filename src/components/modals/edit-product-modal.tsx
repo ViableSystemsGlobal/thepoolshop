@@ -18,6 +18,12 @@ interface Product {
   uomSell: string;
   price?: number;
   cost?: number;
+  originalPrice?: number;
+  originalCost?: number;
+  originalPriceCurrency?: string;
+  originalCostCurrency?: string;
+  exchangeRateAtImport?: number;
+  baseCurrency?: string;
   importCurrency: string;
   active: boolean;
   categoryId: string;
@@ -61,7 +67,10 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
     categoryId: "",
     price: 0,
     cost: 0,
-    importCurrency: "USD",
+    costCurrency: "USD",
+    sellingCurrency: "USD",
+    exchangeRateMode: "automatic" as "automatic" | "manual" | "fixed",
+    customExchangeRate: 1,
     uomBase: "pcs",
     uomSell: "pcs",
     active: true,
@@ -72,6 +81,7 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [currentExchangeRate, setCurrentExchangeRate] = useState<number | null>(null);
 
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
@@ -87,7 +97,10 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
         categoryId: product.categoryId,
         price: product.price || 0,
         cost: product.cost || 0,
-        importCurrency: product.importCurrency,
+        costCurrency: product.originalCostCurrency || product.importCurrency || "USD",
+        sellingCurrency: product.originalPriceCurrency || product.baseCurrency || product.importCurrency || "USD",
+        exchangeRateMode: product.exchangeRateAtImport ? "manual" : "automatic",
+        customExchangeRate: product.exchangeRateAtImport || 1,
         uomBase: product.uomBase,
         uomSell: product.uomSell,
         active: product.active,
@@ -136,11 +149,61 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
     }
   };
 
+
     if (isOpen) {
       fetchCategories();
       fetchUnits();
     }
   }, [isOpen]);
+
+  // Fetch exchange rate when currencies change
+  useEffect(() => {
+    const fetchExchangeRate = async (fromCurrency: string, toCurrency: string) => {
+      if (fromCurrency === toCurrency) {
+        setCurrentExchangeRate(1);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/currency/convert', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fromCurrency,
+            toCurrency,
+            amount: 1
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentExchangeRate(data.exchangeRate);
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rate:', error);
+      }
+    };
+
+    if (formData.costCurrency && formData.sellingCurrency) {
+      fetchExchangeRate(formData.costCurrency, formData.sellingCurrency);
+    }
+  }, [formData.costCurrency, formData.sellingCurrency]);
+
+  // Auto-calculate selling price when in automatic mode
+  useEffect(() => {
+    if (formData.exchangeRateMode === "automatic" && 
+        formData.cost > 0 && 
+        currentExchangeRate && 
+        formData.costCurrency !== formData.sellingCurrency) {
+      const calculatedPrice = formData.cost * currentExchangeRate;
+      setFormData(prev => ({
+        ...prev,
+        price: Math.round(calculatedPrice * 100) / 100 // Round to 2 decimal places
+      }));
+    }
+  }, [formData.cost, currentExchangeRate, formData.exchangeRateMode, formData.costCurrency, formData.sellingCurrency]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -199,7 +262,14 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
       // Convert images array to JSON string for database storage
       const dataToSend = {
         ...formData,
-        images: JSON.stringify(images)
+        images: JSON.stringify(images),
+        // Map new fields to database schema
+        originalPrice: formData.price,
+        originalCost: formData.cost,
+        originalPriceCurrency: formData.sellingCurrency,
+        originalCostCurrency: formData.costCurrency,
+        exchangeRateAtImport: formData.exchangeRateMode === "manual" ? formData.customExchangeRate : currentExchangeRate,
+        baseCurrency: formData.sellingCurrency
       };
 
       const response = await fetch(`/api/products/${product.id}`, {
@@ -322,59 +392,182 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
             </div>
           </div>
 
-          {/* Pricing */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">Pricing</h3>
+          {/* Pricing Information */}
+          <div className="space-y-6">
+            <h3 className="text-lg font-medium text-gray-900">Pricing & Currency</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Import Price
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
-                  placeholder="0.00"
-                  className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
-                />
-              </div>
+            {/* Cost Price Section */}
+            <div className="space-y-4">
+              <h4 className="text-md font-medium text-gray-800">Cost Price (What you paid)</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cost Amount
+                  </label>
+                  <Input
+                    type="number"
+                    value={formData.cost}
+                    onChange={(e) => handleInputChange('cost', parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                    className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cost Price
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.cost}
-                  onChange={(e) => handleInputChange('cost', parseFloat(e.target.value) || 0)}
-                  placeholder="0.00"
-                  className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Currency
-                </label>
-                <select
-                  value={formData.importCurrency}
-                  onChange={(e) => handleInputChange('importCurrency', e.target.value)}
-                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}
-                >
-                  <option value="USD">USD - US Dollar</option>
-                  <option value="GHS">GHS - Ghana Cedi</option>
-                  <option value="EUR">EUR - Euro</option>
-                  <option value="GBP">GBP - British Pound</option>
-                  <option value="NGN">NGN - Nigerian Naira</option>
-                  <option value="KES">KES - Kenyan Shilling</option>
-                  <option value="ZAR">ZAR - South African Rand</option>
-                  <option value="EGP">EGP - Egyptian Pound</option>
-                </select>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cost Currency
+                  </label>
+                  <select
+                    value={formData.costCurrency}
+                    onChange={(e) => handleInputChange('costCurrency', e.target.value)}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}
+                  >
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="GHS">GHS - Ghana Cedi</option>
+                    <option value="EUR">EUR - Euro</option>
+                    <option value="GBP">GBP - British Pound</option>
+                    <option value="NGN">NGN - Nigerian Naira</option>
+                    <option value="KES">KES - Kenyan Shilling</option>
+                    <option value="ZAR">ZAR - South African Rand</option>
+                    <option value="EGP">EGP - Egyptian Pound</option>
+                  </select>
+                </div>
               </div>
             </div>
+
+            {/* Selling Price Section */}
+            <div className="space-y-4">
+              <h4 className="text-md font-medium text-gray-800">Selling Price (What you sell for)</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Selling Amount
+                      {formData.exchangeRateMode === "automatic" && 
+                       formData.costCurrency !== formData.sellingCurrency && 
+                       formData.cost > 0 && (
+                        <span className="text-xs text-blue-600 ml-2">(Auto-calculated)</span>
+                      )}
+                    </label>
+                    <Input
+                      type="number"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={formData.exchangeRateMode === "automatic" && 
+                               formData.costCurrency !== formData.sellingCurrency && 
+                               formData.cost > 0}
+                      className={`focus:ring-${theme.primary} focus:border-${theme.primary} ${
+                        formData.exchangeRateMode === "automatic" && 
+                        formData.costCurrency !== formData.sellingCurrency && 
+                        formData.cost > 0 ? 'bg-gray-50' : ''
+                      }`}
+                    />
+                    {formData.exchangeRateMode === "automatic" && 
+                     formData.costCurrency !== formData.sellingCurrency && 
+                     formData.cost > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Calculated from cost price using current exchange rate
+                      </p>
+                    )}
+                  </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Selling Currency
+                  </label>
+                  <select
+                    value={formData.sellingCurrency}
+                    onChange={(e) => handleInputChange('sellingCurrency', e.target.value)}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}
+                  >
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="GHS">GHS - Ghana Cedi</option>
+                    <option value="EUR">EUR - Euro</option>
+                    <option value="GBP">GBP - British Pound</option>
+                    <option value="NGN">NGN - Nigerian Naira</option>
+                    <option value="KES">KES - Kenyan Shilling</option>
+                    <option value="ZAR">ZAR - South African Rand</option>
+                    <option value="EGP">EGP - Egyptian Pound</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Exchange Rate Section */}
+            {formData.costCurrency !== formData.sellingCurrency && (
+              <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="text-md font-medium text-blue-800">Exchange Rate Settings</h4>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Exchange Rate Mode
+                    </label>
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          value="automatic"
+                          checked={formData.exchangeRateMode === "automatic"}
+                          onChange={(e) => handleInputChange('exchangeRateMode', e.target.value)}
+                          className={`text-${theme.primary} focus:ring-${theme.primary}`}
+                        />
+                        <span className="text-sm">Automatic (Use current market rates)</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          value="manual"
+                          checked={formData.exchangeRateMode === "manual"}
+                          onChange={(e) => handleInputChange('exchangeRateMode', e.target.value)}
+                          className={`text-${theme.primary} focus:ring-${theme.primary}`}
+                        />
+                        <span className="text-sm">Manual (Set custom rate)</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          value="fixed"
+                          checked={formData.exchangeRateMode === "fixed"}
+                          onChange={(e) => handleInputChange('exchangeRateMode', e.target.value)}
+                          className={`text-${theme.primary} focus:ring-${theme.primary}`}
+                        />
+                        <span className="text-sm">Fixed (Keep same price regardless of currency)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {formData.exchangeRateMode === "manual" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Custom Exchange Rate (1 {formData.costCurrency} = ? {formData.sellingCurrency})
+                      </label>
+                      <Input
+                        type="number"
+                        value={formData.customExchangeRate}
+                        onChange={(e) => handleInputChange('customExchangeRate', parseFloat(e.target.value) || 1)}
+                        placeholder="1.00"
+                        step="0.0001"
+                        min="0"
+                        className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
+                      />
+                    </div>
+                  )}
+
+                  {formData.exchangeRateMode === "automatic" && currentExchangeRate && (
+                    <div className="text-sm text-blue-700 bg-blue-100 p-2 rounded">
+                      <strong>Current Rate:</strong> 1 {formData.costCurrency} = {currentExchangeRate.toFixed(4)} {formData.sellingCurrency}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Units */}

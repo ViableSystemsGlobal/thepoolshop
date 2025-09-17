@@ -1,6 +1,7 @@
 "use client"
 
 import { useSession, signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useTheme } from "@/contexts/theme-context"
@@ -8,8 +9,16 @@ import { Search, Bell, HelpCircle, User, LogOut, ChevronDown } from "lucide-reac
 
 export function Header() {
   const { data: session } = useSession()
+  const router = useRouter()
   const { getThemeClasses } = useTheme()
   const theme = getThemeClasses()
+
+  const handleSignOut = async () => {
+    await signOut({ 
+      callbackUrl: '/auth/signin',
+      redirect: true 
+    })
+  }
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
@@ -50,7 +59,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => signOut()}
+            onClick={handleSignOut}
             className={`h-8 w-8 text-gray-500 hover:text-${theme.primary} hover:bg-${theme.primaryBg}`}
           >
             <LogOut className="h-4 w-4" />

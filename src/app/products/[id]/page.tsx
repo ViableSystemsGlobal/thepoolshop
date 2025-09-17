@@ -5,7 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MainLayout } from "@/components/layout/main-layout";
+import { formatCurrency } from "@/lib/utils";
+import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol } from "@/components/ui/currency-toggle";
+import { EditProductModal } from "@/components/modals/edit-product-modal";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/contexts/theme-context";
+import { useToast } from "@/contexts/toast-context";
 import { 
   ArrowLeft, 
   ArrowRight,
@@ -21,7 +26,15 @@ import {
   Eye,
   TrendingUp,
   TrendingDown,
-  AlertTriangle
+  AlertTriangle,
+  Copy,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  Archive,
+  Upload,
+  X
 } from "lucide-react";
 
 interface Category {
@@ -54,6 +67,11 @@ interface Product {
   uomSell: string;
   price?: number;
   cost?: number;
+  originalPrice?: number;
+  originalCost?: number;
+  originalPriceCurrency?: string;
+  originalCostCurrency?: string;
+  baseCurrency?: string;
   importCurrency: string;
   active: boolean;
   categoryId: string;
@@ -66,11 +84,142 @@ interface Product {
 export default function ProductDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const { getThemeClasses } = useTheme();
+  const { success, error: showError } = useToast();
+  const theme = getThemeClasses();
+  const { currency, changeCurrency } = useCurrency();
+  
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { getThemeClasses } = useTheme();
-  const theme = getThemeClasses();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState<'overview' | 'documents'>('overview');
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Reset image index when product changes
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [product]);
+
+  const nextImage = () => {
+    if (product && product.images) {
+      let images: string[] = [];
+      if (typeof product.images === 'string') {
+        try {
+          images = JSON.parse(product.images);
+        } catch (e) {
+          images = [];
+        }
+      } else if (Array.isArray(product.images)) {
+        images = product.images;
+      }
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    }
+  };
+
+  const prevImage = () => {
+    if (product && product.images) {
+      let images: string[] = [];
+      if (typeof product.images === 'string') {
+        try {
+          images = JSON.parse(product.images);
+        } catch (e) {
+          images = [];
+        }
+      } else if (Array.isArray(product.images)) {
+        images = product.images;
+      }
+      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    }
+  };
+
+  const fetchDocuments = async () => {
+    if (!product) return;
+    try {
+      const response = await fetch(`/api/products/${product.id}/documents`);
+      if (response.ok) {
+        const data = await response.json();
+        setDocuments(data.documents || []);
+      }
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !product) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('productId', product.id);
+
+    try {
+      const response = await fetch('/api/products/documents', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        success('Document uploaded successfully');
+        fetchDocuments(); // Refresh documents list
+      } else {
+        showError('Failed to upload document');
+      }
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      showError('Error uploading document');
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
+  const handleDownloadDocument = async (documentId: string, filename: string) => {
+    try {
+      const response = await fetch(`/api/products/documents/${documentId}/download`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        showError('Failed to download document');
+      }
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      showError('Error downloading document');
+    }
+  };
+
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!confirm('Are you sure you want to delete this document?')) return;
+
+    try {
+      const response = await fetch(`/api/products/documents/${documentId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        success('Document deleted successfully');
+        fetchDocuments(); // Refresh documents list
+      } else {
+        showError('Failed to delete document');
+      }
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      showError('Error deleting document');
+    }
+  };
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -99,8 +248,47 @@ export default function ProductDetailsPage() {
     }
   }, [params.id]);
 
+  // Fetch documents when documents tab is active
+  useEffect(() => {
+    if (activeTab === 'documents' && product) {
+      fetchDocuments();
+    }
+  }, [activeTab, product]);
+
   const handleEdit = () => {
-    router.push(`/products/${params.id}/edit`);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSuccess = () => {
+    // Refresh product data
+    const fetchProduct = async () => {
+      try {
+        setIsLoading(true);
+        console.log('Refreshing product with ID:', params.id); // Debug log
+        const response = await fetch(`/api/products/${params.id}`);
+        console.log('Response status:', response.status); // Debug log
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Updated product data:', data); // Debug log
+          setProduct(data); // API returns product directly, not wrapped in data.product
+          setError(null); // Clear any previous errors
+        } else if (response.status === 404) {
+          console.error('Product not found after edit, ID:', params.id);
+          setError("Product not found");
+        } else {
+          console.error('Failed to load product, status:', response.status);
+          setError("Failed to load product");
+        }
+      } catch (error) {
+        console.error('Error fetching product:', error);
+        setError("Failed to load product");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProduct();
+    setIsEditModalOpen(false);
   };
 
   const handleDelete = async () => {
@@ -111,35 +299,34 @@ export default function ProductDetailsPage() {
         });
 
         if (response.ok) {
+          success('Product deleted successfully');
           router.push('/products');
         } else {
           const errorData = await response.json();
-          alert(errorData.error || 'Failed to delete product');
+          showError(errorData.error || 'Failed to delete product');
         }
       } catch (error) {
         console.error('Error deleting product:', error);
-        alert('Network error. Please try again.');
+        showError('Network error. Please try again.');
       }
     }
   };
 
-  const handleMoreActions = () => {
-    const actions = [
-      'Duplicate Product',
-      'Export Product',
-      'View History',
-      'Archive Product'
-    ];
-    
-    const action = window.prompt(`More actions for "${product?.name}":\n\n${actions.map((a, i) => `${i + 1}. ${a}`).join('\n')}\n\nEnter number (1-4):`);
-    
-    if (action) {
-      const actionIndex = parseInt(action) - 1;
-      if (actionIndex >= 0 && actionIndex < actions.length) {
-        console.log(`Selected action: ${actions[actionIndex]} for product: ${product?.name}`);
-        // Here you would implement the specific action
-      }
-    }
+  const handleDuplicateProduct = () => {
+    success('Duplicate product functionality coming soon!');
+  };
+
+  const handleExportProduct = () => {
+    success('Export product functionality coming soon!');
+  };
+
+  const handleViewHistory = () => {
+    // Navigate to product-specific stock movements page
+    router.push(`/products/${product?.id}/stock-movements`);
+  };
+
+  const handleArchiveProduct = () => {
+    success('Archive product functionality coming soon!');
   };
 
   if (isLoading) {
@@ -187,10 +374,43 @@ export default function ProductDetailsPage() {
     }
   }
 
-  // Calculate profit margin
-  const profitMargin = product.price && product.cost 
-    ? ((product.price - product.cost) / product.price) * 100 
-    : 0;
+  // Calculate profit margin using converted prices in the same currency
+  const calculateProfitMargin = () => {
+    if (!product.price || !product.cost) return 0;
+    
+    // Simple conversion rates - same as in currency-toggle.tsx
+    const conversionRates: { [key: string]: { [key: string]: number } } = {
+      'USD': { 'GHS': 12.5, 'EUR': 0.85 },
+      'GHS': { 'USD': 0.08, 'EUR': 0.068 },
+      'EUR': { 'USD': 1.18, 'GHS': 14.7 }
+    };
+    
+    // Convert selling price to selected currency
+    const sellingCurrency = product.originalPriceCurrency || product.baseCurrency || 'GHS';
+    let sellingPriceInSelectedCurrency = product.price;
+    if (sellingCurrency !== currency) {
+      const rate = conversionRates[sellingCurrency]?.[currency];
+      if (rate) {
+        sellingPriceInSelectedCurrency = product.price * rate;
+      }
+    }
+    
+    // Convert cost price to selected currency
+    const costCurrency = product.originalCostCurrency || product.importCurrency || 'USD';
+    let costPriceInSelectedCurrency = product.cost;
+    if (costCurrency !== currency) {
+      const rate = conversionRates[costCurrency]?.[currency];
+      if (rate) {
+        costPriceInSelectedCurrency = product.cost * rate;
+      }
+    }
+    
+    if (sellingPriceInSelectedCurrency <= 0) return 0;
+    
+    return ((sellingPriceInSelectedCurrency - costPriceInSelectedCurrency) / sellingPriceInSelectedCurrency) * 100;
+  };
+  
+  const profitMargin = calculateProfitMargin();
 
   // Stock status
   const stockStatus = (product.stockItem?.available || 0) === 0 
@@ -221,6 +441,7 @@ export default function ProductDetailsPage() {
           </div>
           
           <div className="flex items-center space-x-3">
+            <CurrencyToggle value={currency} onChange={changeCurrency} />
             <Button 
               variant="outline" 
               onClick={handleEdit}
@@ -229,27 +450,82 @@ export default function ProductDetailsPage() {
               <Edit className="h-4 w-4 mr-2" />
               Edit Product
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={handleMoreActions}
-              className="flex items-center"
-            >
-              <MoreHorizontal className="h-4 w-4 mr-2" />
-              More Actions
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={handleDelete}
-              className="flex items-center text-red-600 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </Button>
+            <div className="relative">
+              <DropdownMenu
+                trigger={
+                  <Button 
+                    variant="outline" 
+                    className="flex items-center"
+                  >
+                    <MoreHorizontal className="h-4 w-4 mr-2" />
+                    More Actions
+                  </Button>
+                }
+                items={[
+                  {
+                    label: "Duplicate Product",
+                    icon: <Copy className="h-4 w-4" />,
+                    onClick: handleDuplicateProduct
+                  },
+                  {
+                    label: "Export Product",
+                    icon: <Download className="h-4 w-4" />,
+                    onClick: handleExportProduct
+                  },
+                  {
+                    label: "View Stock History",
+                    icon: <History className="h-4 w-4" />,
+                    onClick: handleViewHistory
+                  },
+                  {
+                    label: "Archive Product",
+                    icon: <Archive className="h-4 w-4" />,
+                    onClick: handleArchiveProduct,
+                    className: "text-amber-600 hover:text-amber-700"
+                  },
+                  {
+                    label: "Delete Product",
+                    icon: <Trash2 className="h-4 w-4" />,
+                    onClick: handleDelete,
+                    className: "text-red-600 hover:text-red-700"
+                  }
+                ]}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Product Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Tabbed Interface */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'overview'
+                  ? `border-${theme.primary} text-${theme.primaryText}`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Package className="h-4 w-4 inline mr-2" />
+              Overview
+            </button>
+            <button
+              onClick={() => setActiveTab('documents')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'documents'
+                  ? `border-${theme.primary} text-${theme.primaryText}`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <FileText className="h-4 w-4 inline mr-2" />
+              Documents
+            </button>
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Product Image and Basic Info */}
           <div className="lg:col-span-1">
             <Card>
@@ -261,20 +537,43 @@ export default function ProductDetailsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Product Image */}
-                <div className="aspect-square rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden">
+                <div className="aspect-square rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden relative group">
                   {images.length > 0 ? (
-                    <img
-                      src={images[0]}
-                      alt={product.name}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                        const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                        if (nextElement) {
-                          nextElement.style.display = 'flex';
-                        }
-                      }}
-                    />
+                    <>
+                      <img
+                        src={images[currentImageIndex]}
+                        alt={product.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (nextElement) {
+                            nextElement.style.display = 'flex';
+                          }
+                        }}
+                      />
+                      {/* Navigation Arrows - Only show if multiple images */}
+                      {images.length > 1 && (
+                        <>
+                          <button
+                            onClick={prevImage}
+                            className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={nextImage}
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                          {/* Image Counter */}
+                          <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                            {currentImageIndex + 1} / {images.length}
+                          </div>
+                        </>
+                      )}
+                    </>
                   ) : null}
                   <div className={`h-full w-full flex items-center justify-center ${images.length > 0 ? 'hidden' : 'flex'}`}>
                     <Package className="h-16 w-16 text-gray-400" />
@@ -328,16 +627,30 @@ export default function ProductDetailsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900">
-                      ${product.price ? product.price.toFixed(2) : '0.00'}
+                      {formatCurrencyWithSymbol(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
                     </div>
-                    <div className="text-sm text-gray-600">Selling Price</div>
+                    <div className="text-sm text-gray-600">
+                      Selling Price
+                      {product.originalPriceCurrency && product.originalPriceCurrency !== currency && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Original: {formatCurrencyWithSymbol(product.price || 0, product.originalPriceCurrency || 'GHS', product.originalPriceCurrency || 'GHS')}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900">
-                      ${product.cost ? product.cost.toFixed(2) : '0.00'}
+                      {formatCurrencyWithSymbol(product.cost || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
                     </div>
-                    <div className="text-sm text-gray-600">Cost Price</div>
+                    <div className="text-sm text-gray-600">
+                      Cost Price
+                      {product.originalCostCurrency && product.originalCostCurrency !== currency && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Original: {formatCurrencyWithSymbol(product.cost || 0, product.originalCostCurrency || 'USD', product.originalCostCurrency || 'USD')}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
@@ -417,8 +730,12 @@ export default function ProductDetailsPage() {
                     <span className="text-sm text-gray-900">{product.uomSell}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">Import Currency</span>
-                    <span className="text-sm text-gray-900">{product.importCurrency}</span>
+                    <span className="text-sm font-medium text-gray-500">Selling Currency</span>
+                    <span className="text-sm text-gray-900">{product.originalPriceCurrency || product.baseCurrency || 'GHS'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-500">Cost Currency</span>
+                    <span className="text-sm text-gray-900">{product.originalCostCurrency || product.importCurrency || 'USD'}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -469,7 +786,7 @@ export default function ProductDetailsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => router.push(`/inventory/stock-movements?product=${product.id}`)}
+                  onClick={() => router.push(`/products/${product.id}/stock-movements`)}
                   className="flex items-center"
                 >
                   View All Movements
@@ -482,7 +799,117 @@ export default function ProductDetailsPage() {
             </CardContent>
           </Card>
         </div>
+        )}
+
+        {activeTab === 'documents' && (
+          <div className="space-y-6">
+            {/* Upload Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Upload className="h-5 w-5 mr-2" />
+                  Upload Documents
+                </CardTitle>
+                <CardDescription>
+                  Upload product-related documents such as manuals, certificates, or specifications.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <input
+                    type="file"
+                    id="document-upload"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                    onChange={handleFileUpload}
+                    disabled={isUploading}
+                  />
+                  <label
+                    htmlFor="document-upload"
+                    className={`cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-lg font-medium text-gray-900 mb-2">
+                      {isUploading ? 'Uploading...' : 'Click to upload documents'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      PDF, DOC, DOCX, TXT, JPG, PNG files up to 10MB
+                    </p>
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Documents List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <FileText className="h-5 w-5 mr-2" />
+                  Product Documents
+                </CardTitle>
+                <CardDescription>
+                  Manage and download product documents.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {documents.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No documents uploaded</h3>
+                    <p className="text-gray-600">
+                      Upload documents to get started.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {documents.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <FileText className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">{doc.filename}</div>
+                            <div className="text-sm text-gray-500">
+                              {new Date(doc.createdAt).toLocaleDateString()} • {(doc.size / 1024).toFixed(1)} KB
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadDocument(doc.id, doc.filename)}
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteDocument(doc.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
+
+      {/* Edit Product Modal */}
+      <EditProductModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSuccess={handleEditSuccess}
+        product={product}
+      />
     </MainLayout>
   );
 }
@@ -559,6 +986,11 @@ function StockMovementsSummary({ productId }: { productId: string }) {
               <div className={`font-medium ${getQuantityColor(movement.quantity)}`}>
                 {movement.quantity > 0 ? '+' : ''}{movement.quantity} {movement.product.uomBase}
               </div>
+              {movement.unitCost && movement.unitCost > 0 && (
+                <div className="text-xs text-gray-600">
+                  ${movement.unitCost.toFixed(2)}/unit
+                </div>
+              )}
               {movement.reference && (
                 <div className="text-xs text-gray-500">{movement.reference}</div>
               )}

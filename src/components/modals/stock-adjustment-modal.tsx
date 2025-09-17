@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/contexts/theme-context";
@@ -50,14 +50,40 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
   const [formData, setFormData] = useState({
     type: "RECEIPT",
     quantity: 0,
+    unitCost: 0,
     reference: "",
     reason: "",
     notes: "",
+    warehouseId: "",
   });
+  const [warehouses, setWarehouses] = useState<Array<{id: string, name: string, code: string}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const { success, error: showError } = useToast();
+
+  // Fetch warehouses when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchWarehouses();
+    }
+  }, [isOpen]);
+
+  const fetchWarehouses = async () => {
+    try {
+      const response = await fetch('/api/warehouses');
+      if (response.ok) {
+        const data = await response.json();
+        setWarehouses(data.warehouses || []);
+        // Set default warehouse if available
+        if (data.warehouses && data.warehouses.length > 0 && !formData.warehouseId) {
+          setFormData(prev => ({ ...prev, warehouseId: data.warehouses[0].id }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching warehouses:', error);
+    }
+  };
 
   const movementTypes: MovementType[] = [
     {
@@ -87,6 +113,13 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
       icon: <ArrowRightLeft className="h-4 w-4" />,
       color: "text-orange-600",
       description: "Stock transferred out"
+    },
+    {
+      value: "SALE",
+      label: "Sale",
+      icon: <TrendingUp className="h-4 w-4" />,
+      color: "text-emerald-600",
+      description: "Stock sold to customer"
     },
     {
       value: "RETURN",
@@ -133,6 +166,20 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
       return;
     }
 
+    if (!formData.warehouseId) {
+      showError("Validation Error", "Please select a warehouse");
+      return;
+    }
+
+    // Check if trying to remove more stock than available
+    const isStockOutMovement = ["SALE", "DAMAGE", "THEFT", "TRANSFER_OUT", "EXPIRY"].includes(formData.type);
+    const isAdjustmentOut = formData.type === "ADJUSTMENT" && formData.quantity < 0;
+    
+    if ((isStockOutMovement || isAdjustmentOut) && Math.abs(formData.quantity) > (product.stockItem?.quantity || 0)) {
+      showError("Insufficient Stock", `Cannot remove ${Math.abs(formData.quantity)} units. Only ${product.stockItem?.quantity || 0} units available.`);
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -144,10 +191,14 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
         body: JSON.stringify({
           productId: product.id,
           type: formData.type,
-          quantity: formData.quantity,
+          quantity: ["SALE", "DAMAGE", "THEFT", "TRANSFER_OUT", "EXPIRY"].includes(formData.type) 
+            ? -Math.abs(formData.quantity) 
+            : formData.quantity,
+          unitCost: formData.unitCost > 0 ? formData.unitCost : null,
           reference: formData.reference,
           reason: formData.reason,
           notes: formData.notes,
+          warehouseId: formData.warehouseId,
         }),
       });
 
@@ -159,9 +210,11 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
         setFormData({
           type: "RECEIPT",
           quantity: 0,
+          unitCost: 0,
           reference: "",
           reason: "",
           notes: "",
+          warehouseId: warehouses.length > 0 ? warehouses[0].id : "",
         });
       } else {
         const errorData = await response.json();
@@ -243,6 +296,25 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              Warehouse *
+            </label>
+            <select
+              value={formData.warehouseId}
+              onChange={(e) => setFormData({ ...formData, warehouseId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select a warehouse</option>
+              {warehouses.map((warehouse) => (
+                <option key={warehouse.id} value={warehouse.id}>
+                  {warehouse.name} ({warehouse.code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               {getQuantityLabel()} *
             </label>
             <div className="flex items-center space-x-2">
@@ -253,6 +325,8 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
                 placeholder="Enter quantity"
                 required
                 className="flex-1"
+                min={["SALE", "DAMAGE", "THEFT", "TRANSFER_OUT", "EXPIRY"].includes(formData.type) ? 1 : (formData.type === "ADJUSTMENT" ? undefined : 1)}
+                max={["SALE", "DAMAGE", "THEFT", "TRANSFER_OUT", "EXPIRY"].includes(formData.type) ? product.stockItem?.quantity || 0 : undefined}
               />
               <span className="text-sm text-gray-500">{product.uomBase}</span>
             </div>
@@ -261,7 +335,36 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
                 Use positive numbers to add stock, negative to subtract
               </p>
             )}
+            {["SALE", "DAMAGE", "THEFT", "TRANSFER_OUT", "EXPIRY"].includes(formData.type) && (
+              <p className="text-xs text-blue-600 mt-1">
+                Available stock: {product.stockItem?.quantity || 0} {product.uomBase}
+              </p>
+            )}
           </div>
+
+          {/* Unit Cost Field - Only show for stock IN movements */}
+          {["RECEIPT", "TRANSFER_IN", "RETURN"].includes(formData.type) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Unit Cost (Optional)
+              </label>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500">$</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.unitCost}
+                  onChange={(e) => setFormData({ ...formData, unitCost: Number(e.target.value) })}
+                  placeholder="Enter cost per unit"
+                  className="flex-1"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Enter the cost per unit to update weighted average cost
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -318,7 +421,21 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
                   <>
                     {getSelectedType().label}: {Math.abs(formData.quantity)} {product.uomBase}
                     <br />
-                    New Total: {(product.stockItem?.quantity || 0) + formData.quantity} {product.uomBase}
+                    New Total: {(() => {
+                      const currentStock = product.stockItem?.quantity || 0;
+                      const isStockIn = ["RECEIPT", "TRANSFER_IN", "RETURN"].includes(formData.type);
+                      return isStockIn 
+                        ? currentStock + Math.abs(formData.quantity)
+                        : currentStock - Math.abs(formData.quantity);
+                    })()} {product.uomBase}
+                    {formData.unitCost > 0 && (
+                      <>
+                        <br />
+                        Unit Cost: ${formData.unitCost.toFixed(2)}
+                        <br />
+                        Total Cost: ${(formData.quantity * formData.unitCost).toFixed(2)}
+                      </>
+                    )}
                   </>
                 )}
               </div>
@@ -332,7 +449,7 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
             </Button>
             <Button 
               type="submit"
-              disabled={isSubmitting || formData.quantity === 0}
+              disabled={isSubmitting || formData.quantity === 0 || !formData.warehouseId}
               className={`bg-${theme.primary} hover:bg-${theme.primaryHover} text-white`}
             >
               {isSubmitting ? "Updating..." : "Update Stock"}

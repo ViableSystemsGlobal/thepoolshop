@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,180 +7,165 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-// User Management
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  image     String?
-  role      UserRole @default(SALES_REP)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  accounts  Account[]
-  leads     Lead[]
+  id         String      @id @default(cuid())
+  email      String      @unique
+  name       String?
+  image      String?
+  role       UserRole    @default("SALES_REP")
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  accounts   Account[]
+  leads      Lead[]
+  proformas  Proforma[]
   quotations Quotation[]
-  proformas Proforma[]
 
   @@map("users")
 }
 
-enum UserRole {
-  ADMIN
-  SALES_MANAGER
-  SALES_REP
-  INVENTORY_MANAGER
-  FINANCE_OFFICER
-  EXECUTIVE_VIEWER
-}
-
-// Currency Management
 model Currency {
-  id        String   @id @default(cuid())
-  code      String   @unique // USD, GHS, EUR, etc.
-  name      String   // US Dollar, Ghana Cedi, Euro
-  symbol    String   // $, ₵, €
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
+  id            String         @id @default(cuid())
+  code          String         @unique
+  name          String
+  symbol        String
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   exchangeRates ExchangeRate[]
 
   @@map("currencies")
 }
 
 model ExchangeRate {
-  id           String   @id @default(cuid())
-  fromCurrency String
-  toCurrency   String
-  rate         Float    // Exchange rate
-  source       String   // "manual", "api", "bank"
-  effectiveFrom DateTime @default(now())
+  id            String    @id @default(cuid())
+  fromCurrency  String
+  toCurrency    String
+  rate          Float
+  source        String
+  effectiveFrom DateTime  @default(now())
   effectiveTo   DateTime?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  currency Currency @relation(fields: [fromCurrency], references: [code])
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  currency      Currency  @relation(fields: [fromCurrency], references: [code])
 
   @@unique([fromCurrency, toCurrency, effectiveFrom])
   @@map("exchange_rates")
 }
 
-// Product Management
-model Category {
+model SystemSettings {
   id          String   @id @default(cuid())
-  name        String
+  key         String   @unique
+  value       String
+  type        String   @default("string")
+  category    String   @default("general")
   description String?
-  parentId    String?
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
-  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryHierarchy")
-  products Product[]
+  @@map("system_settings")
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
 
   @@map("categories")
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  sku         String   @unique
-  name        String
-  description String?
-  images      String?   // JSON string of image URLs
-  attributes  Json?    // JSON for variant attributes
-  uomBase     String   @default("pcs") // Unit of measure base
-  uomSell     String   @default("pcs") // Unit of measure for selling
-  price       Float?   // Base price in import currency
-  cost        Float?   // Cost in import currency
-  importCurrency String @default("USD") // Currency used for imports
-  active      Boolean  @default(true)
-  categoryId  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  category      Category      @relation(fields: [categoryId], references: [id])
-  priceListItems PriceListItem[]
-  quotationLines QuotationLine[]
-  proformaLines  ProformaLine[]
-  stockItem     StockItem?
-  movements     StockMovement[]
+  id                     String          @id @default(cuid())
+  sku                    String          @unique
+  name                   String
+  description            String?
+  images                 String?
+  attributes             Json?
+  uomBase                String          @default("pcs")
+  uomSell                String          @default("pcs")
+  price                  Float?
+  cost                   Float?
+  originalPrice          Float?
+  originalCost           Float?
+  originalPriceCurrency  String?
+  originalCostCurrency   String?
+  exchangeRateAtImport   Float?
+  lastExchangeRateUpdate DateTime?
+  baseCurrency           String          @default("GHS")
+  active                 Boolean         @default(true)
+  categoryId             String
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  priceListItems         PriceListItem[]
+  category               Category        @relation(fields: [categoryId], references: [id])
+  proformaLines          ProformaLine[]
+  quotationLines         QuotationLine[]
+  stockItem              StockItem?
+  movements              StockMovement[]
 
   @@map("products")
 }
 
 model PriceList {
-  id           String   @id @default(cuid())
-  name         String
-  channel      String   @default("direct") // direct, distributor, pos
-  currency     String   @default("USD")
-  effectiveFrom DateTime @default(now())
+  id            String          @id @default(cuid())
+  name          String
+  channel       String          @default("direct")
+  currency      String          @default("USD")
+  effectiveFrom DateTime        @default(now())
   effectiveTo   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  items PriceListItem[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  items         PriceListItem[]
 
   @@map("price_lists")
 }
 
 model PriceListItem {
-  id          String   @id @default(cuid())
-  productId   String
-  priceListId String
-  unitPrice   Float    // Price in price list currency
-  basePrice   Float?   // Original price in product's import currency
-  exchangeRate Float?   // Exchange rate used for conversion
-  overrides   Json?    // JSON for price overrides
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  product   Product   @relation(fields: [productId], references: [id])
-  priceList PriceList @relation(fields: [priceListId], references: [id])
+  id           String    @id @default(cuid())
+  productId    String
+  priceListId  String
+  unitPrice    Float
+  basePrice    Float?
+  exchangeRate Float?
+  overrides    Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  priceList    PriceList @relation(fields: [priceListId], references: [id])
+  product      Product   @relation(fields: [productId], references: [id])
 
   @@unique([productId, priceListId])
   @@map("price_list_items")
 }
 
-// CRM
 model Account {
-  id          String      @id @default(cuid())
-  name        String
-  type        AccountType @default(INDIVIDUAL)
-  email       String?
-  phone       String?
-  address     String?
-  city        String?
-  state       String?
-  country     String?
-  website     String?
-  notes       String?
-  ownerId     String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  // Relations
-  owner       User        @relation(fields: [ownerId], references: [id])
-  contacts    Contact[]
+  id            String        @id @default(cuid())
+  name          String
+  type          AccountType   @default("INDIVIDUAL")
+  email         String?
+  phone         String?
+  address       String?
+  city          String?
+  state         String?
+  country       String?
+  website       String?
+  notes         String?
+  ownerId       String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  owner         User          @relation(fields: [ownerId], references: [id])
+  contacts      Contact[]
   opportunities Opportunity[]
-  quotations  Quotation[]
-  proformas   Proforma[]
+  proformas     Proforma[]
+  quotations    Quotation[]
 
   @@map("accounts")
-}
-
-enum AccountType {
-  INDIVIDUAL
-  COMPANY
-  PROJECT
 }
 
 model Contact {
@@ -196,32 +178,209 @@ model Contact {
   accountId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  account Account @relation(fields: [accountId], references: [id])
+  account   Account  @relation(fields: [accountId], references: [id])
 
   @@map("contacts")
 }
 
 model Lead {
-  id          String     @id @default(cuid())
-  firstName   String
-  lastName    String
-  email       String?
-  phone       String?
-  company     String?
-  source      String?    // How they found us
-  status      LeadStatus @default(NEW)
-  score       Int        @default(0) // AI lead score
-  notes       String?
-  ownerId     String
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  // Relations
-  owner User @relation(fields: [ownerId], references: [id])
+  id        String     @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  company   String?
+  source    String?
+  status    LeadStatus @default("NEW")
+  score     Int        @default(0)
+  notes     String?
+  ownerId   String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  owner     User       @relation(fields: [ownerId], references: [id])
 
   @@map("leads")
+}
+
+model Opportunity {
+  id          String           @id @default(cuid())
+  name        String
+  stage       OpportunityStage @default("NEW")
+  value       Float?
+  probability Int              @default(0)
+  closeDate   DateTime?
+  accountId   String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  account     Account          @relation(fields: [accountId], references: [id])
+
+  @@map("opportunities")
+}
+
+model Quotation {
+  id         String          @id @default(cuid())
+  number     String          @unique
+  status     QuotationStatus @default("DRAFT")
+  subject    String
+  validUntil DateTime?
+  notes      String?
+  subtotal   Float           @default(0)
+  tax        Float           @default(0)
+  total      Float           @default(0)
+  accountId  String
+  ownerId    String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  proformas  Proforma[]
+  lines      QuotationLine[]
+  owner      User            @relation(fields: [ownerId], references: [id])
+  account    Account         @relation(fields: [accountId], references: [id])
+
+  @@map("quotations")
+}
+
+model QuotationLine {
+  id          String    @id @default(cuid())
+  quotationId String
+  productId   String
+  quantity    Float
+  unitPrice   Float
+  discount    Float     @default(0)
+  lineTotal   Float
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  product     Product   @relation(fields: [productId], references: [id])
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+
+  @@map("quotation_lines")
+}
+
+model Proforma {
+  id          String         @id @default(cuid())
+  number      String         @unique
+  status      ProformaStatus @default("DRAFT")
+  subject     String
+  validUntil  DateTime?
+  notes       String?
+  subtotal    Float          @default(0)
+  tax         Float          @default(0)
+  total       Float          @default(0)
+  quotationId String?
+  accountId   String
+  ownerId     String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  lines       ProformaLine[]
+  owner       User           @relation(fields: [ownerId], references: [id])
+  account     Account        @relation(fields: [accountId], references: [id])
+  quotation   Quotation?     @relation(fields: [quotationId], references: [id])
+
+  @@map("proformas")
+}
+
+model ProformaLine {
+  id         String   @id @default(cuid())
+  proformaId String
+  productId  String
+  quantity   Float
+  unitPrice  Float
+  discount   Float    @default(0)
+  lineTotal  Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  product    Product  @relation(fields: [productId], references: [id])
+  proforma   Proforma @relation(fields: [proformaId], references: [id])
+
+  @@map("proforma_lines")
+}
+
+model StockItem {
+  id           String          @id @default(cuid())
+  productId    String          @unique
+  quantity     Float           @default(0)
+  reserved     Float           @default(0)
+  available    Float           @default(0)
+  averageCost  Float           @default(0)
+  totalValue   Float           @default(0)
+  reorderPoint Float           @default(0)
+  warehouseId  String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  warehouse    Warehouse?      @relation(fields: [warehouseId], references: [id])
+  product      Product         @relation(fields: [productId], references: [id])
+  movements    StockMovement[]
+
+  @@map("stock_items")
+}
+
+model Warehouse {
+  id               String          @id @default(cuid())
+  name             String          @unique
+  code             String          @unique
+  address          String?
+  city             String?
+  country          String?
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  stockItems       StockItem[]
+  currentMovements StockMovement[] @relation("CurrentWarehouse")
+  toMovements      StockMovement[] @relation("ToWarehouse")
+  fromMovements    StockMovement[] @relation("FromWarehouse")
+
+  @@map("warehouses")
+}
+
+model StockMovement {
+  id              String            @id @default(cuid())
+  productId       String
+  stockItemId     String
+  type            StockMovementType
+  quantity        Float
+  unitCost        Float?
+  totalCost       Float?
+  fromWarehouseId String?
+  toWarehouseId   String?
+  warehouseId     String?
+  reference       String?
+  reason          String?
+  notes           String?
+  userId          String?
+  createdAt       DateTime          @default(now())
+  warehouse       Warehouse?        @relation("CurrentWarehouse", fields: [warehouseId], references: [id])
+  toWarehouse     Warehouse?        @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  fromWarehouse   Warehouse?        @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  stockItem       StockItem         @relation(fields: [stockItemId], references: [id])
+  product         Product           @relation(fields: [productId], references: [id])
+
+  @@map("stock_movements")
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  details    Json?
+  userId     String?
+  createdAt  DateTime @default(now())
+
+  @@map("activities")
+}
+
+enum UserRole {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+  INVENTORY_MANAGER
+  FINANCE_OFFICER
+  EXECUTIVE_VIEWER
+}
+
+enum AccountType {
+  INDIVIDUAL
+  COMPANY
+  PROJECT
 }
 
 enum LeadStatus {
@@ -230,23 +389,6 @@ enum LeadStatus {
   QUALIFIED
   CONVERTED
   LOST
-}
-
-model Opportunity {
-  id          String           @id @default(cuid())
-  name        String
-  stage       OpportunityStage @default(NEW)
-  value       Float?
-  probability Int              @default(0) // Percentage
-  closeDate   DateTime?
-  accountId   String
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-
-  // Relations
-  account Account @relation(fields: [accountId], references: [id])
-
-  @@map("opportunities")
 }
 
 enum OpportunityStage {
@@ -259,80 +401,12 @@ enum OpportunityStage {
   LOST
 }
 
-// Sales Documents
-model Quotation {
-  id          String         @id @default(cuid())
-  number      String         @unique
-  status      QuotationStatus @default(DRAFT)
-  subject     String
-  validUntil  DateTime?
-  notes       String?
-  subtotal    Float         @default(0)
-  tax         Float         @default(0)
-  total       Float         @default(0)
-  accountId   String
-  ownerId     String
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  // Relations
-  account Account         @relation(fields: [accountId], references: [id])
-  owner   User            @relation(fields: [ownerId], references: [id])
-  lines   QuotationLine[]
-  proformas Proforma[]
-
-  @@map("quotations")
-}
-
 enum QuotationStatus {
   DRAFT
   SENT
   ACCEPTED
   REJECTED
   EXPIRED
-}
-
-model QuotationLine {
-  id           String   @id @default(cuid())
-  quotationId  String
-  productId    String
-  quantity     Float
-  unitPrice    Float
-  discount     Float   @default(0) // Percentage
-  lineTotal    Float
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  quotation Quotation @relation(fields: [quotationId], references: [id])
-  product   Product   @relation(fields: [productId], references: [id])
-
-  @@map("quotation_lines")
-}
-
-model Proforma {
-  id          String        @id @default(cuid())
-  number      String        @unique
-  status      ProformaStatus @default(DRAFT)
-  subject     String
-  validUntil  DateTime?
-  notes       String?
-  subtotal    Float         @default(0)
-  tax         Float         @default(0)
-  total       Float         @default(0)
-  quotationId String?
-  accountId   String
-  ownerId     String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  // Relations
-  quotation Quotation?    @relation(fields: [quotationId], references: [id])
-  account   Account       @relation(fields: [accountId], references: [id])
-  owner     User          @relation(fields: [ownerId], references: [id])
-  lines     ProformaLine[]
-
-  @@map("proformas")
 }
 
 enum ProformaStatus {
@@ -343,83 +417,15 @@ enum ProformaStatus {
   CANCELLED
 }
 
-model ProformaLine {
-  id          String   @id @default(cuid())
-  proformaId  String
-  productId   String
-  quantity    Float
-  unitPrice   Float
-  discount    Float   @default(0)
-  lineTotal   Float
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  proforma Proforma @relation(fields: [proformaId], references: [id])
-  product  Product  @relation(fields: [productId], references: [id])
-
-  @@map("proforma_lines")
-}
-
-// Basic Inventory
-model StockItem {
-  id         String   @id @default(cuid())
-  productId  String   @unique
-  quantity   Float   @default(0)
-  reserved   Float   @default(0)
-  available  Float   @default(0) // quantity - reserved
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  // Relations
-  product Product @relation(fields: [productId], references: [id])
-  movements StockMovement[]
-
-  @@map("stock_items")
-}
-
-// Stock Movement Tracking
-model StockMovement {
-  id          String   @id @default(cuid())
-  productId   String
-  stockItemId String
-  type        StockMovementType
-  quantity    Float    // Positive for IN, Negative for OUT
-  reference   String?  // Reference number (PO, SO, etc.)
-  reason      String?  // Reason for movement
-  notes       String?  // Additional notes
-  userId      String?  // User who made the movement
-  createdAt   DateTime @default(now())
-
-  // Relations
-  product   Product   @relation(fields: [productId], references: [id])
-  stockItem StockItem @relation(fields: [stockItemId], references: [id])
-
-  @@map("stock_movements")
-}
-
 enum StockMovementType {
-  RECEIPT        // Stock received from supplier
-  ADJUSTMENT     // Manual stock adjustment
-  TRANSFER_IN    // Stock transferred in from another location
-  TRANSFER_OUT   // Stock transferred out to another location
-  SALE           // Stock sold to customer
-  RETURN         // Stock returned from customer
-  DAMAGE         // Stock damaged/lost
-  THEFT          // Stock stolen
-  EXPIRY         // Stock expired
-  OTHER          // Other reasons
-}
-
-// Activity Logging
-model Activity {
-  id        String   @id @default(cuid())
-  entityType String  // "quotation", "proforma", etc.
-  entityId   String
-  action     String  // "created", "updated", "sent", etc.
-  details    Json?   // Additional details
-  userId     String?
-  createdAt  DateTime @default(now())
-
-  @@map("activities")
+  RECEIPT
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  SALE
+  RETURN
+  DAMAGE
+  THEFT
+  EXPIRY
+  OTHER
 }

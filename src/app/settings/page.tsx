@@ -13,7 +13,7 @@ import {
   Globe, 
   CreditCard, 
   FileText, 
-  Flask, 
+  FlaskRound, 
   Star,
   ChevronRight,
   Search,
@@ -102,7 +102,7 @@ export default function SettingsPage() {
       id: "integrations",
       title: "Integrations",
       description: "Third-party services, APIs, and external system connections.",
-      icon: Flask,
+      icon: FlaskRound,
       href: "/settings/system/integrations"
     },
     {

@@ -45,34 +45,37 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
     setImportResult(null);
 
     try {
-      // Simulate file processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Create FormData to send the file
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // Mock import result
-      const mockResult: ImportResult = {
-        success: 15,
-        errors: [
-          "Row 3: SKU 'PROD-001' already exists",
-          "Row 7: Invalid category 'Electronics'"
-        ],
-        warnings: [
-          "Row 5: Price missing, using default $0.00",
-          "Row 12: Description too long, truncated"
-        ]
-      };
+      // Send file to API endpoint
+      const response = await fetch('/api/products/bulk-import', {
+        method: 'POST',
+        body: formData,
+      });
 
-      setImportResult(mockResult);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to import products');
+      }
+
+      const result = await response.json();
+      setImportResult(result);
       
       // Show appropriate toast based on results
-      if (mockResult.success > 0) {
-        success("Import Completed", `${mockResult.success} products imported successfully.`);
+      if (result.success > 0) {
+        success("Import Completed", `${result.success} products imported successfully.`);
       }
-      if (mockResult.errors.length > 0) {
-        showError("Import Errors", `${mockResult.errors.length} errors occurred during import.`);
+      if (result.errors && result.errors.length > 0) {
+        showError("Import Errors", `${result.errors.length} errors occurred during import.`);
       }
-      if (mockResult.warnings.length > 0) {
-        warning("Import Warnings", `${mockResult.warnings.length} warnings during import.`);
+      if (result.warnings && result.warnings.length > 0) {
+        warning("Import Warnings", `${result.warnings.length} warnings during import.`);
       }
+      
+      // Call onSuccess to refresh the parent component
+      onSuccess();
     } catch (error) {
       const errorMessage = 'Failed to process file. Please try again.';
       setError(errorMessage);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -70,6 +71,7 @@ const mockPriceLists = [
 ];
 
 export default function PriceListsPage() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -82,6 +84,32 @@ export default function PriceListsPage() {
   });
 
   const channels = ["all", ...Array.from(new Set(mockPriceLists.map(pl => pl.channel)))];
+
+  // Action handlers
+  const handleViewPriceList = (id: number) => {
+    console.log('View price list:', id);
+    router.push(`/price-lists/${id}`);
+  };
+
+  const handleEditPriceList = (id: number) => {
+    console.log('Edit price list:', id);
+    // TODO: Open edit modal or navigate to edit page
+    alert(`Edit price list ${id} - Feature coming soon!`);
+  };
+
+  const handleCopyPriceList = (id: number) => {
+    console.log('Copy price list:', id);
+    // TODO: Open copy modal
+    alert(`Copy price list ${id} - Feature coming soon!`);
+  };
+
+  const handleDeletePriceList = (id: number) => {
+    console.log('Delete price list:', id);
+    if (confirm(`Are you sure you want to delete this price list?`)) {
+      // TODO: Implement delete functionality
+      alert(`Delete price list ${id} - Feature coming soon!`);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -296,16 +324,37 @@ export default function PriceListsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleViewPriceList(priceList.id)}
+                          title="View Details"
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditPriceList(priceList.id)}
+                          title="Edit Price List"
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleCopyPriceList(priceList.id)}
+                          title="Copy Price List"
+                        >
                           <Copy className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() => handleDeletePriceList(priceList.id)}
+                          title="Delete Price List"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

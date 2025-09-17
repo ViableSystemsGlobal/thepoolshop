@@ -597,3 +597,4 @@ RBAC/ABAC: items auto-hide when the role lacks access (e.g., Finance sees Sales/
 Keyboard nav: ↑/↓ to move, Enter to open; “g i” goes to Invoices, “g o” to Orders (Stripe-style “go to” combos).
 
 Example information architecture (labels & icons)
+

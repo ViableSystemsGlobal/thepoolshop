@@ -41,9 +41,13 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
     categoryId: "",
     price: 0,
     cost: 0,
-    importCurrency: "USD",
+    costCurrency: "USD",
+    sellingCurrency: "USD",
+    exchangeRateMode: "automatic" as "automatic" | "manual" | "fixed",
+    customExchangeRate: 1,
     uomBase: "pcs",
     uomSell: "pcs",
+    reorderPoint: 0,
     active: true,
     images: [] as string[],
   });
@@ -53,6 +57,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [currentExchangeRate, setCurrentExchangeRate] = useState<number | null>(null);
+  const [convertedSellingPrice, setConvertedSellingPrice] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -60,6 +66,27 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
       fetchUnits();
     }
   }, [isOpen]);
+
+  // Fetch exchange rate when currencies change
+  useEffect(() => {
+    if (formData.costCurrency && formData.sellingCurrency) {
+      fetchExchangeRate(formData.costCurrency, formData.sellingCurrency);
+    }
+  }, [formData.costCurrency, formData.sellingCurrency]);
+
+  // Auto-calculate selling price when in automatic mode
+  useEffect(() => {
+    if (formData.exchangeRateMode === "automatic" && 
+        formData.cost > 0 && 
+        currentExchangeRate && 
+        formData.costCurrency !== formData.sellingCurrency) {
+      const calculatedPrice = formData.cost * currentExchangeRate;
+      setFormData(prev => ({
+        ...prev,
+        price: Math.round(calculatedPrice * 100) / 100 // Round to 2 decimal places
+      }));
+    }
+  }, [formData.cost, currentExchangeRate, formData.exchangeRateMode, formData.costCurrency, formData.sellingCurrency]);
 
   const fetchCategories = async () => {
     try {
@@ -101,6 +128,34 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
     }
   };
 
+  const fetchExchangeRate = async (fromCurrency: string, toCurrency: string) => {
+    if (fromCurrency === toCurrency) {
+      setCurrentExchangeRate(1);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/currency/convert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fromCurrency,
+          toCurrency,
+          amount: 1
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentExchangeRate(data.exchangeRate);
+      }
+    } catch (error) {
+      console.error('Error fetching exchange rate:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -110,7 +165,14 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
       // Convert images array to JSON string for database storage
       const dataToSend = {
         ...formData,
-        images: JSON.stringify(formData.images)
+        images: JSON.stringify(formData.images),
+        // Map new fields to database schema
+        originalPrice: formData.price,
+        originalCost: formData.cost,
+        originalPriceCurrency: formData.sellingCurrency,
+        originalCostCurrency: formData.costCurrency,
+        exchangeRateAtImport: formData.exchangeRateMode === "manual" ? formData.customExchangeRate : currentExchangeRate,
+        baseCurrency: formData.sellingCurrency
       };
 
       const response = await fetch('/api/products', {
@@ -133,9 +195,13 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
           categoryId: "",
           price: 0,
           cost: 0,
-          importCurrency: "USD",
+          costCurrency: "USD",
+          sellingCurrency: "USD",
+          exchangeRateMode: "automatic",
+          customExchangeRate: 1,
           uomBase: "pcs",
           uomSell: "pcs",
+          reorderPoint: 0,
           active: true,
           images: [] as string[],
         });
@@ -380,58 +446,238 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
             </div>
 
             {/* Pricing Information */}
-            <div className="space-y-4">
+            <div className="space-y-6">
               <h3 className="text-lg font-medium">Pricing & Currency</h3>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Import Currency
-                </label>
-                <select
-                  value={formData.importCurrency}
-                  onChange={(e) => handleInputChange('importCurrency', e.target.value)}
-                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}
-                >
-                  <option value="USD">USD - US Dollar</option>
-                  <option value="GHS">GHS - Ghana Cedi</option>
-                  <option value="EUR">EUR - Euro</option>
-                  <option value="GBP">GBP - British Pound</option>
-                  <option value="NGN">NGN - Nigerian Naira</option>
-                  <option value="KES">KES - Kenyan Shilling</option>
-                  <option value="ZAR">ZAR - South African Rand</option>
-                  <option value="EGP">EGP - Egyptian Pound</option>
-                </select>
+              {/* Cost Price Section */}
+              <div className="space-y-4">
+                <h4 className="text-md font-medium text-gray-800">Cost Price (What you paid)</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cost Amount
+                    </label>
+                    <Input
+                      type="number"
+                      value={formData.cost}
+                      onChange={(e) => handleInputChange('cost', parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cost Currency
+                    </label>
+                    <select
+                      value={formData.costCurrency}
+                      onChange={(e) => handleInputChange('costCurrency', e.target.value)}
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}
+                    >
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="GHS">GHS - Ghana Cedi</option>
+                      <option value="EUR">EUR - Euro</option>
+                      <option value="GBP">GBP - British Pound</option>
+                      <option value="NGN">NGN - Nigerian Naira</option>
+                      <option value="KES">KES - Kenyan Shilling</option>
+                      <option value="ZAR">ZAR - South African Rand</option>
+                      <option value="EGP">EGP - Egyptian Pound</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Import Price
-                  </label>
-                  <Input
-                    type="number"
-                    value={formData.price}
-                    onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
-                  />
-                </div>
+              {/* Selling Price Section */}
+              <div className="space-y-4">
+                <h4 className="text-md font-medium text-gray-800">Selling Price (What you sell for)</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Selling Amount
+                      {formData.exchangeRateMode === "automatic" && 
+                       formData.costCurrency !== formData.sellingCurrency && 
+                       formData.cost > 0 && (
+                        <span className="text-xs text-blue-600 ml-2">(Auto-calculated)</span>
+                      )}
+                    </label>
+                    <Input
+                      type="number"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={formData.exchangeRateMode === "automatic" && 
+                               formData.costCurrency !== formData.sellingCurrency && 
+                               formData.cost > 0}
+                      className={`focus:ring-${theme.primary} focus:border-${theme.primary} ${
+                        formData.exchangeRateMode === "automatic" && 
+                        formData.costCurrency !== formData.sellingCurrency && 
+                        formData.cost > 0 ? 'bg-gray-50' : ''
+                      }`}
+                    />
+                    {formData.exchangeRateMode === "automatic" && 
+                     formData.costCurrency !== formData.sellingCurrency && 
+                     formData.cost > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Calculated from cost price using current exchange rate
+                      </p>
+                    )}
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cost Price
-                  </label>
-                  <Input
-                    type="number"
-                    value={formData.cost}
-                    onChange={(e) => handleInputChange('cost', parseFloat(e.target.value) || 0)}
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Selling Currency
+                    </label>
+                    <select
+                      value={formData.sellingCurrency}
+                      onChange={(e) => handleInputChange('sellingCurrency', e.target.value)}
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}
+                    >
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="GHS">GHS - Ghana Cedi</option>
+                      <option value="EUR">EUR - Euro</option>
+                      <option value="GBP">GBP - British Pound</option>
+                      <option value="NGN">NGN - Nigerian Naira</option>
+                      <option value="KES">KES - Kenyan Shilling</option>
+                      <option value="ZAR">ZAR - South African Rand</option>
+                      <option value="EGP">EGP - Egyptian Pound</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Exchange Rate Section */}
+              {formData.costCurrency !== formData.sellingCurrency && (
+                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="text-md font-medium text-blue-800">Exchange Rate Settings</h4>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Exchange Rate Mode
+                      </label>
+                      <div className="space-y-2">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            value="automatic"
+                            checked={formData.exchangeRateMode === "automatic"}
+                            onChange={(e) => handleInputChange('exchangeRateMode', e.target.value)}
+                            className={`text-${theme.primary} focus:ring-${theme.primary}`}
+                          />
+                          <span className="text-sm">Automatic (Use current market rates)</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            value="manual"
+                            checked={formData.exchangeRateMode === "manual"}
+                            onChange={(e) => handleInputChange('exchangeRateMode', e.target.value)}
+                            className={`text-${theme.primary} focus:ring-${theme.primary}`}
+                          />
+                          <span className="text-sm">Manual (Set custom rate)</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            value="fixed"
+                            checked={formData.exchangeRateMode === "fixed"}
+                            onChange={(e) => handleInputChange('exchangeRateMode', e.target.value)}
+                            className={`text-${theme.primary} focus:ring-${theme.primary}`}
+                          />
+                          <span className="text-sm">Fixed (Keep same price regardless of currency)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {formData.exchangeRateMode === "manual" && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Custom Exchange Rate (1 {formData.costCurrency} = ? {formData.sellingCurrency})
+                        </label>
+                        <Input
+                          type="number"
+                          value={formData.customExchangeRate}
+                          onChange={(e) => handleInputChange('customExchangeRate', parseFloat(e.target.value) || 1)}
+                          placeholder="1.00"
+                          step="0.0001"
+                          min="0"
+                          className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
+                        />
+                      </div>
+                    )}
+
+                    {formData.exchangeRateMode === "automatic" && currentExchangeRate && (
+                      <div className="text-sm text-blue-700 bg-blue-100 p-2 rounded">
+                        <strong>Current Rate:</strong> 1 {formData.costCurrency} = {currentExchangeRate.toFixed(4)} {formData.sellingCurrency}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Price List Assignment */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-md font-medium text-gray-800">Quick Pricing</h4>
+                  <span className="text-xs text-gray-500">Add to price lists</span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="retail-price"
+                      className="rounded border-gray-300"
+                    />
+                    <label htmlFor="retail-price" className="text-sm font-medium text-gray-700">
+                      Retail Price List
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="distributor-price"
+                      className="rounded border-gray-300"
+                    />
+                    <label htmlFor="distributor-price" className="text-sm font-medium text-gray-700">
+                      Distributor Price List
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="wholesale-price"
+                      className="rounded border-gray-300"
+                    />
+                    <label htmlFor="wholesale-price" className="text-sm font-medium text-gray-700">
+                      Wholesale Price List
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="online-price"
+                      className="rounded border-gray-300"
+                    />
+                    <label htmlFor="online-price" className="text-sm font-medium text-gray-700">
+                      Online Price List
+                    </label>
+                  </div>
+                </div>
+                
+                <div className="mt-3 text-xs text-gray-500">
+                  <p>✓ Products will be automatically added to selected price lists with the import price</p>
+                  <p>✓ You can adjust individual prices later in Price List management</p>
                 </div>
               </div>
             </div>
@@ -476,6 +722,32 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
                     ))}
                   </select>
                 </div>
+              </div>
+            </div>
+
+            {/* Inventory Settings */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Inventory Settings</h3>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reorder Point
+                </label>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.reorderPoint}
+                    onChange={(e) => handleInputChange('reorderPoint', Number(e.target.value))}
+                    placeholder="Enter minimum stock level"
+                    className="flex-1"
+                  />
+                  <span className="text-sm text-gray-500">{formData.uomBase}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Alert when stock falls below this level
+                </p>
               </div>
             </div>
 

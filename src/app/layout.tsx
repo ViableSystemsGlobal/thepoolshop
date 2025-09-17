@@ -4,6 +4,7 @@ import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/contexts/theme-context";
 import { ToastProvider } from "@/contexts/toast-context";
 import { ToastContainer } from "@/components/toast-container";
+import { HydrationBoundary } from "@/components/hydration-boundary";
 
 export const metadata: Metadata = {
   title: "AD Pools SM - Sales Management System",
@@ -17,15 +18,17 @@ export default function RootLayout({
 }>) {
         return (
           <html lang="en">
-            <body className="antialiased">
-              <ThemeProvider>
-                <ToastProvider>
-                  <AuthSessionProvider>
-                    {children}
-                    <ToastContainer />
-                  </AuthSessionProvider>
-                </ToastProvider>
-              </ThemeProvider>
+            <body className="antialiased" suppressHydrationWarning={true}>
+              <HydrationBoundary>
+                <ThemeProvider>
+                  <ToastProvider>
+                    <AuthSessionProvider>
+                      {children}
+                      <ToastContainer />
+                    </AuthSessionProvider>
+                  </ToastProvider>
+                </ThemeProvider>
+              </HydrationBoundary>
             </body>
           </html>
         );

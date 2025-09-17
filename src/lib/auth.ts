@@ -18,7 +18,7 @@ export const authOptions: NextAuthOptions = {
         // In production, you'd check against the database
         if (credentials.email === "admin@adpools.com" && credentials.password === "demo123") {
           return {
-            id: "1",
+            id: "cmfi6s8um00008o6nh4kryxph",
             email: "admin@adpools.com",
             name: "Admin User",
             role: "ADMIN",
@@ -35,13 +35,14 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        token.id = user.id
         token.role = user.role
       }
       return token
     },
     async session({ session, token }) {
       if (token) {
-        session.user.id = token.sub!
+        session.user.id = token.id as string
         session.user.role = token.role as string
       }
       return session

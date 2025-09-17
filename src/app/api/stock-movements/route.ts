@@ -7,12 +7,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get('productId');
     const type = searchParams.get('type');
+    const warehouseId = searchParams.get('warehouseId');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
     const where: any = {};
     if (productId) where.productId = productId;
     if (type) where.type = type;
+    if (warehouseId) {
+      where.stockItem = {
+        warehouseId: warehouseId
+      };
+    }
 
     const movements = await prisma.stockMovement.findMany({
       where,
@@ -62,10 +68,12 @@ export async function POST(request: NextRequest) {
       productId,
       type,
       quantity,
+      unitCost,
       reference,
       reason,
       notes,
       userId,
+      warehouseId,
     } = body;
 
     if (!productId || !type || quantity === undefined) {
@@ -87,9 +95,15 @@ export async function POST(request: NextRequest) {
           quantity: 0,
           reserved: 0,
           available: 0,
+          averageCost: 0,
+          totalValue: 0,
+          warehouseId,
         },
       });
     }
+
+    // Calculate total cost for this movement
+    const totalCost = unitCost ? quantity * unitCost : null;
 
     // Create the stock movement
     const movement = await prisma.stockMovement.create({
@@ -98,22 +112,40 @@ export async function POST(request: NextRequest) {
         stockItemId: stockItem.id,
         type,
         quantity,
+        unitCost,
+        totalCost,
         reference,
         reason,
         notes,
         userId,
+        warehouseId,
       },
     });
 
-    // Update stock quantities
+    // Update stock quantities and calculate weighted average cost
     const newQuantity = stockItem.quantity + quantity;
     const newAvailable = Math.max(0, newQuantity - stockItem.reserved);
+    
+    // Calculate weighted average cost if this is a stock IN movement with unit cost
+    let newAverageCost = stockItem.averageCost;
+    if (quantity > 0 && unitCost && unitCost > 0) {
+      const currentTotalCost = stockItem.quantity * stockItem.averageCost;
+      const newTotalCost = quantity * unitCost;
+      const combinedTotalCost = currentTotalCost + newTotalCost;
+      newAverageCost = newQuantity > 0 ? combinedTotalCost / newQuantity : stockItem.averageCost;
+    }
+    
+    // Calculate new total value using average cost (for cost value)
+    const newTotalValue = newQuantity * newAverageCost;
 
     await prisma.stockItem.update({
       where: { id: stockItem.id },
       data: {
         quantity: newQuantity,
         available: newAvailable,
+        averageCost: newAverageCost,
+        totalValue: newTotalValue,
+        warehouseId,
       },
     });
 

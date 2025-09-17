@@ -4,6 +4,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { X, Package, DollarSign, Tag, Hash, FileText, Calendar, Eye } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
 interface Product {
   id: string;
@@ -155,11 +156,11 @@ export function ViewProductModal({ isOpen, onClose, product }: ViewProductModalP
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-500">Selling Price</span>
-                  <span className="text-sm text-gray-900">${product.price ? product.price.toFixed(2) : '0.00'}</span>
+                  <span className="text-sm text-gray-900">{formatCurrency(product.price || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-500">Cost Price</span>
-                  <span className="text-sm text-gray-900">${product.cost ? product.cost.toFixed(2) : '0.00'}</span>
+                  <span className="text-sm text-gray-900">{formatCurrency(product.cost || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-500">Profit Margin</span>

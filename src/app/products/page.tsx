@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MainLayout } from "@/components/layout/main-layout";
+import { formatCurrency } from "@/lib/utils";
+import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol } from "@/components/ui/currency-toggle";
 import { AddProductModal } from "@/components/modals/add-product-modal";
 import { BulkImportModal } from "@/components/modals/bulk-import-modal";
 import { AddCategoryModal } from "@/components/modals/add-category-modal";
@@ -64,6 +66,11 @@ interface Product {
   uomSell: string;
   price?: number;
   cost?: number;
+  originalPrice?: number;
+  originalCost?: number;
+  originalPriceCurrency?: string;
+  originalCostCurrency?: string;
+  baseCurrency?: string;
   importCurrency: string;
   active: boolean;
   categoryId: string;
@@ -112,6 +119,7 @@ const mockProducts = [
 
 export default function ProductsPage() {
   const router = useRouter();
+  const { currency, changeCurrency } = useCurrency();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -205,6 +213,33 @@ export default function ProductsPage() {
     setIsEditModalOpen(true);
   };
 
+  const handleProductEditSuccess = () => {
+    fetchProducts(); // Refresh the products list to show updated images
+  };
+
+  const handleDuplicateProduct = (product: Product) => {
+    // TODO: Implement duplicate product functionality
+    console.log('Duplicate product:', product.id);
+    success('Duplicate product functionality coming soon!');
+  };
+
+  const handleExportProduct = (product: Product) => {
+    // TODO: Implement export product functionality
+    console.log('Export product:', product.id);
+    success('Export product functionality coming soon!');
+  };
+
+  const handleViewHistory = (product: Product) => {
+    // Navigate to product details page with history tab
+    router.push(`/products/${product.id}?tab=history`);
+  };
+
+  const handleArchiveProduct = (product: Product) => {
+    // TODO: Implement archive product functionality
+    console.log('Archive product:', product.id);
+    success('Archive product functionality coming soon!');
+  };
+
   const handleDeleteProduct = (product: Product) => {
     setSelectedProduct(product);
     setIsDeleteModalOpen(true);
@@ -238,29 +273,6 @@ export default function ProductsPage() {
     }
   };
 
-  const handleDuplicateProduct = (product: Product) => {
-    // TODO: Implement duplicate product functionality
-    console.log(`Duplicating product: ${product.name}`);
-    // This would open a modal with the product data pre-filled
-  };
-
-  const handleExportProduct = (product: Product) => {
-    // TODO: Implement export product functionality
-    console.log(`Exporting product: ${product.name}`);
-    // This would generate a CSV/PDF export
-  };
-
-  const handleViewHistory = (product: Product) => {
-    // TODO: Implement view history functionality
-    console.log(`Viewing history for product: ${product.name}`);
-    // This would show a history modal/page
-  };
-
-  const handleArchiveProduct = (product: Product) => {
-    // TODO: Implement archive product functionality
-    console.log(`Archiving product: ${product.name}`);
-    // This would set the product as inactive/archived
-  };
 
   const handleAddStock = (product: Product) => {
     setSelectedProduct(product);
@@ -277,6 +289,7 @@ export default function ProductsPage() {
           <p className="text-gray-600">Manage your product catalog and inventory</p>
         </div>
         <div className="flex items-center space-x-3">
+          <CurrencyToggle value={currency} onChange={changeCurrency} />
           <Button 
             variant="outline"
             onClick={() => router.push('/inventory/stock-movements')}
@@ -498,7 +511,7 @@ export default function ProductsPage() {
                       {product.category?.name || 'Uncategorized'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${product.price ? product.price.toFixed(2) : '0.00'}
+                      {formatCurrencyWithSymbol(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`text-sm font-medium ${
@@ -556,40 +569,42 @@ export default function ProductsPage() {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                        <DropdownMenu
-                          trigger={
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              title="More Actions"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          }
-                          items={[
-                            {
-                              label: "Duplicate Product",
-                              icon: <Copy className="h-4 w-4" />,
-                              onClick: () => handleDuplicateProduct(product)
-                            },
-                            {
-                              label: "Export Product",
-                              icon: <Download className="h-4 w-4" />,
-                              onClick: () => handleExportProduct(product)
-                            },
-                            {
-                              label: "View History",
-                              icon: <History className="h-4 w-4" />,
-                              onClick: () => handleViewHistory(product)
-                            },
-                            {
-                              label: "Archive Product",
-                              icon: <Archive className="h-4 w-4" />,
-                              onClick: () => handleArchiveProduct(product),
-                              className: "text-amber-600 hover:text-amber-700"
+                        <div className="relative">
+                          <DropdownMenu
+                            trigger={
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                title="More Actions"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
                             }
-                          ]}
-                        />
+                            items={[
+                              {
+                                label: "Duplicate Product",
+                                icon: <Copy className="h-4 w-4" />,
+                                onClick: () => handleDuplicateProduct(product)
+                              },
+                              {
+                                label: "Export Product",
+                                icon: <Download className="h-4 w-4" />,
+                                onClick: () => handleExportProduct(product)
+                              },
+                              {
+                                label: "View History",
+                                icon: <History className="h-4 w-4" />,
+                                onClick: () => handleViewHistory(product)
+                              },
+                              {
+                                label: "Archive Product",
+                                icon: <Archive className="h-4 w-4" />,
+                                onClick: () => handleArchiveProduct(product),
+                                className: "text-amber-600 hover:text-amber-700"
+                              }
+                            ]}
+                          />
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -638,12 +653,7 @@ export default function ProductsPage() {
       <EditProductModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
-        onSuccess={() => {
-          // Refresh the products list
-          fetchProducts();
-          setIsEditModalOpen(false);
-          setSelectedProduct(null);
-        }}
+        onSuccess={handleProductEditSuccess}
         product={selectedProduct}
       />
 

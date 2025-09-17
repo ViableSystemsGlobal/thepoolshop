@@ -33,7 +33,11 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         category: true,
-        stockItem: true,
+        stockItem: {
+          include: {
+            warehouse: true
+          }
+        },
       },
       skip: (page - 1) * limit,
       take: limit,
@@ -71,8 +75,19 @@ export async function POST(request: NextRequest) {
       categoryId,
       price,
       cost,
+      costCurrency,
+      sellingCurrency,
+      exchangeRateMode,
+      customExchangeRate,
+      originalPrice,
+      originalCost,
+      originalPriceCurrency,
+      originalCostCurrency,
+      exchangeRateAtImport,
+      baseCurrency,
       uomBase,
       uomSell,
+      reorderPoint,
       attributes,
       images,
       active = true,
@@ -106,6 +121,12 @@ export async function POST(request: NextRequest) {
         categoryId,
         price: price ? parseFloat(price) : 0,
         cost: cost ? parseFloat(cost) : 0,
+        originalPrice: originalPrice ? parseFloat(originalPrice) : (price ? parseFloat(price) : 0),
+        originalCost: originalCost ? parseFloat(originalCost) : (cost ? parseFloat(cost) : 0),
+        originalPriceCurrency: originalPriceCurrency || sellingCurrency || "USD",
+        originalCostCurrency: originalCostCurrency || costCurrency || "USD",
+        exchangeRateAtImport: exchangeRateAtImport ? parseFloat(exchangeRateAtImport) : null,
+        baseCurrency: baseCurrency || sellingCurrency || "USD",
         uomBase,
         uomSell,
         attributes: attributes || {},
@@ -114,6 +135,25 @@ export async function POST(request: NextRequest) {
       },
       include: {
         category: true,
+      },
+    });
+
+    // Get the default warehouse (Main Warehouse)
+    const defaultWarehouse = await prisma.warehouse.findFirst({
+      where: { code: 'MAIN' }
+    });
+
+    // Create initial stock item for the product
+    await prisma.stockItem.create({
+      data: {
+        productId: product.id,
+        quantity: 0,
+        reserved: 0,
+        available: 0,
+        averageCost: cost ? parseFloat(cost) : 0,
+        totalValue: 0,
+        reorderPoint: reorderPoint ? parseFloat(reorderPoint) : 0,
+        warehouseId: defaultWarehouse?.id, // Assign to default warehouse
       },
     });
 
