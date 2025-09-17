@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { MainLayout } from "@/components/layout/main-layout";
 import { useToast } from "@/contexts/toast-context";
 import { formatCurrency } from "@/lib/utils";
+import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { useTheme } from "@/contexts/theme-context";
 import { 
   Building, 
   MapPin, 
@@ -87,12 +89,38 @@ export default function WarehouseDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const { success, error: showError } = useToast();
+  const { getThemeClasses } = useTheme();
+  const theme = getThemeClasses();
   const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<'products' | 'movements'>('products');
+
+  const [aiRecommendations, setAiRecommendations] = useState([
+    {
+      id: '1',
+      title: 'Optimize product placement',
+      description: 'Reorganize high-turnover products for easier access and faster picking.',
+      priority: 'high' as const,
+      completed: false,
+    },
+    {
+      id: '2',
+      title: 'Review stock levels',
+      description: 'Analyze current stock levels and adjust reorder points for optimal inventory.',
+      priority: 'medium' as const,
+      completed: false,
+    },
+    {
+      id: '3',
+      title: 'Update warehouse capacity',
+      description: 'Evaluate current capacity utilization and plan for expansion if needed.',
+      priority: 'low' as const,
+      completed: false,
+    },
+  ]);
 
   const warehouseId = params.id as string;
 
@@ -166,6 +194,15 @@ export default function WarehouseDetailsPage() {
     movement.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     movement.reason?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleRecommendationComplete = (id: string) => {
+    setAiRecommendations(prev => 
+      prev.map(rec => 
+        rec.id === id ? { ...rec, completed: true } : rec
+      )
+    );
+    success("Recommendation completed! Great job!");
+  };
 
   const totalProducts = products.length;
   const totalValue = products.reduce((sum, product) => sum + (product.stockItem?.totalValue || 0), 0);
@@ -262,159 +299,125 @@ export default function WarehouseDetailsPage() {
             </div>
           </div>
 
-          {/* Warehouse Info Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Building className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
+          {/* AI Recommendation and Metrics Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* AI Recommendation Card - Left Side */}
+            <div className="lg:col-span-2">
+              <AIRecommendationCard
+                title="Warehouse Operations AI"
+                subtitle="Your intelligent assistant for warehouse optimization"
+                recommendations={aiRecommendations}
+                onRecommendationComplete={handleRecommendationComplete}
+              />
+            </div>
+
+            {/* Metrics Cards - Right Side */}
+            <div className="grid grid-cols-2 gap-4">
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
                     <p className="text-sm font-medium text-gray-600">Warehouse Code</p>
-                    <p className="text-2xl font-bold text-blue-600">{warehouse.code}</p>
+                    <p className="text-xl font-bold text-gray-900">{warehouse.code}</p>
+                  </div>
+                  <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
+                    <Building className={`w-5 h-5 text-${theme.primary}`} />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Package className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div className="ml-4">
+              </Card>
+              
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
                     <p className="text-sm font-medium text-gray-600">Total Products</p>
-                    <p className="text-2xl font-bold text-green-600">{totalProducts}</p>
+                    <p className="text-xl font-bold text-green-600">{totalProducts}</p>
+                  </div>
+                  <div className="p-2 rounded-full bg-green-100">
+                    <Package className="w-5 h-5 text-green-600" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Package className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div className="ml-4">
+              </Card>
+              
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
                     <p className="text-sm font-medium text-gray-600">Total Quantity</p>
-                    <p className="text-2xl font-bold text-purple-600">{totalQuantity}</p>
+                    <p className="text-xl font-bold text-purple-600">{totalQuantity}</p>
+                  </div>
+                  <div className="p-2 rounded-full bg-purple-100">
+                    <Package className="w-5 h-5 text-purple-600" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <Hash className="h-6 w-6 text-orange-600" />
-                  </div>
-                  <div className="ml-4">
+              </Card>
+              
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
                     <p className="text-sm font-medium text-gray-600">Total Value</p>
-                    <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalValue)}</p>
+                    <p className="text-xl font-bold text-orange-600">{formatCurrency(totalValue)}</p>
+                  </div>
+                  <div className="p-2 rounded-full bg-orange-100">
+                    <Hash className="w-5 h-5 text-orange-600" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </Card>
+            </div>
           </div>
 
           {/* Warehouse Details */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building className="h-5 w-5 text-blue-600" />
-                  Warehouse Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Status</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      {warehouse.isActive ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-gray-400" />
-                      )}
-                      <span className={`text-sm ${
-                        warehouse.isActive ? 'text-green-700' : 'text-gray-500'
-                      }`}>
-                        {warehouse.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Created</label>
-                    <p className="text-sm text-gray-900 mt-1">
-                      {new Date(warehouse.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Building className="h-4 w-4 text-blue-600" />
+              <h3 className="text-sm font-semibold text-gray-900">Warehouse Details</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {warehouse.address && (
+                <div>
+                  <label className="text-xs font-medium text-gray-600">Address</label>
+                  <p className="text-xs text-gray-900 mt-0.5">{warehouse.address}</p>
                 </div>
-
-                {warehouse.address && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Address</label>
-                    <p className="text-sm text-gray-900 mt-1">{warehouse.address}</p>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {warehouse.city && (
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">City</label>
-                      <p className="text-sm text-gray-900 mt-1">{warehouse.city}</p>
-                    </div>
+              )}
+              
+              <div>
+                <label className="text-xs font-medium text-gray-600">Status</label>
+                <div className="flex items-center gap-1 mt-0.5">
+                  {warehouse.isActive ? (
+                    <CheckCircle className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <XCircle className="h-3 w-3 text-gray-400" />
                   )}
-                  
-                  {warehouse.country && (
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Country</label>
-                      <p className="text-sm text-gray-900 mt-1">{warehouse.country}</p>
-                    </div>
-                  )}
+                  <span className={`text-xs ${
+                    warehouse.isActive ? 'text-green-700' : 'text-gray-500'
+                  }`}>
+                    {warehouse.isActive ? 'Active' : 'Inactive'}
+                  </span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              
+              <div>
+                <label className="text-xs font-medium text-gray-600">Created</label>
+                <p className="text-xs text-gray-900 mt-0.5">
+                  {new Date(warehouse.createdAt).toLocaleDateString()}
+                </p>
+              </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-green-600" />
-                  Location Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-5 w-5 text-gray-400" />
-                    <div>
-                      {warehouse.city && warehouse.country ? (
-                        <p className="text-sm text-gray-900">
-                          {warehouse.city}, {warehouse.country}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-gray-400">No location set</p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-gray-400" />
-                    <div>
-                      <p className="text-sm text-gray-900">
-                        Last updated: {new Date(warehouse.updatedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Location</label>
+                <p className="text-xs text-gray-900 mt-0.5">
+                  {warehouse.city && warehouse.country 
+                    ? `${warehouse.city}, ${warehouse.country}`
+                    : warehouse.city || warehouse.country || 'Not specified'
+                  }
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-600">Last Updated</label>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {new Date(warehouse.updatedAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          </Card>
 
           {/* Tabbed Content */}
           <Card>

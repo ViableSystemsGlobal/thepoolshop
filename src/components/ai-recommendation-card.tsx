@@ -57,66 +57,62 @@ export function AIRecommendationCard({
   };
 
   return (
-    <Card className="p-2 bg-gradient-to-br from-slate-50 to-slate-100 border-0 shadow-lg">
-      <div className="flex items-start justify-between mb-2">
+    <Card className="p-3 bg-gradient-to-br from-slate-50 to-slate-100 border-0 shadow-lg">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <div className={`p-1 rounded-lg bg-gradient-to-br from-${theme.primary} to-${theme.primaryDark} shadow-lg`}>
-            {icon || <Sparkles className="w-3 h-3 text-white" />}
+          <div className={`p-1.5 rounded-lg bg-gradient-to-br from-${theme.primary} to-${theme.primaryDark} shadow-lg`}>
+            {icon || <Sparkles className="w-4 h-4 text-white" />}
           </div>
           <div>
-            <h3 className="text-sm font-bold text-gray-900">{title}</h3>
-            <p className="text-xs text-gray-600">{subtitle}</p>
+            <h3 className="text-base font-bold text-gray-900">{title}</h3>
+            <p className="text-sm text-gray-600">{subtitle}</p>
           </div>
         </div>
         <div className="flex items-center space-x-1">
-          <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-xs text-gray-500">AI Active</span>
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span className="text-sm text-gray-500">AI Active</span>
         </div>
       </div>
 
-      <div className="space-y-1">
-        <div className="flex items-center space-x-1 mb-1">
-          <div className="w-4 h-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-            <Sparkles className="w-2 h-2 text-white" />
+      <div className="space-y-2">
+        <div className="flex items-center space-x-2 mb-2">
+          <div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+            <Sparkles className="w-3 h-3 text-white" />
           </div>
-          <h4 className="text-xs font-semibold text-gray-800">Today's Top Recommendations</h4>
+          <h4 className="text-sm font-semibold text-gray-800">Today's Top Recommendations</h4>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-3">
           {recommendations.map((rec, index) => (
             <div 
               key={rec.id}
-              className={`p-1.5 rounded-lg border transition-all duration-200 ${
+              className={`p-2 rounded-lg border transition-all duration-200 ${
                 completedItems.includes(rec.id) 
                   ? 'bg-green-50 border-green-200' 
                   : 'bg-white border-gray-200 hover:border-gray-300'
               }`}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-1 mb-0.5">
-                    <span className={`px-1 py-0.5 rounded-full text-xs font-medium flex items-center space-x-1 ${getPriorityColor(rec.priority)}`}>
-                      {getPriorityIcon(rec.priority)}
-                      <span className="capitalize text-xs">{rec.priority}</span>
-                    </span>
-                  </div>
-                  <h5 className="text-xs font-medium text-gray-900 mb-0.5 truncate">{rec.title}</h5>
-                  <p className="text-xs text-gray-600 leading-tight line-clamp-2">{rec.description}</p>
-                </div>
+              <div className="flex items-start justify-between mb-1">
+                <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium flex items-center space-x-1 ${getPriorityColor(rec.priority)}`}>
+                  {getPriorityIcon(rec.priority)}
+                  <span className="capitalize">{rec.priority}</span>
+                </span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => handleComplete(rec.id)}
                   disabled={completedItems.includes(rec.id)}
-                  className={`ml-1 p-0.5 h-4 w-4 flex-shrink-0 ${
+                  className={`p-0.5 h-5 w-5 flex-shrink-0 ${
                     completedItems.includes(rec.id) 
                       ? 'text-green-600 bg-green-100' 
                       : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
                   }`}
                 >
-                  <Check className="w-2 h-2" />
+                  <Check className="w-3 h-3" />
                 </Button>
               </div>
+              <h5 className="text-sm font-medium text-gray-900 mb-1">{rec.title}</h5>
+              <p className="text-xs text-gray-600 leading-tight line-clamp-2">{rec.description}</p>
             </div>
           ))}
         </div>

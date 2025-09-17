@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
 import { AddStockMovementModal } from "@/components/modals/add-stock-movement-modal";
+import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { DataTable } from "@/components/ui/data-table";
+import { BulkStockMovementModal } from "@/components/modals/bulk-stock-movement-modal";
 import { 
   Plus, 
   Search, 
@@ -25,7 +28,8 @@ import {
   Calendar,
   User,
   FileText,
-  Eye
+  Eye,
+  FileSpreadsheet
 } from "lucide-react";
 
 interface StockMovement {
@@ -68,11 +72,37 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
+  const [selectedMovements, setSelectedMovements] = useState<string[]>([]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const { success, error: showError } = useToast();
+
+  const [aiRecommendations, setAiRecommendations] = useState([
+    {
+      id: '1',
+      title: 'Review unusual movements',
+      description: 'Several large stock adjustments require management review and approval.',
+      priority: 'high' as const,
+      completed: false,
+    },
+    {
+      id: '2',
+      title: 'Optimize transfer patterns',
+      description: 'Analyze frequent transfers between warehouses for efficiency improvements.',
+      priority: 'medium' as const,
+      completed: false,
+    },
+    {
+      id: '3',
+      title: 'Update movement tracking',
+      description: 'Enhance tracking documentation for better inventory audit trails.',
+      priority: 'low' as const,
+      completed: false,
+    },
+  ]);
 
   const movementTypes: StockMovementType[] = [
     {
@@ -177,6 +207,15 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
     fetchMovements();
   }, [selectedType, searchParams]);
 
+  const handleRecommendationComplete = (id: string) => {
+    setAiRecommendations(prev => 
+      prev.map(rec => 
+        rec.id === id ? { ...rec, completed: true } : rec
+      )
+    );
+    success("Recommendation completed! Great job!");
+  };
+
   // Handle product filter from URL
   useEffect(() => {
     const productParam = searchParams.get('product');
@@ -188,6 +227,12 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
   const handleMovementAdded = () => {
     // Refresh the movements list
     fetchMovements();
+  };
+
+  const handleBulkUploadSuccess = () => {
+    // Refresh the movements list
+    fetchMovements();
+    setIsBulkUploadModalOpen(false);
   };
 
   const getMovementTypeInfo = (type: string) => {
@@ -231,6 +276,14 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
             Refresh Data
           </Button>
           <Button 
+            onClick={() => setIsBulkUploadModalOpen(true)}
+            variant="outline"
+            className="mr-2"
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Bulk Upload
+          </Button>
+          <Button 
             onClick={() => setIsAddModalOpen(true)}
             className={`bg-${theme.primary} hover:bg-${theme.primaryHover} text-white`}
           >
@@ -240,69 +293,68 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className={`p-2 rounded-lg bg-${theme.primaryBg}`}>
-                <Package className={`h-6 w-6 text-${theme.primary}`} />
-              </div>
-              <div className="ml-4">
+      {/* AI Recommendation and Metrics Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* AI Recommendation Card - Left Side */}
+        <div className="lg:col-span-2">
+          <AIRecommendationCard
+            title="Stock Movement AI"
+            subtitle="Your intelligent assistant for movement tracking"
+            recommendations={aiRecommendations}
+            onRecommendationComplete={handleRecommendationComplete}
+          />
+        </div>
+
+        {/* Metrics Cards - Right Side */}
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-gray-600">Total Movements</p>
-                <p className={`text-2xl font-bold text-${theme.primary}`}>{movements.length}</p>
+                <p className="text-xl font-bold text-gray-900">{movements.length}</p>
+              </div>
+              <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
+                <Package className={`w-5 h-5 text-${theme.primary}`} />
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-green-100">
-                <TrendingUp className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-gray-600">Stock Ins</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {movements.filter(m => m.quantity > 0).length}
-                </p>
+                <p className="text-xl font-bold text-green-600">{movements.filter(m => m.quantity > 0).length}</p>
+              </div>
+              <div className="p-2 rounded-full bg-green-100">
+                <TrendingUp className="w-5 h-5 text-green-600" />
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-red-100">
-                <TrendingDown className="h-6 w-6 text-red-600" />
-              </div>
-              <div className="ml-4">
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-gray-600">Stock Outs</p>
-                <p className="text-2xl font-bold text-red-600">
-                  {movements.filter(m => m.quantity < 0).length}
-                </p>
+                <p className="text-xl font-bold text-red-600">{movements.filter(m => m.quantity < 0).length}</p>
+              </div>
+              <div className="p-2 rounded-full bg-red-100">
+                <TrendingDown className="w-5 h-5 text-red-600" />
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <RotateCcw className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-gray-600">Adjustments</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {movements.filter(m => m.type === 'ADJUSTMENT').length}
-                </p>
+                <p className="text-xl font-bold text-blue-600">{movements.filter(m => m.type === 'ADJUSTMENT').length}</p>
+              </div>
+              <div className="p-2 rounded-full bg-blue-100">
+                <RotateCcw className="w-5 h-5 text-blue-600" />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </Card>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -347,117 +399,183 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
             Complete history of all stock movements and adjustments
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Product</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Type</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Quantity</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Reference</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Reason</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Date</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Stock After</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredMovements.map((movement) => {
+        <CardContent className="p-0">
+          <DataTable
+            data={filteredMovements}
+            enableSelection={true}
+            selectedItems={selectedMovements}
+            onSelectionChange={setSelectedMovements}
+            bulkActions={
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const { downloadCSV } = await import('@/lib/export-utils');
+                      const exportData = movements
+                        .filter(m => selectedMovements.includes(m.id))
+                        .map(movement => ({
+                          'Product': movement.product.name,
+                          'SKU': movement.product.sku,
+                          'Type': movement.type,
+                          'Quantity': movement.quantity,
+                          'Reference': movement.reference || '',
+                          'Reason': movement.reason || '',
+                          'Date': new Date(movement.createdAt).toLocaleDateString(),
+                          'Stock After': movement.stockAfter,
+                          'Unit Cost': movement.unitCost || 0,
+                          'Total Cost': movement.totalCost || 0,
+                          'Warehouse': movement.warehouse.name
+                        }));
+                      downloadCSV(exportData, `stock_movements_export_${new Date().toISOString().split('T')[0]}.csv`);
+                      success(`Successfully exported ${selectedMovements.length} movement(s)`);
+                    } catch (error) {
+                      success('Export functionality coming soon!');
+                    }
+                  }}
+                  disabled={selectedMovements.length === 0}
+                >
+                  Export
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => success('Delete functionality coming soon!')}
+                  disabled={selectedMovements.length === 0}
+                >
+                  Delete
+                </Button>
+              </div>
+            }
+            columns={[
+              {
+                key: 'product',
+                label: 'Product',
+                render: (movement) => (
+                  <div>
+                    <div className="font-medium text-gray-900">{movement.product.name}</div>
+                    <div className="text-sm text-gray-500">{movement.product.sku}</div>
+                  </div>
+                )
+              },
+              {
+                key: 'type',
+                label: 'Type',
+                render: (movement) => {
                   const typeInfo = getMovementTypeInfo(movement.type);
                   return (
-                    <tr key={movement.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <div>
-                          <div className="font-medium text-gray-900">{movement.product.name}</div>
-                          <div className="text-sm text-gray-500">{movement.product.sku}</div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center">
-                          <div className={`p-1 rounded ${typeInfo.color}`}>
-                            {typeInfo.icon}
-                          </div>
-                          <span className="ml-2 font-medium">{typeInfo.label}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className={`flex items-center font-medium ${getQuantityColor(movement.quantity)}`}>
-                          {getQuantityIcon(movement.quantity)}
-                          <span className="ml-1">
-                            {movement.quantity > 0 ? '+' : ''}{movement.quantity} {movement.product.uomBase}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-sm text-gray-600">
-                          {movement.reference || '-'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-sm text-gray-600">
-                          {movement.reason || '-'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm text-gray-600">
-                          {new Date(movement.createdAt).toLocaleDateString()}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(movement.createdAt).toLocaleTimeString()}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {(() => {
-                            // Calculate stock level after this movement
-                            // We need to work backwards from current stock
-                            const currentStock = movement.stockItem.quantity;
-                            const movementIndex = filteredMovements.findIndex(m => m.id === movement.id);
-                            const movementsAfterThis = filteredMovements.slice(0, movementIndex);
-                            
-                            // Calculate what stock was after this movement
-                            let stockAfterThisMovement = currentStock;
-                            movementsAfterThis.forEach(m => {
-                              stockAfterThisMovement -= m.quantity;
-                            });
-                            
-                            return stockAfterThisMovement;
-                          })()} {movement.product.uomBase}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Available: {(() => {
-                            // Calculate available stock after this movement
-                            const currentAvailable = movement.stockItem.available;
-                            const movementIndex = filteredMovements.findIndex(m => m.id === movement.id);
-                            const movementsAfterThis = filteredMovements.slice(0, movementIndex);
-                            
-                            let availableAfterThisMovement = currentAvailable;
-                            movementsAfterThis.forEach(m => {
-                              availableAfterThisMovement -= m.quantity;
-                            });
-                            
-                            return availableAfterThisMovement;
-                          })()}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => router.push(`/products/${movement.product.id}`)}
-                          className="flex items-center text-blue-600 hover:text-blue-700"
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View Product
-                        </Button>
-                      </td>
-                    </tr>
+                    <div className="flex items-center">
+                      <div className={`p-1 rounded ${typeInfo.color}`}>
+                        {typeInfo.icon}
+                      </div>
+                      <span className="ml-2 font-medium">{typeInfo.label}</span>
+                    </div>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                }
+              },
+              {
+                key: 'quantity',
+                label: 'Quantity',
+                render: (movement) => (
+                  <div className={`flex items-center font-medium ${getQuantityColor(movement.quantity)}`}>
+                    {getQuantityIcon(movement.quantity)}
+                    <span className="ml-1">
+                      {movement.quantity > 0 ? '+' : ''}{movement.quantity} {movement.product.uomBase}
+                    </span>
+                  </div>
+                )
+              },
+              {
+                key: 'reference',
+                label: 'Reference',
+                render: (movement) => (
+                  <span className="text-sm text-gray-600">
+                    {movement.reference || '-'}
+                  </span>
+                )
+              },
+              {
+                key: 'reason',
+                label: 'Reason',
+                render: (movement) => (
+                  <span className="text-sm text-gray-600">
+                    {movement.reason || '-'}
+                  </span>
+                )
+              },
+              {
+                key: 'date',
+                label: 'Date',
+                render: (movement) => (
+                  <div>
+                    <div className="text-sm text-gray-600">
+                      {new Date(movement.createdAt).toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(movement.createdAt).toLocaleTimeString()}
+                    </div>
+                  </div>
+                )
+              },
+              {
+                key: 'stockAfter',
+                label: 'Stock After',
+                render: (movement) => (
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {(() => {
+                        // Calculate stock level after this movement
+                        // We need to work backwards from current stock
+                        const currentStock = movement.stockItem.quantity;
+                        const movementIndex = filteredMovements.findIndex(m => m.id === movement.id);
+                        const movementsAfterThis = filteredMovements.slice(0, movementIndex);
+                        
+                        // Calculate what stock was after this movement
+                        let stockAfterThisMovement = currentStock;
+                        movementsAfterThis.forEach(m => {
+                          stockAfterThisMovement -= m.quantity;
+                        });
+                        
+                        return stockAfterThisMovement;
+                      })()} {movement.product.uomBase}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Available: {(() => {
+                        // Calculate available stock after this movement
+                        const currentAvailable = movement.stockItem.available;
+                        const movementIndex = filteredMovements.findIndex(m => m.id === movement.id);
+                        const movementsAfterThis = filteredMovements.slice(0, movementIndex);
+                        
+                        let availableAfterThisMovement = currentAvailable;
+                        movementsAfterThis.forEach(m => {
+                          availableAfterThisMovement -= m.quantity;
+                        });
+                        
+                        return availableAfterThisMovement;
+                      })()}
+                    </div>
+                  </div>
+                )
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                render: (movement) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push(`/products/${movement.product.id}`)}
+                    className="flex items-center text-blue-600 hover:text-blue-700"
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    View Product
+                  </Button>
+                )
+              }
+            ]}
+            itemsPerPage={10}
+          />
         </CardContent>
       </Card>
 
@@ -466,6 +584,13 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={handleMovementAdded}
+      />
+
+      {/* Bulk Upload Modal */}
+      <BulkStockMovementModal
+        isOpen={isBulkUploadModalOpen}
+        onClose={() => setIsBulkUploadModalOpen(false)}
+        onSuccess={handleBulkUploadSuccess}
       />
     </div>
   );

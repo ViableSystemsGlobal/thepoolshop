@@ -15,6 +15,7 @@ import { EditAccountModal } from '@/components/modals/edit-account-modal';
 import { ViewAccountModal } from '@/components/modals/view-account-modal';
 import { ConfirmDeleteModal } from '@/components/modals/confirm-delete-modal';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
+import { DataTable } from '@/components/ui/data-table';
 
 interface Account {
   id: string;
@@ -70,6 +71,7 @@ export default function AccountsPage() {
     individuals: 0,
     projects: 0,
   });
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
 
   const [aiRecommendations, setAiRecommendations] = useState([
     {
@@ -260,6 +262,60 @@ export default function AccountsPage() {
     setShowDeleteModal(true);
   };
 
+  // Bulk action handlers
+  const handleBulkDelete = async () => {
+    if (selectedAccounts.length === 0) return;
+    
+    try {
+      const response = await fetch('/api/accounts/bulk-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedAccounts }),
+      });
+
+      if (response.ok) {
+        setAccounts(accounts.filter(a => !selectedAccounts.includes(a.id)));
+        setSelectedAccounts([]);
+        success(`Successfully deleted ${selectedAccounts.length} account(s)`);
+        calculateMetrics(accounts.filter(a => !selectedAccounts.includes(a.id)));
+      } else {
+        error('Failed to delete accounts');
+      }
+    } catch (err) {
+      console.error('Error deleting accounts:', err);
+      error('Failed to delete accounts');
+    }
+  };
+
+  const handleBulkExport = async () => {
+    if (selectedAccounts.length === 0) return;
+    
+    try {
+      const response = await fetch('/api/accounts/bulk-export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedAccounts }),
+      });
+
+      if (response.ok) {
+        const { data, filename } = await response.json();
+        const { downloadCSV } = await import('@/lib/export-utils');
+        downloadCSV(data, filename);
+        success(`Successfully exported ${selectedAccounts.length} account(s)`);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to export accounts');
+      }
+    } catch (err) {
+      console.error('Error exporting accounts:', err);
+      error('Failed to export accounts');
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -286,7 +342,6 @@ export default function AccountsPage() {
             subtitle="Your intelligent assistant for account optimization"
             recommendations={aiRecommendations}
             onRecommendationComplete={handleRecommendationComplete}
-            icon={<Building2 className="w-6 h-6 text-white" />}
           />
         </div>
 
@@ -370,110 +425,145 @@ export default function AccountsPage() {
         {loading ? (
           <div className="text-center py-8">Loading accounts...</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4">Account</th>
-                  <th className="text-left py-3 px-4">Type</th>
-                  <th className="text-left py-3 px-4">Contact</th>
-                  <th className="text-left py-3 px-4">Location</th>
-                  <th className="text-left py-3 px-4">Stats</th>
-                  <th className="text-left py-3 px-4">Created</th>
-                  <th className="text-right py-3 px-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {accounts.map((account) => (
-                  <tr key={account.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="font-medium">{account.name}</div>
-                      {account.website && (
-                        <div className="text-sm text-gray-500">
-                          <a href={account.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                            {account.website}
-                          </a>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${typeColors[account.type]}`}>
-                        {account.type}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="text-sm">
-                        {account.email && <div>{account.email}</div>}
-                        {account.phone && <div className="text-gray-500">{account.phone}</div>}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="text-sm">
-                        {account.city && <div>{account.city}</div>}
-                        {account.country && <div className="text-gray-500">{account.country}</div>}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-4 text-sm">
-                        <div className="flex items-center">
-                          <Users className="w-3 h-3 mr-1" />
-                          {account._count.contacts}
-                        </div>
-                        <div className="flex items-center">
-                          <TrendingUp className="w-3 h-3 mr-1" />
-                          {account._count.opportunities}
-                        </div>
-                        <div className="flex items-center">
-                          <FileText className="w-3 h-3 mr-1" />
-                          {account._count.quotations}
-                        </div>
-                        <div className="flex items-center">
-                          <Receipt className="w-3 h-3 mr-1" />
-                          {account._count.proformas}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-500">
-                      {new Date(account.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <DropdownMenu
-                        trigger={
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        }
-                        items={[
-                          {
-                            label: 'View',
-                            icon: <Eye className="w-4 h-4" />,
-                            onClick: () => openViewModal(account),
-                          },
-                          {
-                            label: 'Edit',
-                            icon: <Edit className="w-4 h-4" />,
-                            onClick: () => openEditModal(account),
-                          },
-                          {
-                            label: 'Delete',
-                            icon: <Trash2 className="w-4 h-4" />,
-                            onClick: () => openDeleteModal(account),
-                            className: 'text-red-600',
-                          },
-                        ]}
-                        align="right"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {accounts.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No accounts found. Create your first account to get started.
+          <DataTable
+            data={accounts}
+            enableSelection={true}
+            selectedItems={selectedAccounts}
+            onSelectionChange={setSelectedAccounts}
+            bulkActions={
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkExport}
+                  disabled={selectedAccounts.length === 0}
+                >
+                  Export
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={selectedAccounts.length === 0}
+                >
+                  Delete
+                </Button>
               </div>
-            )}
-          </div>
+            }
+            columns={[
+              {
+                key: 'account',
+                label: 'Account',
+                render: (account) => (
+                  <div>
+                    <div className="font-medium">{account.name}</div>
+                    {account.website && (
+                      <div className="text-sm text-gray-500">
+                        <a href={account.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                          {account.website}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )
+              },
+              {
+                key: 'type',
+                label: 'Type',
+                render: (account) => (
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${typeColors[account.type]}`}>
+                    {account.type}
+                  </span>
+                )
+              },
+              {
+                key: 'contact',
+                label: 'Contact',
+                render: (account) => (
+                  <div className="text-sm">
+                    {account.email && <div>{account.email}</div>}
+                    {account.phone && <div className="text-gray-500">{account.phone}</div>}
+                  </div>
+                )
+              },
+              {
+                key: 'location',
+                label: 'Location',
+                render: (account) => (
+                  <div className="text-sm">
+                    {account.city && <div>{account.city}</div>}
+                    {account.country && <div className="text-gray-500">{account.country}</div>}
+                  </div>
+                )
+              },
+              {
+                key: 'stats',
+                label: 'Stats',
+                render: (account) => (
+                  <div className="flex items-center space-x-4 text-sm">
+                    <div className="flex items-center">
+                      <Users className="w-3 h-3 mr-1" />
+                      {account._count.contacts}
+                    </div>
+                    <div className="flex items-center">
+                      <TrendingUp className="w-3 h-3 mr-1" />
+                      {account._count.opportunities}
+                    </div>
+                    <div className="flex items-center">
+                      <FileText className="w-3 h-3 mr-1" />
+                      {account._count.quotations}
+                    </div>
+                    <div className="flex items-center">
+                      <Receipt className="w-3 h-3 mr-1" />
+                      {account._count.proformas}
+                    </div>
+                  </div>
+                )
+              },
+              {
+                key: 'created',
+                label: 'Created',
+                render: (account) => (
+                  <span className="text-sm text-gray-500">
+                    {new Date(account.createdAt).toLocaleDateString()}
+                  </span>
+                )
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                render: (account) => (
+                  <DropdownMenu
+                    trigger={
+                      <Button variant="ghost" size="sm">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    }
+                    items={[
+                      {
+                        label: 'View',
+                        icon: <Eye className="w-4 h-4" />,
+                        onClick: () => openViewModal(account),
+                      },
+                      {
+                        label: 'Edit',
+                        icon: <Edit className="w-4 h-4" />,
+                        onClick: () => openEditModal(account),
+                      },
+                      {
+                        label: 'Delete',
+                        icon: <Trash2 className="w-4 h-4" />,
+                        onClick: () => openDeleteModal(account),
+                        className: 'text-red-600',
+                      },
+                    ]}
+                    align="right"
+                  />
+                )
+              }
+            ]}
+            itemsPerPage={10}
+          />
         )}
       </Card>
 

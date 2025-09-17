@@ -69,9 +69,17 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
   const [productSearch, setProductSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [grnFile, setGrnFile] = useState<File | null>(null);
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const { success, error: showError } = useToast();
+
+  const handleGrnFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setGrnFile(file);
+    }
+  };
 
   // Fetch data when modal opens
   useEffect(() => {
@@ -222,6 +230,13 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
 
     if (!formData.warehouseId) {
       showError("Validation Error", "Please select a warehouse");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // GRN is required for RECEIPT type movements
+    if (formData.type === 'RECEIPT' && !grnFile) {
+      showError("Validation Error", "GRN Document is required for stock receipts");
       setIsSubmitting(false);
       return;
     }
@@ -463,6 +478,27 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
               rows={3}
             />
           </div>
+
+          {/* GRN Upload - Required for RECEIPT type */}
+          {formData.type === 'RECEIPT' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                GRN Document <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={handleGrnFileUpload}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {grnFile && (
+                <p className="text-sm text-green-600 mt-1">✓ {grnFile.name}</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                Upload the Goods Receipt Note for this stock receipt
+              </p>
+            </div>
+          )}
 
           {/* Submit Buttons */}
           <div className="flex justify-end space-x-3 pt-4 border-t">

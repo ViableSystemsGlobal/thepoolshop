@@ -172,6 +172,21 @@ export default function Sidebar() {
     return colorMap[theme.primary] || `${prefix}bg-blue-600`;
   };
 
+  // Helper function to get hover background classes with safelist
+  const getHoverBackgroundClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'hover:bg-purple-600',
+      'blue-600': 'hover:bg-blue-600', 
+      'green-600': 'hover:bg-green-600',
+      'orange-600': 'hover:bg-orange-600',
+      'red-600': 'hover:bg-red-600',
+      'indigo-600': 'hover:bg-indigo-600',
+      'pink-600': 'hover:bg-pink-600',
+      'teal-600': 'hover:bg-teal-600',
+    };
+    return colorMap[theme.primary] || 'hover:bg-blue-600';
+  };
+
   // Helper function to get proper text color classes
   const getTextColorClasses = (isHover: boolean = false) => {
     const prefix = isHover ? 'hover:' : '';
@@ -186,6 +201,21 @@ export default function Sidebar() {
       'teal-600': `${prefix}text-teal-600`,
     };
     return colorMap[theme.primary] || `${prefix}text-blue-600`;
+  };
+
+  // Helper function to get proper focus ring classes
+  const getFocusRingClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'focus:ring-purple-500',
+      'blue-600': 'focus:ring-blue-500',
+      'green-600': 'focus:ring-green-500',
+      'orange-600': 'focus:ring-orange-500',
+      'red-600': 'focus:ring-red-500',
+      'indigo-600': 'focus:ring-indigo-500',
+      'pink-600': 'focus:ring-pink-500',
+      'teal-600': 'focus:ring-teal-500',
+    };
+    return colorMap[theme.primary] || 'focus:ring-blue-500';
   };
 
   const toggleSection = (sectionName: string) => {
@@ -260,7 +290,7 @@ export default function Sidebar() {
       {/* Test Mode Pill */}
       <div className="px-4 py-2">
         <div className="flex items-center justify-center">
-          <span className={`inline-flex items-center rounded-full bg-${theme.primaryBg} px-2 py-1 text-xs font-medium text-${theme.primaryText}`}>
+          <span className={`inline-flex items-center rounded-full ${theme.primaryBg} px-2 py-1 text-xs font-medium ${theme.primaryText}`}>
             Test Mode
           </span>
         </div>
@@ -282,7 +312,7 @@ export default function Sidebar() {
                     "group flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActiveItem
                       ? `${getBackgroundClasses(true)} text-white`
-                      : `text-gray-700 hover:bg-blue-600 hover:text-white`
+                      : `text-gray-700 ${getHoverBackgroundClasses()} hover:text-white`
                   )}
                 >
                   <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
@@ -290,8 +320,8 @@ export default function Sidebar() {
                     <>
                       {item.name}
                       <span className={cn(
-                        "ml-auto",
-                        isActiveItem ? "text-white" : "text-gray-400"
+                        "ml-auto transition-colors",
+                        isActiveItem ? "text-white" : "text-gray-400 group-hover:text-white"
                       )}>
                         {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </span>
@@ -305,7 +335,7 @@ export default function Sidebar() {
                     "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActiveItem
                       ? `${getBackgroundClasses(true)} text-white`
-                      : `text-gray-700 ${getBackgroundClasses(true, true)} hover:text-white`
+                      : `text-gray-700 ${getHoverBackgroundClasses()} hover:text-white`
                   )}
                 >
                   <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
@@ -323,8 +353,8 @@ export default function Sidebar() {
                       className={cn(
                         "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                         isActive(child.href)
-                          ? "text-blue-600"
-                          : "text-gray-600 hover:text-blue-600"
+                          ? getTextColorClasses()
+                          : `text-gray-600 ${getTextColorClasses(true)}`
                       )}
                     >
                       <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
@@ -355,7 +385,7 @@ export default function Sidebar() {
                   <shortcut.icon className="mr-3 h-4 w-4 flex-shrink-0" />
                   {shortcut.name}
                 </div>
-                <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white bg-${theme.primary}`}>
+                <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white ${getBackgroundClasses(true)}`}>
                   {shortcut.badge}
                 </span>
               </Link>
@@ -370,7 +400,7 @@ export default function Sidebar() {
           <>
             {/* Business Unit Switch */}
             <div className="mb-4">
-              <select className={`w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}>
+              <select className={`w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 ${getFocusRingClasses()} focus:border-transparent`}>
                 <option>Retail</option>
                 <option>Projects</option>
                 <option>Wholesale</option>

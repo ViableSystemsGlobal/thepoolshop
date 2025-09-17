@@ -207,7 +207,6 @@ export default function CRMDashboard() {
             subtitle="Your AI-powered sales assistant"
             recommendations={aiRecommendations}
             onRecommendationComplete={handleRecommendationComplete}
-            icon={<TrendingUp className="w-6 h-6 text-white" />}
           />
         </div>
 

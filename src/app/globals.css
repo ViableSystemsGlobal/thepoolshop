@@ -9,4 +9,16 @@
   body {
     @apply bg-white text-gray-900;
   }
+  
+  /* Ensure form elements have white backgrounds */
+  select, input, textarea {
+    @apply bg-white text-gray-900;
+  }
+  
+  /* Override any gray backgrounds on form elements */
+  select:not([class*="bg-"]), 
+  input:not([class*="bg-"]), 
+  textarea:not([class*="bg-"]) {
+    @apply bg-white;
+  }
 }

@@ -25,6 +25,10 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { DataTable } from "@/components/ui/data-table";
+import { useTheme } from "@/contexts/theme-context";
+import { useToast } from "@/contexts/toast-context";
 
 interface Product {
   id: string;
@@ -72,6 +76,34 @@ export default function StockPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedStockItems, setSelectedStockItems] = useState<string[]>([]);
+  const { getThemeClasses } = useTheme();
+  const theme = getThemeClasses();
+  const { success } = useToast();
+
+  const [aiRecommendations, setAiRecommendations] = useState([
+    {
+      id: '1',
+      title: 'Restock critical items',
+      description: 'Several products are below reorder point and need immediate restocking.',
+      priority: 'high' as const,
+      completed: false,
+    },
+    {
+      id: '2',
+      title: 'Review slow-moving inventory',
+      description: 'Identify products with low turnover rates for optimization.',
+      priority: 'medium' as const,
+      completed: false,
+    },
+    {
+      id: '3',
+      title: 'Optimize warehouse layout',
+      description: 'Reorganize stock placement based on product movement patterns.',
+      priority: 'low' as const,
+      completed: false,
+    },
+  ]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -107,6 +139,15 @@ export default function StockPage() {
   const outOfStockProducts = products.filter(p => !p.stockItem || p.stockItem.available === 0).length;
   const totalInventoryCost = products.reduce((sum, p) => sum + (p.stockItem?.totalValue || 0), 0);
 
+  const handleRecommendationComplete = (id: string) => {
+    setAiRecommendations(prev => 
+      prev.map(rec => 
+        rec.id === id ? { ...rec, completed: true } : rec
+      )
+    );
+    success("Recommendation completed! Great job!");
+  };
+
   const getStockStatus = (product: Product) => {
     if (!product.stockItem) return { status: "No Stock", color: "bg-gray-100 text-gray-800" };
     if (product.stockItem.available === 0) return { status: "Out of Stock", color: "bg-red-100 text-red-800" };
@@ -138,76 +179,82 @@ export default function StockPage() {
           <CurrencyToggle value={currency} onChange={changeCurrency} />
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-purple-50">
-                  <Package className="h-6 w-6 text-purple-600" />
-                </div>
-                <div className="ml-4">
+        {/* AI Recommendation and Metrics Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* AI Recommendation Card - Left Side */}
+          <div className="lg:col-span-2">
+            <AIRecommendationCard
+              title="Inventory Management AI"
+              subtitle="Your intelligent assistant for stock optimization"
+              recommendations={aiRecommendations}
+              onRecommendationComplete={handleRecommendationComplete}
+            />
+          </div>
+
+          {/* Metrics Cards - Right Side */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
                   <p className="text-sm font-medium text-gray-600">Total Products</p>
-                  <p className="text-2xl font-bold text-purple-600">{totalProducts}</p>
+                  <p className="text-xl font-bold text-gray-900">{totalProducts}</p>
+                </div>
+                <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
+                  <Package className={`w-5 h-5 text-${theme.primary}`} />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-green-100">
-                  <CheckCircle className="h-6 w-6 text-green-600" />
-                </div>
-                <div className="ml-4">
+            </Card>
+            
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
                   <p className="text-sm font-medium text-gray-600">In Stock</p>
-                  <p className="text-2xl font-bold text-green-600">{inStockProducts}</p>
+                  <p className="text-xl font-bold text-green-600">{inStockProducts}</p>
+                </div>
+                <div className="p-2 rounded-full bg-green-100">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-yellow-100">
-                  <AlertTriangle className="h-6 w-6 text-yellow-600" />
-                </div>
-                <div className="ml-4">
+            </Card>
+            
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
                   <p className="text-sm font-medium text-gray-600">Low Stock</p>
-                  <p className="text-2xl font-bold text-yellow-600">{lowStockProducts}</p>
+                  <p className="text-xl font-bold text-orange-600">{lowStockProducts}</p>
+                </div>
+                <div className="p-2 rounded-full bg-orange-100">
+                  <AlertTriangle className="w-5 h-5 text-orange-600" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-red-100">
-                  <XCircle className="h-6 w-6 text-red-600" />
-                </div>
-                <div className="ml-4">
+            </Card>
+            
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
                   <p className="text-sm font-medium text-gray-600">Out of Stock</p>
-                  <p className="text-2xl font-bold text-red-600">{outOfStockProducts}</p>
+                  <p className="text-xl font-bold text-red-600">{outOfStockProducts}</p>
+                </div>
+                <div className="p-2 rounded-full bg-red-100">
+                  <XCircle className="w-5 h-5 text-red-600" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </Card>
+          </div>
+        </div>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="p-2 rounded-lg bg-blue-100">
-                  <DollarSign className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Inventory Value</p>
-                  <p className="text-2xl font-bold text-blue-600">{formatCurrencyWithSymbol(totalInventoryCost, currency, 'USD')}</p>
-                </div>
+        {/* Additional Metrics */}
+        <div className="grid grid-cols-1 gap-6">
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Inventory Value</p>
+                <p className="text-2xl font-bold text-blue-600">{formatCurrencyWithSymbol(totalInventoryCost, currency, 'USD')}</p>
               </div>
-            </CardContent>
+              <div className="p-2 rounded-full bg-blue-100">
+                <DollarSign className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
           </Card>
         </div>
 
@@ -247,119 +294,193 @@ export default function StockPage() {
               Click on any product to view detailed stock movements
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Product</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Category</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Stock Level</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Available</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Reserved</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Unit Price</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Avg Cost</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Reorder Point</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Warehouse</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Cost Value</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Status</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((product) => {
+          <CardContent className="p-0">
+            <DataTable
+              data={products}
+              enableSelection={true}
+              selectedItems={selectedStockItems}
+              onSelectionChange={setSelectedStockItems}
+              bulkActions={
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const { downloadCSV } = await import('@/lib/export-utils');
+                        const exportData = products
+                          .filter(p => selectedStockItems.includes(p.id))
+                          .map(product => ({
+                            'Product Name': product.name,
+                            'SKU': product.sku,
+                            'Category': product.category?.name || 'Uncategorized',
+                            'Available Stock': product.available,
+                            'Reserved': product.reserved,
+                            'Unit Price': product.unitPrice,
+                            'Average Cost': product.averageCost,
+                            'Total Value': product.totalValue,
+                            'Reorder Point': product.reorderPoint,
+                            'Warehouse': product.warehouse?.name || 'N/A',
+                            'Status': product.available > 0 ? 'In Stock' : 'Out of Stock'
+                          }));
+                        downloadCSV(exportData, `stock_export_${new Date().toISOString().split('T')[0]}.csv`);
+                        success(`Successfully exported ${selectedStockItems.length} stock item(s)`);
+                      } catch (error) {
+                        success('Export functionality coming soon!');
+                      }
+                    }}
+                    disabled={selectedStockItems.length === 0}
+                  >
+                    Export
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => success('Adjust stock functionality coming soon!')}
+                    disabled={selectedStockItems.length === 0}
+                  >
+                    Adjust Stock
+                  </Button>
+                </div>
+              }
+              columns={[
+                {
+                  key: 'product',
+                  label: 'Product',
+                  render: (product) => (
+                    <div>
+                      <div className="font-medium text-gray-900">{product.name}</div>
+                      <div className="text-sm text-gray-500">{product.sku}</div>
+                    </div>
+                  )
+                },
+                {
+                  key: 'category',
+                  label: 'Category',
+                  render: (product) => (
+                    <span className="text-sm text-gray-600">
+                      {product.category?.name || 'No Category'}
+                    </span>
+                  )
+                },
+                {
+                  key: 'stockLevel',
+                  label: 'Stock Level',
+                  render: (product) => (
+                    <div className="text-sm text-gray-600">
+                      {product.stockItem?.quantity || 0} {product.uomBase}
+                    </div>
+                  )
+                },
+                {
+                  key: 'available',
+                  label: 'Available',
+                  render: (product) => (
+                    <div className="text-sm text-gray-600">
+                      {product.stockItem?.available || 0}
+                    </div>
+                  )
+                },
+                {
+                  key: 'reserved',
+                  label: 'Reserved',
+                  render: (product) => (
+                    <div className="text-sm text-gray-600">
+                      {product.stockItem?.reserved || 0}
+                    </div>
+                  )
+                },
+                {
+                  key: 'unitPrice',
+                  label: 'Unit Price',
+                  render: (product) => (
+                    <div className="text-sm text-gray-600">
+                      {formatCurrencyWithSymbol(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
+                    </div>
+                  )
+                },
+                {
+                  key: 'avgCost',
+                  label: 'Avg Cost',
+                  render: (product) => (
+                    <div className="text-sm text-gray-600">
+                      {formatCurrencyWithSymbol(product.stockItem?.averageCost || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
+                    </div>
+                  )
+                },
+                {
+                  key: 'reorderPoint',
+                  label: 'Reorder Point',
+                  render: (product) => (
+                    <div className="text-sm text-gray-600">
+                      {product.stockItem?.reorderPoint || 0} {product.uomBase}
+                    </div>
+                  )
+                },
+                {
+                  key: 'warehouse',
+                  label: 'Warehouse',
+                  render: (product) => (
+                    <div className="text-sm text-gray-600">
+                      {product.stockItem?.warehouse?.name || 'No Warehouse'}
+                    </div>
+                  )
+                },
+                {
+                  key: 'costValue',
+                  label: 'Cost Value',
+                  render: (product) => (
+                    <div className="text-sm text-gray-600">
+                      {formatCurrencyWithSymbol(product.stockItem?.totalValue || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
+                    </div>
+                  )
+                },
+                {
+                  key: 'status',
+                  label: 'Status',
+                  render: (product) => {
                     const stockStatus = getStockStatus(product);
                     return (
-                      <tr key={product.id} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-4">
-                          <div>
-                            <div className="font-medium text-gray-900">{product.name}</div>
-                            <div className="text-sm text-gray-500">{product.sku}</div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="text-sm text-gray-600">
-                            {product.category?.name || 'No Category'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {product.stockItem?.quantity || 0} {product.uomBase}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {product.stockItem?.available || 0}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {product.stockItem?.reserved || 0}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {formatCurrencyWithSymbol(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {formatCurrencyWithSymbol(product.stockItem?.averageCost || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {product.stockItem?.reorderPoint || 0} {product.uomBase}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {product.stockItem?.warehouse?.name || 'No Warehouse'}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {formatCurrencyWithSymbol(product.stockItem?.totalValue || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium whitespace-nowrap ${stockStatus.color}`}>
-                            {stockStatus.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <DropdownMenu
-                            trigger={
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            }
-                            items={[
-                              {
-                                label: "View Details",
-                                icon: <Eye className="h-4 w-4" />,
-                                onClick: () => window.open(`/products/${product.id}`, '_blank')
-                              },
-                              {
-                                label: "Edit Product",
-                                icon: <Edit className="h-4 w-4" />,
-                                onClick: () => window.open(`/products/${product.id}`, '_blank')
-                              },
-                              {
-                                label: "Stock Movements",
-                                icon: <BarChart3 className="h-4 w-4" />,
-                                onClick: () => window.open(`/products/${product.id}/stock-movements`, '_blank')
-                              }
-                            ]}
-                          />
-                        </td>
-                      </tr>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium whitespace-nowrap ${stockStatus.color}`}>
+                        {stockStatus.status}
+                      </span>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  }
+                },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  render: (product) => (
+                    <DropdownMenu
+                      trigger={
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      }
+                      items={[
+                        {
+                          label: "View Details",
+                          icon: <Eye className="h-4 w-4" />,
+                          onClick: () => window.open(`/products/${product.id}`, '_blank')
+                        },
+                        {
+                          label: "Edit Product",
+                          icon: <Edit className="h-4 w-4" />,
+                          onClick: () => window.open(`/products/${product.id}`, '_blank')
+                        },
+                        {
+                          label: "Stock Movements",
+                          icon: <BarChart3 className="h-4 w-4" />,
+                          onClick: () => window.open(`/products/${product.id}/stock-movements`, '_blank')
+                        }
+                      ]}
+                    />
+                  )
+                }
+              ]}
+              itemsPerPage={10}
+            />
           </CardContent>
         </Card>
       </div>

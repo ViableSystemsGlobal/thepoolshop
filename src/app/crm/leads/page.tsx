@@ -16,6 +16,7 @@ import { EditLeadModal } from '@/components/modals/edit-lead-modal';
 import { ViewLeadModal } from '@/components/modals/view-lead-modal';
 import { ConfirmDeleteModal } from '@/components/modals/confirm-delete-modal';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
+import { DataTable } from '@/components/ui/data-table';
 
 interface Lead {
   id: string;
@@ -68,6 +69,7 @@ export default function LeadsPage() {
     qualified: 0,
     converted: 0,
   });
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
 
   const [aiRecommendations, setAiRecommendations] = useState([
     {
@@ -325,6 +327,90 @@ export default function LeadsPage() {
     }
   };
 
+  // Bulk action handlers
+  const handleBulkDelete = async () => {
+    if (selectedLeads.length === 0) return;
+    
+    try {
+      const response = await fetch('/api/leads/bulk-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedLeads }),
+      });
+
+      if (response.ok) {
+        setLeads(leads.filter(l => !selectedLeads.includes(l.id)));
+        setSelectedLeads([]);
+        success(`Successfully deleted ${selectedLeads.length} lead(s)`);
+        calculateMetrics(leads.filter(l => !selectedLeads.includes(l.id)));
+      } else {
+        error('Failed to delete leads');
+      }
+    } catch (err) {
+      console.error('Error deleting leads:', err);
+      error('Failed to delete leads');
+    }
+  };
+
+  const handleBulkExport = async () => {
+    if (selectedLeads.length === 0) return;
+    
+    try {
+      const response = await fetch('/api/leads/bulk-export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedLeads }),
+      });
+
+      if (response.ok) {
+        const { data, filename } = await response.json();
+        const { downloadCSV } = await import('@/lib/export-utils');
+        downloadCSV(data, filename);
+        success(`Successfully exported ${selectedLeads.length} lead(s)`);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to export leads');
+      }
+    } catch (err) {
+      console.error('Error exporting leads:', err);
+      error('Failed to export leads');
+    }
+  };
+
+  const handleBulkStatusUpdate = async (newStatus: string) => {
+    if (selectedLeads.length === 0) return;
+    
+    try {
+      const response = await fetch('/api/leads/bulk-update', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedLeads, status: newStatus }),
+      });
+
+      if (response.ok) {
+        setLeads(leads.map(lead => 
+          selectedLeads.includes(lead.id) ? { ...lead, status: newStatus as any } : lead
+        ));
+        setSelectedLeads([]);
+        success(`Successfully updated ${selectedLeads.length} lead(s) to ${newStatus.toLowerCase()}`);
+        calculateMetrics(leads.map(lead => 
+          selectedLeads.includes(lead.id) ? { ...lead, status: newStatus as any } : lead
+        ));
+      } else {
+        error('Failed to update leads');
+      }
+    } catch (err) {
+      console.error('Error updating leads:', err);
+      error('Failed to update leads');
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -339,7 +425,7 @@ export default function LeadsPage() {
               variant={viewMode === 'list' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className={viewMode === 'list' ? `bg-${theme.primary} text-white` : ''}
+              className={viewMode === 'list' ? `bg-${theme.primary} text-white hover:bg-${theme.primary} hover:text-white` : `hover:bg-gray-200`}
             >
               <List className="w-4 h-4" />
             </Button>
@@ -347,7 +433,7 @@ export default function LeadsPage() {
               variant={viewMode === 'kanban' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('kanban')}
-              className={viewMode === 'kanban' ? `bg-${theme.primary} text-white` : ''}
+              className={viewMode === 'kanban' ? `bg-${theme.primary} text-white hover:bg-${theme.primary} hover:text-white` : `hover:bg-gray-200`}
             >
               <Grid className="w-4 h-4" />
             </Button>
@@ -379,7 +465,6 @@ export default function LeadsPage() {
             subtitle="Your intelligent assistant for lead optimization"
             recommendations={aiRecommendations}
             onRecommendationComplete={handleRecommendationComplete}
-            icon={<Users className="w-6 h-6 text-white" />}
           />
         </div>
 
@@ -465,93 +550,141 @@ export default function LeadsPage() {
         {loading ? (
           <div className="text-center py-8">Loading leads...</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4">Name</th>
-                  <th className="text-left py-3 px-4">Company</th>
-                  <th className="text-left py-3 px-4">Contact</th>
-                  <th className="text-left py-3 px-4">Source</th>
-                  <th className="text-left py-3 px-4">Status</th>
-                  <th className="text-left py-3 px-4">Score</th>
-                  <th className="text-left py-3 px-4">Created</th>
-                  <th className="text-right py-3 px-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((lead) => (
-                  <tr key={lead.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="font-medium">
-                        {lead.firstName} {lead.lastName}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">{lead.company || '-'}</td>
-                    <td className="py-3 px-4">
-                      <div className="text-sm">
-                        {lead.email && <div>{lead.email}</div>}
-                        {lead.phone && <div className="text-gray-500">{lead.phone}</div>}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">{lead.source || '-'}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[lead.status]}`}>
-                        {lead.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center">
-                        <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ width: `${lead.score}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm">{lead.score}%</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-500">
-                      {new Date(lead.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <DropdownMenu
-                        trigger={
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        }
-                        items={[
-                          {
-                            label: 'View',
-                            icon: <Eye className="w-4 h-4" />,
-                            onClick: () => openViewModal(lead),
-                          },
-                          {
-                            label: 'Edit',
-                            icon: <Edit className="w-4 h-4" />,
-                            onClick: () => openEditModal(lead),
-                          },
-                          {
-                            label: 'Delete',
-                            icon: <Trash2 className="w-4 h-4" />,
-                            onClick: () => openDeleteModal(lead),
-                            className: 'text-red-600',
-                          },
-                        ]}
-                        align="right"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {leads.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No leads found. Create your first lead to get started.
+          <DataTable
+            data={leads}
+            enableSelection={true}
+            selectedItems={selectedLeads}
+            onSelectionChange={setSelectedLeads}
+            bulkActions={
+              <div className="flex gap-2">
+                <select
+                  onChange={(e) => e.target.value && handleBulkStatusUpdate(e.target.value)}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  defaultValue=""
+                >
+                  <option value="">Update Status</option>
+                  <option value="NEW">New</option>
+                  <option value="CONTACTED">Contacted</option>
+                  <option value="QUALIFIED">Qualified</option>
+                  <option value="CONVERTED">Converted</option>
+                  <option value="LOST">Lost</option>
+                </select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkExport}
+                  disabled={selectedLeads.length === 0}
+                >
+                  Export
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={selectedLeads.length === 0}
+                >
+                  Delete
+                </Button>
               </div>
-            )}
-          </div>
+            }
+            columns={[
+              {
+                key: 'name',
+                label: 'Name',
+                render: (lead) => (
+                  <div className="font-medium">
+                    {lead.firstName} {lead.lastName}
+                  </div>
+                )
+              },
+              {
+                key: 'company',
+                label: 'Company',
+                render: (lead) => <span>{lead.company || '-'}</span>
+              },
+              {
+                key: 'contact',
+                label: 'Contact',
+                render: (lead) => (
+                  <div className="text-sm">
+                    {lead.email && <div>{lead.email}</div>}
+                    {lead.phone && <div className="text-gray-500">{lead.phone}</div>}
+                  </div>
+                )
+              },
+              {
+                key: 'source',
+                label: 'Source',
+                render: (lead) => <span>{lead.source || '-'}</span>
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                render: (lead) => (
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[lead.status]}`}>
+                    {lead.status}
+                  </span>
+                )
+              },
+              {
+                key: 'score',
+                label: 'Score',
+                render: (lead) => (
+                  <div className="flex items-center">
+                    <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full"
+                        style={{ width: `${lead.score}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-sm">{lead.score}%</span>
+                  </div>
+                )
+              },
+              {
+                key: 'created',
+                label: 'Created',
+                render: (lead) => (
+                  <span className="text-sm text-gray-500">
+                    {new Date(lead.createdAt).toLocaleDateString()}
+                  </span>
+                )
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                render: (lead) => (
+                  <DropdownMenu
+                    trigger={
+                      <Button variant="ghost" size="sm">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    }
+                    items={[
+                      {
+                        label: 'View',
+                        icon: <Eye className="w-4 h-4" />,
+                        onClick: () => openViewModal(lead),
+                      },
+                      {
+                        label: 'Edit',
+                        icon: <Edit className="w-4 h-4" />,
+                        onClick: () => openEditModal(lead),
+                      },
+                      {
+                        label: 'Delete',
+                        icon: <Trash2 className="w-4 h-4" />,
+                        onClick: () => openDeleteModal(lead),
+                        className: 'text-red-600',
+                      },
+                    ]}
+                    align="right"
+                  />
+                )
+              }
+            ]}
+            itemsPerPage={10}
+          />
         )}
       </Card>
       ) : (

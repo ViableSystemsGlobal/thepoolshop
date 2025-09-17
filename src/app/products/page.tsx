@@ -17,6 +17,9 @@ import { StockAdjustmentModal } from "@/components/modals/stock-adjustment-modal
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
+import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { DataTable } from "@/components/ui/data-table";
+import { GRNGenerationModal } from "@/components/modals/grn-generation-modal";
 import { 
   Plus, 
   Search, 
@@ -133,9 +136,35 @@ export default function ProductsPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isStockAdjustmentOpen, setIsStockAdjustmentOpen] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [isGRNModalOpen, setIsGRNModalOpen] = useState(false);
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const { success, error: showError } = useToast();
+
+  const [aiRecommendations, setAiRecommendations] = useState([
+    {
+      id: '1',
+      title: 'Review low stock items',
+      description: 'You have products running low on stock that need immediate restocking.',
+      priority: 'high' as const,
+      completed: false,
+    },
+    {
+      id: '2',
+      title: 'Update product pricing',
+      description: 'Analyze and update pricing for products with high demand.',
+      priority: 'medium' as const,
+      completed: false,
+    },
+    {
+      id: '3',
+      title: 'Optimize product categories',
+      description: 'Reorganize product categories for better customer navigation.',
+      priority: 'low' as const,
+      completed: false,
+    },
+  ]);
 
   // Fetch products and categories on component mount
   React.useEffect(() => {
@@ -240,6 +269,68 @@ export default function ProductsPage() {
     success('Archive product functionality coming soon!');
   };
 
+  // Bulk action handlers
+  const handleBulkDelete = async () => {
+    if (selectedProducts.length === 0) return;
+    
+    try {
+      const response = await fetch('/api/products/bulk-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedProducts }),
+      });
+
+      if (response.ok) {
+        setProducts(products.filter(p => !selectedProducts.includes(p.id)));
+        setSelectedProducts([]);
+        success(`Successfully deleted ${selectedProducts.length} product(s)`);
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to delete products');
+      }
+    } catch (error) {
+      console.error('Error deleting products:', error);
+      showError('Failed to delete products');
+    }
+  };
+
+  const handleBulkExport = async () => {
+    if (selectedProducts.length === 0) return;
+    
+    try {
+      const response = await fetch('/api/products/bulk-export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedProducts }),
+      });
+
+      if (response.ok) {
+        const { data, filename } = await response.json();
+        const { downloadCSV } = await import('@/lib/export-utils');
+        downloadCSV(data, filename);
+        success(`Successfully exported ${selectedProducts.length} product(s)`);
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to export products');
+      }
+    } catch (error) {
+      console.error('Error exporting products:', error);
+      showError('Failed to export products');
+    }
+  };
+
+  const handleGenerateGRN = () => {
+    if (selectedProducts.length === 0) {
+      showError('Please select products to generate GRN');
+      return;
+    }
+    setIsGRNModalOpen(true);
+  };
+
   const handleDeleteProduct = (product: Product) => {
     setSelectedProduct(product);
     setIsDeleteModalOpen(true);
@@ -271,6 +362,15 @@ export default function ProductsPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleRecommendationComplete = (id: string) => {
+    setAiRecommendations(prev => 
+      prev.map(rec => 
+        rec.id === id ? { ...rec, completed: true } : rec
+      )
+    );
+    success("Recommendation completed! Great job!");
   };
 
 
@@ -314,78 +414,75 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-            <Package className={`h-4 w-4 text-${theme.primary}`} />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold text-${theme.primary}`}>{products.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {isLoading ? "Loading..." : "Total products"}
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Products</CardTitle>
-            <Package className={`h-4 w-4 text-${theme.primary}`} />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold text-${theme.primary}`}>
-              {products.filter(p => p.active).length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              In stock and available
-            </p>
-          </CardContent>
-        </Card>
+      {/* AI Recommendation and Metrics Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* AI Recommendation Card - Left Side */}
+        <div className="lg:col-span-2">
+          <AIRecommendationCard
+            title="Product Management AI"
+            subtitle="Your intelligent assistant for inventory optimization"
+            recommendations={aiRecommendations}
+            onRecommendationComplete={handleRecommendationComplete}
+          />
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
-            <Package className={`h-4 w-4 text-${theme.primary}`} />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold text-${theme.primary}`}>
-              {products.filter(p => (p.stockItem?.available || 0) < 20 && (p.stockItem?.available || 0) > 0).length}
+        {/* Metrics Cards - Right Side */}
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Products</p>
+                <p className="text-xl font-bold text-gray-900">{products.length}</p>
+              </div>
+              <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
+                <Package className={`w-5 h-5 text-${theme.primary}`} />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Need restocking
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Out of Stock</CardTitle>
-            <Package className={`h-4 w-4 text-${theme.primary}`} />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold text-${theme.primary}`}>
-              {products.filter(p => (p.stockItem?.available || 0) === 0).length}
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Active Products</p>
+                <p className="text-xl font-bold text-green-600">{products.filter(p => p.active).length}</p>
+              </div>
+              <div className="p-2 rounded-full bg-green-100">
+                <Package className="w-5 h-5 text-green-600" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Requires attention
-            </p>
-          </CardContent>
-        </Card>
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Low Stock</p>
+                <p className="text-xl font-bold text-orange-600">{products.filter(p => (p.stockItem?.available || 0) < 20 && (p.stockItem?.available || 0) > 0).length}</p>
+              </div>
+              <div className="p-2 rounded-full bg-orange-100">
+                <Package className="w-5 h-5 text-orange-600" />
+              </div>
+            </div>
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Out of Stock</p>
+                <p className="text-xl font-bold text-red-600">{products.filter(p => (p.stockItem?.available || 0) === 0).length}</p>
+              </div>
+              <div className="p-2 rounded-full bg-red-100">
+                <Package className="w-5 h-5 text-red-600" />
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
 
-      {/* Filters and Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Product Catalog</CardTitle>
-          <CardDescription>
-            Search and filter your products
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
+      {/* Products Table with Search */}
+      <Card className="p-6">
+        <div className="flex gap-4 mb-6">
+          <div className="flex-1">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Search products by name or SKU..."
@@ -394,225 +491,257 @@ export default function ProductsPage() {
                 className="pl-10"
               />
             </div>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              {categoryOptions.map(category => (
-                <option key={category} value={category}>
-                  {category === "all" ? "All Categories" : category}
-                </option>
-              ))}
-            </select>
-            <Button variant="outline">
-              <Filter className="mr-2 h-4 w-4" />
-              More Filters
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+          >
+            {categoryOptions.map(category => (
+              <option key={category} value={category}>
+                {category === "all" ? "All Categories" : category}
+              </option>
+            ))}
+          </select>
+          <Button variant="outline">
+            <Filter className="mr-2 h-4 w-4" />
+            More Filters
+          </Button>
+        </div>
 
-      {/* Products Table */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-gray-200">
-                <tr className="bg-gray-50">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Product
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    SKU
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Price
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Stock
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden">
-                          {(() => {
-                            // Parse images from JSON string or handle null/array
-                            let images = [];
-                            if (product.images) {
-                              if (typeof product.images === 'string') {
-                                try {
-                                  images = JSON.parse(product.images);
-                                } catch (e) {
-                                  images = [];
-                                }
-                              } else if (Array.isArray(product.images)) {
-                                images = product.images;
-                              }
+        {isLoading ? (
+          <div className="text-center py-8">Loading products...</div>
+        ) : (
+          <DataTable
+            data={filteredProducts}
+            enableSelection={true}
+            selectedItems={selectedProducts}
+            onSelectionChange={setSelectedProducts}
+            bulkActions={
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateGRN}
+                  disabled={selectedProducts.length === 0}
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Generate GRN
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkExport}
+                  disabled={selectedProducts.length === 0}
+                >
+                  Export
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={selectedProducts.length === 0}
+                >
+                  Delete
+                </Button>
+              </div>
+            }
+            columns={[
+              {
+                key: 'product',
+                label: 'Product',
+                render: (product) => (
+                  <div className="flex items-center">
+                    <div className="h-10 w-10 rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden">
+                      {(() => {
+                        // Parse images from JSON string or handle null/array
+                        let images = [];
+                        if (product.images) {
+                          if (typeof product.images === 'string') {
+                            try {
+                              images = JSON.parse(product.images);
+                            } catch (e) {
+                              images = [];
                             }
-                            
-                            if (images.length > 0) {
-                              return (
-                                <>
-                                  <img
-                                    src={images[0]}
-                                    alt={product.name}
-                                    className="h-full w-full object-cover"
-                                    onError={(e) => {
-                                      // Fallback to icon if image fails to load
-                                      e.currentTarget.style.display = 'none';
-                                      const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                                      if (nextElement) {
-                                        nextElement.style.display = 'flex';
-                                      }
-                                    }}
-                                  />
-                                  <div className="h-full w-full flex items-center justify-center" style={{display: 'none'}}>
-                                    <Package className="h-5 w-5 text-gray-500" />
-                                  </div>
-                                </>
-                              );
-                            } else {
-                              return (
-                                <div className="h-full w-full flex items-center justify-center">
-                                  <Package className="h-5 w-5 text-gray-500" />
-                                </div>
-                              );
-                            }
-                          })()}
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {product.name}
-                          </div>
-                          <div className="text-sm text-gray-500 truncate max-w-xs">
-                            {product.description}
-                          </div>
-                        </div>
+                          } else if (Array.isArray(product.images)) {
+                            images = product.images;
+                          }
+                        }
+                        
+                        if (images.length > 0) {
+                          return (
+                            <>
+                              <img
+                                src={images[0]}
+                                alt={product.name}
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  // Fallback to icon if image fails to load
+                                  e.currentTarget.style.display = 'none';
+                                  const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                                  if (nextElement) {
+                                    nextElement.style.display = 'flex';
+                                  }
+                                }}
+                              />
+                              <div className="h-full w-full flex items-center justify-center" style={{display: 'none'}}>
+                                <Package className="h-5 w-5 text-gray-500" />
+                              </div>
+                            </>
+                          );
+                        } else {
+                          return (
+                            <div className="h-full w-full flex items-center justify-center">
+                              <Package className="h-5 w-5 text-gray-500" />
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
+                    <div className="ml-4">
+                      <div className="text-sm font-medium text-gray-900">
+                        {product.name}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {product.sku}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {product.category?.name || 'Uncategorized'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrencyWithSymbol(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`text-sm font-medium ${
-                        (product.stockItem?.available || 0) === 0 
-                          ? "text-red-600" 
-                          : (product.stockItem?.available || 0) < 20 
-                            ? "text-amber-600" 
-                            : `text-${theme.primary}`
-                      }`}>
-                        {product.stockItem?.available || 0}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        product.active
-                          ? `bg-${theme.primaryBg} text-${theme.primaryText}`
-                          : "bg-gray-100 text-gray-800"
-                      }`}>
-                        {product.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleViewProduct(product)}
-                          title="View Product Details"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleAddStock(product)}
-                          title="Add Stock"
-                          className="text-green-600 hover:text-green-700"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleEditProduct(product)}
-                          title="Edit Product"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-red-600 hover:text-red-700"
-                          onClick={() => handleDeleteProduct(product)}
-                          title="Delete Product"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                        <div className="relative">
-                          <DropdownMenu
-                            trigger={
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                title="More Actions"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            }
-                            items={[
-                              {
-                                label: "Duplicate Product",
-                                icon: <Copy className="h-4 w-4" />,
-                                onClick: () => handleDuplicateProduct(product)
-                              },
-                              {
-                                label: "Export Product",
-                                icon: <Download className="h-4 w-4" />,
-                                onClick: () => handleExportProduct(product)
-                              },
-                              {
-                                label: "View History",
-                                icon: <History className="h-4 w-4" />,
-                                onClick: () => handleViewHistory(product)
-                              },
-                              {
-                                label: "Archive Product",
-                                icon: <Archive className="h-4 w-4" />,
-                                onClick: () => handleArchiveProduct(product),
-                                className: "text-amber-600 hover:text-amber-700"
-                              }
-                            ]}
-                          />
-                        </div>
+                      <div className="text-sm text-gray-500 truncate max-w-xs">
+                        {product.description}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
+                    </div>
+                  </div>
+                )
+              },
+              {
+                key: 'sku',
+                label: 'SKU',
+                render: (product) => (
+                  <span className="text-sm text-gray-900">{product.sku}</span>
+                )
+              },
+              {
+                key: 'category',
+                label: 'Category',
+                render: (product) => (
+                  <span className="text-sm text-gray-900">{product.category?.name || 'Uncategorized'}</span>
+                )
+              },
+              {
+                key: 'price',
+                label: 'Price',
+                render: (product) => (
+                  <span className="text-sm text-gray-900">
+                    {formatCurrencyWithSymbol(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
+                  </span>
+                )
+              },
+              {
+                key: 'stock',
+                label: 'Stock',
+                render: (product) => (
+                  <span className={`text-sm font-medium ${
+                    (product.stockItem?.available || 0) === 0 
+                      ? "text-red-600" 
+                      : (product.stockItem?.available || 0) < 20 
+                        ? "text-amber-600" 
+                        : `text-${theme.primary}`
+                  }`}>
+                    {product.stockItem?.available || 0}
+                  </span>
+                )
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                render: (product) => (
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    product.active
+                      ? `bg-${theme.primaryBg} text-${theme.primaryText}`
+                      : "bg-gray-100 text-gray-800"
+                  }`}>
+                    {product.active ? 'Active' : 'Inactive'}
+                  </span>
+                )
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                render: (product) => (
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleViewProduct(product)}
+                      title="View Product Details"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleAddStock(product)}
+                      title="Add Stock"
+                      className="text-green-600 hover:text-green-700"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleEditProduct(product)}
+                      title="Edit Product"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-red-600 hover:text-red-700"
+                      onClick={() => handleDeleteProduct(product)}
+                      title="Delete Product"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    <div className="relative">
+                      <DropdownMenu
+                        trigger={
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            title="More Actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        }
+                        items={[
+                          {
+                            label: "Duplicate Product",
+                            icon: <Copy className="h-4 w-4" />,
+                            onClick: () => handleDuplicateProduct(product)
+                          },
+                          {
+                            label: "Export Product",
+                            icon: <Download className="h-4 w-4" />,
+                            onClick: () => handleExportProduct(product)
+                          },
+                          {
+                            label: "View History",
+                            icon: <History className="h-4 w-4" />,
+                            onClick: () => handleViewHistory(product)
+                          },
+                          {
+                            label: "Archive Product",
+                            icon: <Archive className="h-4 w-4" />,
+                            onClick: () => handleArchiveProduct(product),
+                            className: "text-amber-600 hover:text-amber-700"
+                          }
+                        ]}
+                      />
+                    </div>
+                  </div>
+                )
+              }
+            ]}
+            itemsPerPage={10}
+          />
+        )}
       </Card>
 
       {/* Add Product Modal */}
@@ -683,6 +812,13 @@ export default function ProductsPage() {
           }}
         />
       )}
+
+      {/* GRN Generation Modal */}
+      <GRNGenerationModal
+        isOpen={isGRNModalOpen}
+        onClose={() => setIsGRNModalOpen(false)}
+        products={products.filter(p => selectedProducts.includes(p.id))}
+      />
       </div>
     </MainLayout>
   );

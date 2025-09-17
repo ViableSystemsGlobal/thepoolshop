@@ -9,6 +9,9 @@ import { AddWarehouseModal } from "@/components/modals/add-warehouse-modal";
 import { EditWarehouseModal } from "@/components/modals/edit-warehouse-modal";
 import { useToast } from "@/contexts/toast-context";
 import { useRouter } from "next/navigation";
+import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { DataTable } from "@/components/ui/data-table";
+import { useTheme } from "@/contexts/theme-context";
 import { 
   Search, 
   Filter, 
@@ -39,12 +42,39 @@ interface Warehouse {
 export default function WarehousesPage() {
   const { success, error: showError } = useToast();
   const router = useRouter();
+  const { getThemeClasses } = useTheme();
+  const theme = getThemeClasses();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedWarehouses, setSelectedWarehouses] = useState<string[]>([]);
+
+  const [aiRecommendations, setAiRecommendations] = useState([
+    {
+      id: '1',
+      title: 'Optimize warehouse capacity',
+      description: 'Review warehouse utilization and optimize space allocation for better efficiency.',
+      priority: 'high' as const,
+      completed: false,
+    },
+    {
+      id: '2',
+      title: 'Update warehouse locations',
+      description: 'Verify and update warehouse address information for accurate logistics.',
+      priority: 'medium' as const,
+      completed: false,
+    },
+    {
+      id: '3',
+      title: 'Review inactive warehouses',
+      description: 'Evaluate inactive warehouse status and consider reactivation or removal.',
+      priority: 'low' as const,
+      completed: false,
+    },
+  ]);
 
   const fetchWarehouses = async () => {
     try {
@@ -77,6 +107,15 @@ export default function WarehousesPage() {
   const handleEditWarehouse = (warehouse: Warehouse) => {
     setSelectedWarehouse(warehouse);
     setIsEditModalOpen(true);
+  };
+
+  const handleRecommendationComplete = (id: string) => {
+    setAiRecommendations(prev => 
+      prev.map(rec => 
+        rec.id === id ? { ...rec, completed: true } : rec
+      )
+    );
+    success("Recommendation completed! Great job!");
   };
 
   const handleDeleteWarehouse = async (warehouseId: string, warehouseName: string) => {
@@ -131,49 +170,56 @@ export default function WarehousesPage() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <Building className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
+      {/* AI Recommendation and Metrics Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* AI Recommendation Card - Left Side */}
+        <div className="lg:col-span-2">
+          <AIRecommendationCard
+            title="Warehouse Management AI"
+            subtitle="Your intelligent assistant for warehouse optimization"
+            recommendations={aiRecommendations}
+            onRecommendationComplete={handleRecommendationComplete}
+          />
+        </div>
+
+        {/* Metrics Cards - Right Side */}
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-gray-600">Total Warehouses</p>
-                <p className="text-2xl font-bold text-blue-600">{totalWarehouses}</p>
+                <p className="text-xl font-bold text-gray-900">{totalWarehouses}</p>
+              </div>
+              <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
+                <Building className={`w-5 h-5 text-${theme.primary}`} />
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-green-100">
-                <Building className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-gray-600">Active</p>
-                <p className="text-2xl font-bold text-green-600">{activeWarehouses}</p>
+                <p className="text-xl font-bold text-green-600">{activeWarehouses}</p>
+              </div>
+              <div className="p-2 rounded-full bg-green-100">
+                <CheckCircle className="w-5 h-5 text-green-600" />
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 rounded-lg bg-gray-100">
-                <Building className="h-6 w-6 text-gray-600" />
-              </div>
-              <div className="ml-4">
+          </Card>
+          
+          <Card className="p-4 lg:col-span-2">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-gray-600">Inactive</p>
-                <p className="text-2xl font-bold text-gray-600">{inactiveWarehouses}</p>
+                <p className="text-xl font-bold text-gray-600">{inactiveWarehouses}</p>
+              </div>
+              <div className="p-2 rounded-full bg-gray-100">
+                <XCircle className="w-5 h-5 text-gray-600" />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </Card>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -218,93 +264,145 @@ export default function WarehousesPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Warehouse</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Code</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Location</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Status</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Created</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredWarehouses.map((warehouse) => (
-                    <tr key={warehouse.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center">
-                          <div className="p-2 rounded-lg bg-blue-100 mr-3">
-                            <Building className="h-4 w-4 text-blue-600" />
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">{warehouse.name}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          {warehouse.code}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center text-sm text-gray-600">
-                          <MapPin className="h-4 w-4 mr-1" />
-                          {warehouse.city && warehouse.country ? (
-                            `${warehouse.city}, ${warehouse.country}`
-                          ) : (
-                            <span className="text-gray-400">No location set</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          warehouse.isActive 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {warehouse.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm text-gray-600">
-                          {new Date(warehouse.createdAt).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <DropdownMenu
-                          trigger={
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          }
-                          items={[
-                            {
-                              label: "View Details",
-                              icon: <Eye className="h-4 w-4" />,
-                              onClick: () => handleViewWarehouse(warehouse)
-                            },
-                            {
-                              label: "Edit Warehouse",
-                              icon: <Edit className="h-4 w-4" />,
-                              onClick: () => handleEditWarehouse(warehouse)
-                            },
-                            {
-                              label: "Delete Warehouse",
-                              icon: <Trash2 className="h-4 w-4" />,
-                              onClick: () => handleDeleteWarehouse(warehouse.id, warehouse.name),
-                              className: "text-red-600"
-                            }
-                          ]}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              data={filteredWarehouses}
+              enableSelection={true}
+              selectedItems={selectedWarehouses}
+              onSelectionChange={setSelectedWarehouses}
+              bulkActions={
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const { downloadCSV } = await import('@/lib/export-utils');
+                        const exportData = warehouses
+                          .filter(w => selectedWarehouses.includes(w.id))
+                          .map(warehouse => ({
+                            'Name': warehouse.name,
+                            'Code': warehouse.code,
+                            'Address': warehouse.address || '',
+                            'City': warehouse.city || '',
+                            'Country': warehouse.country || '',
+                            'Status': warehouse.isActive ? 'Active' : 'Inactive',
+                            'Created Date': new Date(warehouse.createdAt).toLocaleDateString()
+                          }));
+                        downloadCSV(exportData, `warehouses_export_${new Date().toISOString().split('T')[0]}.csv`);
+                        success(`Successfully exported ${selectedWarehouses.length} warehouse(s)`);
+                      } catch (error) {
+                        success('Export functionality coming soon!');
+                      }
+                    }}
+                    disabled={selectedWarehouses.length === 0}
+                  >
+                    Export
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => success('Delete functionality coming soon!')}
+                    disabled={selectedWarehouses.length === 0}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              }
+              columns={[
+                {
+                  key: 'warehouse',
+                  label: 'Warehouse',
+                  render: (warehouse) => (
+                    <div className="flex items-center">
+                      <div className="p-2 rounded-lg bg-blue-100 mr-3">
+                        <Building className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">{warehouse.name}</div>
+                      </div>
+                    </div>
+                  )
+                },
+                {
+                  key: 'code',
+                  label: 'Code',
+                  render: (warehouse) => (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {warehouse.code}
+                    </span>
+                  )
+                },
+                {
+                  key: 'location',
+                  label: 'Location',
+                  render: (warehouse) => (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <MapPin className="h-4 w-4 mr-1" />
+                      {warehouse.city && warehouse.country ? (
+                        `${warehouse.city}, ${warehouse.country}`
+                      ) : (
+                        <span className="text-gray-400">No location set</span>
+                      )}
+                    </div>
+                  )
+                },
+                {
+                  key: 'status',
+                  label: 'Status',
+                  render: (warehouse) => (
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      warehouse.isActive 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {warehouse.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  )
+                },
+                {
+                  key: 'created',
+                  label: 'Created',
+                  render: (warehouse) => (
+                    <div className="text-sm text-gray-600">
+                      {new Date(warehouse.createdAt).toLocaleDateString()}
+                    </div>
+                  )
+                },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  render: (warehouse) => (
+                    <DropdownMenu
+                      trigger={
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      }
+                      items={[
+                        {
+                          label: "View Details",
+                          icon: <Eye className="h-4 w-4" />,
+                          onClick: () => handleViewWarehouse(warehouse)
+                        },
+                        {
+                          label: "Edit Warehouse",
+                          icon: <Edit className="h-4 w-4" />,
+                          onClick: () => handleEditWarehouse(warehouse)
+                        },
+                        {
+                          label: "Delete Warehouse",
+                          icon: <Trash2 className="h-4 w-4" />,
+                          onClick: () => handleDeleteWarehouse(warehouse.id, warehouse.name),
+                          className: "text-red-600"
+                        }
+                      ]}
+                    />
+                  )
+                }
+              ]}
+              itemsPerPage={10}
+            />
           )}
         </CardContent>
       </Card>
