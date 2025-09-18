@@ -1455,7 +1455,9 @@ export default function ProductDetailsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {product.stockItems.map((stockItem) => {
+                        {product.stockItems
+                          .filter(stockItem => stockItem.warehouse && stockItem.warehouse.id) // Filter out items without valid warehouse
+                          .map((stockItem) => {
                           const isLowStock = stockItem.available <= stockItem.reorderPoint;
                           const isOutOfStock = stockItem.available === 0;
                           
@@ -1549,7 +1551,7 @@ export default function ProductDetailsPage() {
             </Card>
 
             {/* Summary Statistics */}
-            {product && product.stockItems && product.stockItems.length > 0 && (
+            {product && product.stockItems && product.stockItems.filter(item => item.warehouse && item.warehouse.id).length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
                   <CardContent className="p-4">
@@ -1557,7 +1559,9 @@ export default function ProductDetailsPage() {
                       <div>
                         <p className="text-sm font-medium text-gray-600">Total Stock</p>
                         <p className="text-2xl font-bold text-gray-900">
-                          {product.stockItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()}
+                          {product.stockItems
+                            .filter(item => item.warehouse && item.warehouse.id)
+                            .reduce((sum, item) => sum + item.quantity, 0).toLocaleString()}
                         </p>
                       </div>
                       <div className="p-2 rounded-full bg-blue-100">
@@ -1573,7 +1577,9 @@ export default function ProductDetailsPage() {
                       <div>
                         <p className="text-sm font-medium text-gray-600">Available</p>
                         <p className="text-2xl font-bold text-green-600">
-                          {product.stockItems.reduce((sum, item) => sum + item.available, 0).toLocaleString()}
+                          {product.stockItems
+                            .filter(item => item.warehouse && item.warehouse.id)
+                            .reduce((sum, item) => sum + item.available, 0).toLocaleString()}
                         </p>
                       </div>
                       <div className="p-2 rounded-full bg-green-100">
@@ -1589,7 +1595,9 @@ export default function ProductDetailsPage() {
                       <div>
                         <p className="text-sm font-medium text-gray-600">Reserved</p>
                         <p className="text-2xl font-bold text-yellow-600">
-                          {product.stockItems.reduce((sum, item) => sum + item.reserved, 0).toLocaleString()}
+                          {product.stockItems
+                            .filter(item => item.warehouse && item.warehouse.id)
+                            .reduce((sum, item) => sum + item.reserved, 0).toLocaleString()}
                         </p>
                       </div>
                       <div className="p-2 rounded-full bg-yellow-100">
@@ -1606,7 +1614,9 @@ export default function ProductDetailsPage() {
                         <p className="text-sm font-medium text-gray-600">Total Value</p>
                         <p className="text-2xl font-bold text-purple-600">
                           {formatCurrencyWithSymbol(
-                            product.stockItems.reduce((sum, item) => sum + item.totalValue, 0), 
+                            product.stockItems
+                              .filter(item => item.warehouse && item.warehouse.id)
+                              .reduce((sum, item) => sum + item.totalValue, 0), 
                             currency
                           )}
                         </p>
