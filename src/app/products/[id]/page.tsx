@@ -1512,12 +1512,12 @@ export default function ProductDetailsPage() {
                               </td>
                               <td className="py-3 px-4 text-right">
                                 <span className="text-gray-600">
-                                  {formatCurrency(stockItem.averageCost, 'USD')}
+                                  {formatCurrencyWithSymbol(stockItem.averageCost, currency)}
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-right">
                                 <span className="font-medium text-gray-900">
-                                  {formatCurrency(stockItem.totalValue, 'USD')}
+                                  {formatCurrencyWithSymbol(stockItem.totalValue, currency)}
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-center">
@@ -1605,9 +1605,9 @@ export default function ProductDetailsPage() {
                       <div>
                         <p className="text-sm font-medium text-gray-600">Total Value</p>
                         <p className="text-2xl font-bold text-purple-600">
-                          {formatCurrency(
+                          {formatCurrencyWithSymbol(
                             product.stockItems.reduce((sum, item) => sum + item.totalValue, 0), 
-                            'USD'
+                            currency
                           )}
                         </p>
                       </div>
