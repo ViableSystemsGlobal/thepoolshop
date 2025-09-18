@@ -37,9 +37,11 @@ import {
   XCircle as XCircleIcon,
   FileText,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  X
 } from "lucide-react";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
 import { EditWarehouseModal } from "@/components/modals/edit-warehouse-modal";
 
 interface Warehouse {
@@ -59,7 +61,7 @@ interface Product {
   id: string;
   name: string;
   sku: string;
-  costPrice: number;
+  cost: number;
   category: {
     name: string;
   };
@@ -223,7 +225,7 @@ export default function WarehouseDetailsPage() {
   const totalProducts = products.length;
   const totalValue = products.reduce((sum, product) => {
     const quantity = product.stockItems?.[0]?.quantity || 0;
-    return sum + (quantity * (product.costPrice || 0));
+    return sum + (quantity * (product.cost || 0));
   }, 0);
   const totalQuantity = products.reduce((sum, product) => sum + (product.stockItems?.[0]?.quantity || 0), 0);
 
@@ -287,10 +289,12 @@ export default function WarehouseDetailsPage() {
     return matchesSearch && matchesType && matchesDateRange;
   });
 
-  // Pagination logic for movements
-  const totalPages = Math.ceil(filteredMovements.length / itemsPerPage);
+  // Pagination logic for products and movements
+  const totalProductPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const totalMovementPages = Math.ceil(filteredMovements.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
+  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
   const paginatedMovements = filteredMovements.slice(startIndex, endIndex);
 
   const handleRecommendationComplete = (id: string) => {
@@ -367,13 +371,13 @@ export default function WarehouseDetailsPage() {
       for (const product of products) {
         const stockItem = product.stockItems?.[0];
         if (stockItem) {
-          const costPriceConversion = await convertCurrencyClient('USD', currency, product.costPrice || 0);
+          const costPriceConversion = await convertCurrencyClient('USD', currency, product.cost || 0);
           const quantity = stockItem.quantity || 0;
-          const totalValue = quantity * (product.costPrice || 0);
+          const totalValue = quantity * (product.cost || 0);
           const totalValueConversion = await convertCurrencyClient('USD', currency, totalValue);
           
           productConversions[product.id] = {
-            averageCost: costPriceConversion?.convertedAmount || (product.costPrice || 0),
+            averageCost: costPriceConversion?.convertedAmount || (product.cost || 0),
             totalValue: totalValueConversion?.convertedAmount || totalValue
           };
         }
@@ -698,13 +702,13 @@ export default function WarehouseDetailsPage() {
                           <th className="text-left py-3 px-4 font-medium text-gray-900">SKU</th>
                           <th className="text-left py-3 px-4 font-medium text-gray-900">Category</th>
                           <th className="text-left py-3 px-4 font-medium text-gray-900">Quantity</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900">Avg Cost</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Cost Price</th>
                           <th className="text-left py-3 px-4 font-medium text-gray-900">Total Value</th>
                           <th className="text-left py-3 px-4 font-medium text-gray-900">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredProducts.map((product) => (
+                        {paginatedProducts.map((product) => (
                           <tr key={product.id} className="border-b hover:bg-gray-50">
                             <td className="py-3 px-4">
                               <div className="flex items-center">
@@ -738,7 +742,7 @@ export default function WarehouseDetailsPage() {
                                   </div>
                                 ) : (
                                   formatCurrencyWithSymbol(
-                                    convertedProductValues[product.id]?.averageCost || product.costPrice || 0,
+                                    convertedProductValues[product.id]?.averageCost || product.cost || 0,
                                     selectedCurrency
                                   )
                                 )}
@@ -753,7 +757,7 @@ export default function WarehouseDetailsPage() {
                                   </div>
                                 ) : (
                                   formatCurrencyWithSymbol(
-                                    convertedProductValues[product.id]?.totalValue || ((product.stockItems?.[0]?.quantity || 0) * (product.costPrice || 0)),
+                                    convertedProductValues[product.id]?.totalValue || ((product.stockItems?.[0]?.quantity || 0) * (product.cost || 0)),
                                     selectedCurrency
                                   )
                                 )}
@@ -788,6 +792,50 @@ export default function WarehouseDetailsPage() {
                         ))}
                       </tbody>
                     </table>
+                    
+                    {/* Pagination Controls for Products */}
+                    {totalProductPages > 1 && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t">
+                        <div className="flex items-center text-sm text-gray-700">
+                          Showing {startIndex + 1} to {Math.min(endIndex, filteredProducts.length)} of {filteredProducts.length} products
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                            Previous
+                          </Button>
+                          
+                          <div className="flex items-center space-x-1">
+                            {Array.from({ length: totalProductPages }, (_, i) => i + 1).map((page) => (
+                              <Button
+                                key={page}
+                                variant={page === currentPage ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => handlePageChange(page)}
+                                className={page === currentPage ? "bg-blue-600 text-white hover:bg-blue-700" : ""}
+                              >
+                                {page}
+                              </Button>
+                            ))}
+                          </div>
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalProductPages}
+                          >
+                            Next
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               ) : (
@@ -911,7 +959,7 @@ export default function WarehouseDetailsPage() {
                     </div>
                     
                     {/* Pagination Controls */}
-                    {totalPages > 1 && (
+                    {totalMovementPages > 1 && (
                       <div className="flex items-center justify-between px-4 py-3 border-t">
                         <div className="flex items-center text-sm text-gray-700">
                           Showing {startIndex + 1} to {Math.min(endIndex, filteredMovements.length)} of {filteredMovements.length} movements
@@ -928,7 +976,7 @@ export default function WarehouseDetailsPage() {
                           </Button>
                           
                           <div className="flex items-center space-x-1">
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                            {Array.from({ length: totalMovementPages }, (_, i) => i + 1).map((page) => (
                               <Button
                                 key={page}
                                 variant={page === currentPage ? "default" : "outline"}
@@ -945,7 +993,7 @@ export default function WarehouseDetailsPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handlePageChange(currentPage + 1)}
-                            disabled={currentPage === totalPages}
+                            disabled={currentPage === totalMovementPages}
                           >
                             Next
                             <ChevronRight className="h-4 w-4" />
@@ -1030,7 +1078,7 @@ export default function WarehouseDetailsPage() {
                           ...prev, 
                           priceRange: { ...prev.priceRange, min: e.target.value }
                         }))}
-                        className={theme.focusRing}
+                        className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                       <Input
                         type="number"
@@ -1040,7 +1088,7 @@ export default function WarehouseDetailsPage() {
                           ...prev, 
                           priceRange: { ...prev.priceRange, max: e.target.value }
                         }))}
-                        className={theme.focusRing}
+                        className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -1078,7 +1126,7 @@ export default function WarehouseDetailsPage() {
                           ...prev, 
                           dateRange: { ...prev.dateRange, from: e.target.value }
                         }))}
-                        className={theme.focusRing}
+                        className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                       <Input
                         type="date"
@@ -1087,7 +1135,7 @@ export default function WarehouseDetailsPage() {
                           ...prev, 
                           dateRange: { ...prev.dateRange, to: e.target.value }
                         }))}
-                        className={theme.focusRing}
+                        className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -1117,7 +1165,7 @@ export default function WarehouseDetailsPage() {
                     setIsFiltersOpen(false);
                     setCurrentPage(1);
                   }}
-                  className={theme.buttonBackground}
+                  className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
                 >
                   Apply Filters
                 </Button>
