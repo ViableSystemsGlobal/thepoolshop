@@ -55,6 +55,7 @@ interface StockItem {
   quantity: number;
   reserved: number;
   available: number;
+  warehouseId: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,7 +65,7 @@ interface Product {
   sku: string;
   name: string;
   description?: string;
-  images?: string | null; // JSON string in database
+  images?: string | null; // JSON string in database, will be parsed to string[]
   attributes?: any;
   uomBase: string;
   uomSell: string;
@@ -140,6 +141,17 @@ export default function ProductsPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isGRNModalOpen, setIsGRNModalOpen] = useState(false);
   const [isFiltersModalOpen, setIsFiltersModalOpen] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  // Total counts for metrics (from server)
+  const [totalActiveProducts, setTotalActiveProducts] = useState(0);
+  const [totalLowStockProducts, setTotalLowStockProducts] = useState(0);
+  const [totalOutOfStockProducts, setTotalOutOfStockProducts] = useState(0);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [isAdmin, setIsAdmin] = useState(false); // This should come from user context
@@ -216,9 +228,20 @@ export default function ProductsPage() {
 
   // Fetch products and categories on component mount
   React.useEffect(() => {
-    fetchProducts();
+    fetchProducts(1);
     fetchCategories();
   }, []);
+
+  // Refetch products when search term or category changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+    fetchProducts(1);
+  }, [searchTerm, selectedCategory]);
+
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    fetchProducts(page);
+  };
 
   // Listen for the custom event to open Add Category modal
   React.useEffect(() => {
@@ -233,13 +256,30 @@ export default function ProductsPage() {
     };
   }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (page: number = currentPage) => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/products');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: itemsPerPage.toString(),
+        ...(searchTerm && { search: searchTerm }),
+        ...(selectedCategory && selectedCategory !== 'all' && { category: selectedCategory })
+      });
+      
+      const response = await fetch(`/api/products?${params}`);
       if (response.ok) {
         const data = await response.json();
         setProducts(data.products || []);
+        setTotalPages(data.pagination?.pages || 1);
+        setTotalProducts(data.pagination?.total || 0);
+        setCurrentPage(page);
+        
+        // Update metric totals from server
+        if (data.metrics) {
+          setTotalActiveProducts(data.metrics.totalActive || 0);
+          setTotalLowStockProducts(data.metrics.totalLowStock || 0);
+          setTotalOutOfStockProducts(data.metrics.totalOutOfStock || 0);
+        }
       } else {
         console.error('Failed to fetch products');
         setProducts([]);
@@ -268,15 +308,7 @@ export default function ProductsPage() {
     }
   };
 
-  const filteredProducts = products.filter(product => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = 
-      product.name.toLowerCase().includes(searchLower) ||
-      product.sku.toLowerCase().includes(searchLower) ||
-      (product.description && product.description.toLowerCase().includes(searchLower));
-    const matchesCategory = selectedCategory === "all" || product.category?.name === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // Client-side filtering removed - now using server-side filtering
 
   const categoryOptions = ["all", ...Array.from(new Set(products.map(p => p.category?.name).filter(Boolean)))];
 
@@ -624,7 +656,7 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Products</p>
-                <p className="text-xl font-bold text-gray-900">{products.length}</p>
+                <p className="text-xl font-bold text-gray-900">{totalProducts}</p>
               </div>
               <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
                 <Package className={`w-5 h-5 text-${theme.primary}`} />
@@ -636,7 +668,7 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Active Products</p>
-                <p className="text-xl font-bold text-green-600">{products.filter(p => p.active).length}</p>
+                <p className="text-xl font-bold text-green-600">{totalActiveProducts}</p>
               </div>
               <div className="p-2 rounded-full bg-green-100">
                 <Package className="w-5 h-5 text-green-600" />
@@ -648,10 +680,7 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Low Stock</p>
-                <p className="text-xl font-bold text-orange-600">{products.filter(p => {
-                  const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
-                  return totalAvailable < 20 && totalAvailable > 0;
-                }).length}</p>
+                <p className="text-xl font-bold text-orange-600">{totalLowStockProducts}</p>
               </div>
               <div className="p-2 rounded-full bg-orange-100">
                 <Package className="w-5 h-5 text-orange-600" />
@@ -663,10 +692,7 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Out of Stock</p>
-                <p className="text-xl font-bold text-red-600">{products.filter(p => {
-                  const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
-                  return totalAvailable === 0;
-                }).length}</p>
+                <p className="text-xl font-bold text-red-600">{totalOutOfStockProducts}</p>
               </div>
               <div className="p-2 rounded-full bg-red-100">
                 <Package className="w-5 h-5 text-red-600" />
@@ -711,10 +737,15 @@ export default function ProductsPage() {
           <div className="text-center py-8">Loading products...</div>
         ) : (
           <DataTable
-            data={filteredProducts}
+            data={products}
             enableSelection={true}
             selectedItems={selectedProducts}
             onSelectionChange={setSelectedProducts}
+            itemsPerPage={itemsPerPage}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalProducts}
+            onPageChange={handlePageChange}
             bulkActions={
               <div className="flex gap-2">
                 <Button
@@ -943,7 +974,6 @@ export default function ProductsPage() {
                 )
               }
             ]}
-            itemsPerPage={10}
           />
         )}
       </Card>
@@ -964,8 +994,7 @@ export default function ProductsPage() {
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}
         onSuccess={() => {
-          // Refresh the products list or show success message
-          console.log('Products imported successfully!');
+          fetchProducts(); // Refresh the products list
         }}
       />
 
@@ -1009,7 +1038,10 @@ export default function ProductsPage() {
         <StockAdjustmentModal
           isOpen={isStockAdjustmentOpen}
           onClose={() => setIsStockAdjustmentOpen(false)}
-          product={selectedProduct}
+          product={{
+            ...selectedProduct,
+            images: selectedProduct.images ? (typeof selectedProduct.images === 'string' ? JSON.parse(selectedProduct.images) : selectedProduct.images) : []
+          }}
           onSuccess={() => {
             fetchProducts();
             setIsStockAdjustmentOpen(false);

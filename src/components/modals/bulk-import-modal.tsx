@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/contexts/toast-context";
@@ -13,7 +13,9 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  ArrowLeft
 } from "lucide-react";
 
 interface BulkImportModalProps {
@@ -28,6 +30,15 @@ interface ImportResult {
   warnings: string[];
 }
 
+interface PreviewData {
+  fileName: string;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  sampleData: any[];
+  errors: string[];
+}
+
 export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalProps) {
   const { success, error: showError, warning } = useToast();
   const { getThemeClasses } = useTheme();
@@ -35,19 +46,89 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
   const [isUploading, setIsUploading] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [currentStep, setCurrentStep] = useState<'upload' | 'preview' | 'result'>('upload');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const parseCSV = (csvText: string) => {
+    const lines = csvText.split('\n').filter(line => line.trim());
+    if (lines.length === 0) return { data: [], errors: ['File is empty'] };
+
+    const headers = lines[0].split(',').map(h => h.trim());
+    const data = [];
+    const errors = [];
+
+    // Validate headers
+    const requiredHeaders = ['SKU', 'Name', 'Category'];
+    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+    if (missingHeaders.length > 0) {
+      errors.push(`Missing required headers: ${missingHeaders.join(', ')}`);
+    }
+
+    // Parse data rows
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      if (values.length !== headers.length) {
+        errors.push(`Row ${i + 1}: Column count mismatch`);
+        continue;
+      }
+
+      const row: any = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index];
+      });
+
+      // Validate required fields
+      if (!row.SKU || !row.Name || !row.Category) {
+        errors.push(`Row ${i + 1}: Missing required fields (SKU, Name, or Category)`);
+      }
+
+      data.push(row);
+    }
+
+    return { data, errors };
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
+    setSelectedFile(file);
     setError(null);
     setImportResult(null);
 
     try {
+      const text = await file.text();
+      const { data, errors } = parseCSV(text);
+      
+      const preview: PreviewData = {
+        fileName: file.name,
+        totalRows: data.length,
+        validRows: data.length - errors.length,
+        invalidRows: errors.length,
+        sampleData: data.slice(0, 5), // Show first 5 rows
+        errors
+      };
+
+      setPreviewData(preview);
+      setCurrentStep('preview');
+    } catch (error) {
+      setError('Failed to parse file. Please check the format.');
+      showError("Parse Error", 'Failed to parse file. Please check the format.');
+    }
+  };
+
+  const handleImport = async () => {
+    if (!selectedFile) return;
+
+    setIsUploading(true);
+    setCurrentStep('result');
+
+    try {
       // Create FormData to send the file
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', selectedFile);
 
       // Send file to API endpoint
       const response = await fetch('/api/products/bulk-import', {
@@ -85,6 +166,18 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
     }
   };
 
+  const resetModal = () => {
+    setCurrentStep('upload');
+    setSelectedFile(null);
+    setPreviewData(null);
+    setImportResult(null);
+    setError(null);
+    setIsUploading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const downloadTemplate = () => {
     // Create CSV template
     const csvContent = [
@@ -113,9 +206,17 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
             <CardTitle className="flex items-center space-x-2">
               <FileSpreadsheet className="h-5 w-5" />
               <span>Bulk Import Products</span>
+              {currentStep === 'preview' && (
+                <span className="text-sm font-normal text-gray-500">- Preview</span>
+              )}
+              {currentStep === 'result' && (
+                <span className="text-sm font-normal text-gray-500">- Results</span>
+              )}
             </CardTitle>
             <CardDescription>
-              Import multiple products from a CSV or Excel file
+              {currentStep === 'upload' && 'Import multiple products from a CSV or Excel file'}
+              {currentStep === 'preview' && 'Review your data before importing'}
+              {currentStep === 'result' && 'Import completed successfully'}
             </CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose}>
@@ -164,15 +265,90 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                   <p className="text-xs text-gray-500">CSV, XLS, XLSX (MAX. 10MB)</p>
                 </div>
                 <input
+                  ref={fileInputRef}
                   type="file"
                   className="hidden"
                   accept=".csv,.xls,.xlsx"
-                  onChange={handleFileUpload}
+                  onChange={handleFileSelect}
                   disabled={isUploading}
                 />
               </label>
             </div>
           </div>
+
+          {/* Preview Section */}
+          {currentStep === 'preview' && previewData && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Preview Data</h3>
+              
+              {/* File Info */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="font-medium text-gray-700">File</div>
+                    <div className="text-gray-600">{previewData.fileName}</div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-700">Total Rows</div>
+                    <div className="text-gray-600">{previewData.totalRows}</div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-green-700">Valid Rows</div>
+                    <div className="text-green-600">{previewData.validRows}</div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-red-700">Invalid Rows</div>
+                    <div className="text-red-600">{previewData.invalidRows}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sample Data */}
+              {previewData.sampleData.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Sample Data (First 5 rows):</h4>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border border-gray-200 rounded-lg">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {Object.keys(previewData.sampleData[0]).map((header) => (
+                            <th key={header} className="px-3 py-2 text-left font-medium text-gray-700 border-b">
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewData.sampleData.map((row, index) => (
+                          <tr key={index} className="border-b">
+                            {Object.values(row).map((value, cellIndex) => (
+                              <td key={cellIndex} className="px-3 py-2 text-gray-600">
+                                {String(value)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Errors */}
+              {previewData.errors.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-red-800">Validation Errors:</h4>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {previewData.errors.map((error, index) => (
+                      <div key={index} className="text-sm text-red-700 bg-red-50 p-2 rounded">
+                        {error}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Import Results */}
           {importResult && (
@@ -265,21 +441,67 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onClose}>
-              {importResult ? 'Close' : 'Cancel'}
-            </Button>
-            {importResult && importResult.success > 0 && (
+          <div className="flex items-center justify-between pt-4 border-t">
+            {currentStep === 'preview' && (
               <Button 
-                onClick={() => {
-                  onSuccess();
-                  onClose();
-                }}
-                className={`bg-${theme.primary} hover:bg-${theme.primaryDark}`}
+                variant="outline" 
+                onClick={() => setCurrentStep('upload')}
+                className="flex items-center space-x-2"
               >
-                Continue
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back</span>
               </Button>
             )}
+            
+            <div className="flex items-center space-x-3 ml-auto">
+              {currentStep === 'upload' && (
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+              )}
+              
+              {currentStep === 'preview' && (
+                <>
+                  <Button type="button" variant="outline" onClick={resetModal}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleImport}
+                    disabled={previewData?.invalidRows > 0}
+                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Import Products
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+              
+              {currentStep === 'result' && (
+                <>
+                  <Button type="button" variant="outline" onClick={resetModal}>
+                    Import More
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      onSuccess();
+                      onClose();
+                    }}
+                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                  >
+                    Close
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -10,6 +10,9 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
+    
+    // Check if pagination is requested
+    const isPaginated = searchParams.has("page") || searchParams.has("limit");
 
     const where: any = {};
 
@@ -39,22 +42,68 @@ export async function GET(request: NextRequest) {
           }
         },
       },
-      skip: (page - 1) * limit,
-      take: limit,
+      ...(isPaginated && {
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
       orderBy: { createdAt: "desc" },
     });
 
     const total = await prisma.product.count({ where });
 
-    return NextResponse.json({
+    // Get total counts for metrics (without pagination filters)
+    const totalActive = await prisma.product.count({ 
+      where: { 
+        ...where, 
+        active: true 
+      } 
+    });
+
+    // For stock-related metrics, we need to check stock items
+    const totalLowStock = await prisma.product.count({
+      where: {
+        ...where,
+        stockItems: {
+          some: {
+            available: {
+              lte: 10 // Assuming 10 is the low stock threshold
+            }
+          }
+        }
+      }
+    });
+
+    const totalOutOfStock = await prisma.product.count({
+      where: {
+        ...where,
+        stockItems: {
+          some: {
+            available: 0
+          }
+        }
+      }
+    });
+
+    const response: any = {
       products,
-      pagination: {
+      metrics: {
+        totalActive,
+        totalLowStock,
+        totalOutOfStock,
+      },
+    };
+
+    // Only include pagination data if pagination was requested
+    if (isPaginated) {
+      response.pagination = {
         page,
         limit,
         total,
         pages: Math.ceil(total / limit),
-      },
-    });
+      };
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching products:", error);
     return NextResponse.json(

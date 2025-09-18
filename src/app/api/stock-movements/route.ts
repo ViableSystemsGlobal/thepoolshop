@@ -317,6 +317,8 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Regular stock movement (non-transfer)
+      // For RECEIPT, RETURN, and positive ADJUSTMENT: quantity is positive (stock in)
+      // For SALE, DAMAGE, THEFT, EXPIRY, and negative ADJUSTMENT: quantity is negative (stock out)
       const newQuantity = stockItem.quantity + quantity;
       const newAvailable = Math.max(0, newQuantity - stockItem.reserved);
       

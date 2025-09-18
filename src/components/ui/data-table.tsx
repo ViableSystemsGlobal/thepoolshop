@@ -18,6 +18,11 @@ interface DataTableProps<T = Record<string, unknown>> {
   onSelectionChange?: (selectedIds: string[]) => void;
   bulkActions?: React.ReactNode;
   getRowClassName?: (item: T) => string;
+  // Server-side pagination props
+  currentPage?: number;
+  totalPages?: number;
+  totalItems?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export function DataTable<T extends { id?: string }>({ 
@@ -29,33 +34,61 @@ export function DataTable<T extends { id?: string }>({
   selectedItems = [],
   onSelectionChange,
   bulkActions,
-  getRowClassName
+  getRowClassName,
+  // Server-side pagination props
+  currentPage: serverCurrentPage,
+  totalPages: serverTotalPages,
+  totalItems: serverTotalItems,
+  onPageChange
 }: DataTableProps<T>) {
-  const [currentPage, setCurrentPage] = useState(1);
+  // Use server-side pagination if provided, otherwise use client-side
+  const isServerSidePagination = serverCurrentPage !== undefined && serverTotalPages !== undefined;
   
-  const totalPages = Math.ceil(data.length / itemsPerPage);
+  const [clientCurrentPage, setClientCurrentPage] = useState(1);
+  
+  const currentPage = isServerSidePagination ? serverCurrentPage : clientCurrentPage;
+  const totalPages = isServerSidePagination ? serverTotalPages : Math.ceil(data.length / itemsPerPage);
+  const totalItems = isServerSidePagination ? (serverTotalItems || 0) : data.length;
   
   const paginatedData = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return data.slice(startIndex, endIndex);
-  }, [data, currentPage, itemsPerPage]);
+    if (isServerSidePagination) {
+      // For server-side pagination, use data as-is (already paginated)
+      return data;
+    } else {
+      // For client-side pagination, slice the data
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      return data.slice(startIndex, endIndex);
+    }
+  }, [data, currentPage, itemsPerPage, isServerSidePagination]);
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
+      if (isServerSidePagination && onPageChange) {
+        onPageChange(page);
+      } else {
+        setClientCurrentPage(page);
+      }
     }
   };
 
   const goToPreviousPage = () => {
     if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
+      if (isServerSidePagination && onPageChange) {
+        onPageChange(currentPage - 1);
+      } else {
+        setClientCurrentPage(currentPage - 1);
+      }
     }
   };
 
   const goToNextPage = () => {
     if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
+      if (isServerSidePagination && onPageChange) {
+        onPageChange(currentPage + 1);
+      } else {
+        setClientCurrentPage(currentPage + 1);
+      }
     }
   };
 
@@ -87,10 +120,12 @@ export function DataTable<T extends { id?: string }>({
   const isAllSelected = data.length > 0 && data.every(item => item.id && selectedItems.includes(item.id));
   const isIndeterminate = selectedItems.length > 0 && !isAllSelected;
 
-  // Reset to page 1 when data changes
+  // Reset to page 1 when data changes (only for client-side pagination)
   React.useEffect(() => {
-    setCurrentPage(1);
-  }, [data.length]);
+    if (!isServerSidePagination) {
+      setClientCurrentPage(1);
+    }
+  }, [data.length, isServerSidePagination]);
 
   if (data.length === 0) {
     return (
@@ -179,7 +214,7 @@ export function DataTable<T extends { id?: string }>({
         <div className="flex items-center justify-between px-6 py-3 bg-white border-t border-gray-200">
           <div className="flex items-center text-sm text-gray-700">
             <span>
-              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, data.length)} of {data.length} results
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} results
             </span>
           </div>
           

@@ -681,40 +681,14 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
               },
               {
                 key: 'stockAfter',
-                label: 'Stock After',
+                label: 'Current Stock',
                 render: (movement) => (
                   <div>
                     <div className="text-sm font-medium text-gray-900">
-                      {(() => {
-                        // Calculate stock level after this movement
-                        // We need to work backwards from current stock
-                        const currentStock = movement.stockItem.quantity;
-                        const movementIndex = filteredMovements.findIndex(m => m.id === movement.id);
-                        const movementsAfterThis = filteredMovements.slice(0, movementIndex);
-                        
-                        // Calculate what stock was after this movement
-                        let stockAfterThisMovement = currentStock;
-                        movementsAfterThis.forEach(m => {
-                          stockAfterThisMovement -= m.quantity;
-                        });
-                        
-                        return stockAfterThisMovement;
-                      })()} {movement.product.uomBase}
+                      {movement.stockItem.quantity} {movement.product.uomBase}
                     </div>
                     <div className="text-xs text-gray-500">
-                      Available: {(() => {
-                        // Calculate available stock after this movement
-                        const currentAvailable = movement.stockItem.available;
-                        const movementIndex = filteredMovements.findIndex(m => m.id === movement.id);
-                        const movementsAfterThis = filteredMovements.slice(0, movementIndex);
-                        
-                        let availableAfterThisMovement = currentAvailable;
-                        movementsAfterThis.forEach(m => {
-                          availableAfterThisMovement -= m.quantity;
-                        });
-                        
-                        return availableAfterThisMovement;
-                      })()}
+                      Available: {movement.stockItem.available}
                     </div>
                   </div>
                 )
