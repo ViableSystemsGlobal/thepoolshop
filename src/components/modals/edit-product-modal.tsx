@@ -679,7 +679,7 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
             <Button 
               type="submit" 
               disabled={isLoading}
-              className={`bg-${theme.primary} hover:bg-${theme.primaryHover} text-white`}
+              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
             >
               {isLoading ? 'Updating...' : 'Update Product'}
             </Button>

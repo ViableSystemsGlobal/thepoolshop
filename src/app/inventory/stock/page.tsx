@@ -20,13 +20,15 @@ import {
   DollarSign,
   MoreHorizontal,
   Edit,
-  BarChart3
+  BarChart3,
+  X
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { DataTable } from "@/components/ui/data-table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
 
@@ -42,7 +44,7 @@ interface Product {
   originalCostCurrency?: string;
   baseCurrency?: string;
   importCurrency: string;
-  stockItem?: {
+  stockItems?: Array<{
     id: string;
     productId: string;
     quantity: number;
@@ -59,7 +61,7 @@ interface Product {
       name: string;
       code: string;
     };
-  };
+  }>;
   category?: {
     id: string;
     name: string;
@@ -80,6 +82,13 @@ export default function StockPage() {
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const { success } = useToast();
+
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [stockStatus, setStockStatus] = useState("all");
+  const [priceRange, setPriceRange] = useState({ min: "", max: "" });
+  const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
 
   const [aiRecommendations, setAiRecommendations] = useState([
     {
@@ -134,10 +143,54 @@ export default function StockPage() {
 
   // Calculate stats
   const totalProducts = products.length;
-  const inStockProducts = products.filter(p => p.stockItem && p.stockItem.available > p.stockItem.reorderPoint).length;
-  const lowStockProducts = products.filter(p => p.stockItem && p.stockItem.available > 0 && p.stockItem.available <= p.stockItem.reorderPoint).length;
-  const outOfStockProducts = products.filter(p => !p.stockItem || p.stockItem.available === 0).length;
-  const totalInventoryCost = products.reduce((sum, p) => sum + (p.stockItem?.totalValue || 0), 0);
+  const inStockProducts = products.filter(p => {
+    const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+    const maxReorderPoint = p.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
+    return totalAvailable > maxReorderPoint;
+  }).length;
+  const lowStockProducts = products.filter(p => {
+    const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+    const maxReorderPoint = p.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
+    return totalAvailable > 0 && totalAvailable <= maxReorderPoint;
+  }).length;
+  const outOfStockProducts = products.filter(p => {
+    const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+    return totalAvailable === 0;
+  }).length;
+  const totalInventoryCost = products.reduce((sum, p) => {
+    const totalValue = p.stockItems?.reduce((sum, item) => sum + item.totalValue, 0) || 0;
+    return sum + totalValue;
+  }, 0);
+
+  // Filter products based on search and filters
+  const filteredProducts = products.filter(product => {
+    // Search filter
+    if (searchTerm && !product.name.toLowerCase().includes(searchTerm.toLowerCase()) && 
+        !product.sku.toLowerCase().includes(searchTerm.toLowerCase())) {
+      return false;
+    }
+
+    // Category filter
+    if (selectedCategory !== "all" && product.category?.id !== selectedCategory) {
+      return false;
+    }
+
+    // Stock status filter
+    if (stockStatus !== "all") {
+      const totalAvailable = product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+      const maxReorderPoint = product.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
+      
+      if (stockStatus === "in-stock" && totalAvailable <= maxReorderPoint) return false;
+      if (stockStatus === "low-stock" && (totalAvailable === 0 || totalAvailable > maxReorderPoint)) return false;
+      if (stockStatus === "out-of-stock" && totalAvailable > 0) return false;
+    }
+
+    // Price range filter
+    if (priceRange.min && product.price && product.price < parseFloat(priceRange.min)) return false;
+    if (priceRange.max && product.price && product.price > parseFloat(priceRange.max)) return false;
+
+    return true;
+  });
 
   const handleRecommendationComplete = (id: string) => {
     setAiRecommendations(prev => 
@@ -148,11 +201,41 @@ export default function StockPage() {
     success("Recommendation completed! Great job!");
   };
 
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSelectedCategory("all");
+    setStockStatus("all");
+    setPriceRange({ min: "", max: "" });
+  };
+
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (searchTerm) count++;
+    if (selectedCategory !== "all") count++;
+    if (stockStatus !== "all") count++;
+    if (priceRange.min || priceRange.max) count++;
+    return count;
+  };
+
   const getStockStatus = (product: Product) => {
-    if (!product.stockItem) return { status: "No Stock", color: "bg-gray-100 text-gray-800" };
-    if (product.stockItem.available === 0) return { status: "Out of Stock", color: "bg-red-100 text-red-800" };
-    if (product.stockItem.available <= product.stockItem.reorderPoint) return { status: "Low Stock", color: "bg-yellow-100 text-yellow-800" };
+    const totalAvailable = product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+    const maxReorderPoint = product.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
+    
+    if (totalAvailable === 0) return { status: "Out of Stock", color: "bg-red-100 text-red-800" };
+    if (totalAvailable <= maxReorderPoint) return { status: "Low Stock", color: "bg-yellow-100 text-yellow-800" };
     return { status: "In Stock", color: "bg-green-100 text-green-800" };
+  };
+
+  const getRowClassName = (product: Product) => {
+    const totalAvailable = product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+    const maxReorderPoint = product.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
+    
+    // Highlight rows that are below reorder point (but not out of stock)
+    if (totalAvailable > 0 && totalAvailable <= maxReorderPoint) {
+      return "bg-red-50 hover:bg-red-100";
+    }
+    
+    return "";
   };
 
   if (isLoading) {
@@ -196,11 +279,11 @@ export default function StockPage() {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Products</p>
-                  <p className="text-xl font-bold text-gray-900">{totalProducts}</p>
+                  <p className="text-sm font-medium text-gray-600">Total Inventory Value</p>
+                  <p className="text-xl font-bold text-blue-600">{formatCurrencyWithSymbol(totalInventoryCost, currency, 'USD')}</p>
                 </div>
-                <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
-                  <Package className={`w-5 h-5 text-${theme.primary}`} />
+                <div className="p-2 rounded-full bg-blue-100">
+                  <DollarSign className="w-5 h-5 text-blue-600" />
                 </div>
               </div>
             </Card>
@@ -210,6 +293,7 @@ export default function StockPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">In Stock</p>
                   <p className="text-xl font-bold text-green-600">{inStockProducts}</p>
+                  <p className="text-xs text-gray-500">out of {totalProducts} products</p>
                 </div>
                 <div className="p-2 rounded-full bg-green-100">
                   <CheckCircle className="w-5 h-5 text-green-600" />
@@ -243,37 +327,38 @@ export default function StockPage() {
           </div>
         </div>
 
-        {/* Additional Metrics */}
-        <div className="grid grid-cols-1 gap-6">
-          <Card className="p-4">
+
+        {/* Products Table */}
+        <Card>
+          <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Inventory Value</p>
-                <p className="text-2xl font-bold text-blue-600">{formatCurrencyWithSymbol(totalInventoryCost, currency, 'USD')}</p>
-              </div>
-              <div className="p-2 rounded-full bg-blue-100">
-                <DollarSign className="w-6 h-6 text-blue-600" />
+                <CardTitle>Products Stock ({filteredProducts.length})</CardTitle>
+                <CardDescription>
+                  Click on any product to view detailed stock movements
+                </CardDescription>
               </div>
             </div>
-          </Card>
-        </div>
-
-        {/* Search and Filter */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-4">
+          </CardHeader>
+          <CardContent className="p-6 pb-0">
+            <div className="flex items-center space-x-4 mb-6">
               <div className="flex-1">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
                     placeholder="Search products by name or SKU..."
                     className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <Filter className="h-4 w-4 text-gray-500" />
-                <select className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select 
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                >
                   <option value="all">All Categories</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
@@ -281,25 +366,89 @@ export default function StockPage() {
                     </option>
                   ))}
                 </select>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsMoreFiltersOpen(true)}
+                >
+                  More Filters
+                  {getActiveFiltersCount() > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                      {getActiveFiltersCount()}
+                    </span>
+                  )}
+                </Button>
+                
+                <Dialog open={isMoreFiltersOpen} onOpenChange={setIsMoreFiltersOpen}>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>More Filters</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Stock Status
+                        </label>
+                        <select 
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={stockStatus}
+                          onChange={(e) => setStockStatus(e.target.value)}
+                        >
+                          <option value="all">All Stock Status</option>
+                          <option value="in-stock">In Stock</option>
+                          <option value="low-stock">Low Stock</option>
+                          <option value="out-of-stock">Out of Stock</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Price Range
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="number"
+                            placeholder="Min Price"
+                            value={priceRange.min}
+                            onChange={(e) => setPriceRange(prev => ({ ...prev, min: e.target.value }))}
+                          />
+                          <Input
+                            type="number"
+                            placeholder="Max Price"
+                            value={priceRange.max}
+                            onChange={(e) => setPriceRange(prev => ({ ...prev, max: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between pt-4">
+                        <Button 
+                          variant="outline" 
+                          onClick={handleClearFilters}
+                          className="text-gray-600"
+                        >
+                          Clear All
+                        </Button>
+                        <Button 
+                          onClick={() => setIsMoreFiltersOpen(false)}
+                          className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                        >
+                          Apply Filters
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
           </CardContent>
-        </Card>
-
-        {/* Products Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Products Stock ({totalProducts})</CardTitle>
-            <CardDescription>
-              Click on any product to view detailed stock movements
-            </CardDescription>
-          </CardHeader>
           <CardContent className="p-0">
             <DataTable
-              data={products}
+              data={filteredProducts}
               enableSelection={true}
               selectedItems={selectedStockItems}
               onSelectionChange={setSelectedStockItems}
+              getRowClassName={getRowClassName}
               bulkActions={
                 <div className="flex gap-2">
                   <Button
@@ -308,21 +457,30 @@ export default function StockPage() {
                     onClick={async () => {
                       try {
                         const { downloadCSV } = await import('@/lib/export-utils');
-                        const exportData = products
+                        const exportData = filteredProducts
                           .filter(p => selectedStockItems.includes(p.id))
-                          .map(product => ({
-                            'Product Name': product.name,
-                            'SKU': product.sku,
-                            'Category': product.category?.name || 'Uncategorized',
-                            'Available Stock': product.available,
-                            'Reserved': product.reserved,
-                            'Unit Price': product.unitPrice,
-                            'Average Cost': product.averageCost,
-                            'Total Value': product.totalValue,
-                            'Reorder Point': product.reorderPoint,
-                            'Warehouse': product.warehouse?.name || 'N/A',
-                            'Status': product.available > 0 ? 'In Stock' : 'Out of Stock'
-                          }));
+                          .map(product => {
+                            const totalAvailable = product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+                            const totalReserved = product.stockItems?.reduce((sum, item) => sum + item.reserved, 0) || 0;
+                            const totalValue = product.stockItems?.reduce((sum, item) => sum + item.totalValue, 0) || 0;
+                            const totalQuantity = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+                            const avgCost = totalQuantity > 0 ? totalValue / totalQuantity : 0;
+                            const maxReorderPoint = product.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
+                            const warehouseNames = product.stockItems?.map(item => item.warehouse?.name).filter(Boolean) || [];
+                            
+                            return {
+                              'Product Name': product.name,
+                              'SKU': product.sku,
+                              'Category': product.category?.name || 'Uncategorized',
+                              'Available Stock': totalAvailable,
+                              'Reserved': totalReserved,
+                              'Unit Price': product.price || 0,
+                              'Average Cost': avgCost,
+                              'Total Value': totalValue,
+                              'Warehouse': warehouseNames.join(', ') || 'N/A',
+                              'Status': totalAvailable > 0 ? 'In Stock' : 'Out of Stock'
+                            };
+                          });
                         downloadCSV(exportData, `stock_export_${new Date().toISOString().split('T')[0]}.csv`);
                         success(`Successfully exported ${selectedStockItems.length} stock item(s)`);
                       } catch (error) {
@@ -330,14 +488,15 @@ export default function StockPage() {
                       }
                     }}
                     disabled={selectedStockItems.length === 0}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-50"
                   >
                     Export
                   </Button>
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={() => success('Adjust stock functionality coming soon!')}
                     disabled={selectedStockItems.length === 0}
+                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     Adjust Stock
                   </Button>
@@ -366,29 +525,38 @@ export default function StockPage() {
                 {
                   key: 'stockLevel',
                   label: 'Stock Level',
-                  render: (product) => (
-                    <div className="text-sm text-gray-600">
-                      {product.stockItem?.quantity || 0} {product.uomBase}
-                    </div>
-                  )
+                  render: (product) => {
+                    const totalQuantity = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+                    return (
+                      <div className="text-sm text-gray-600">
+                        {totalQuantity} {product.uomBase}
+                      </div>
+                    );
+                  }
                 },
                 {
                   key: 'available',
                   label: 'Available',
-                  render: (product) => (
-                    <div className="text-sm text-gray-600">
-                      {product.stockItem?.available || 0}
-                    </div>
-                  )
+                  render: (product) => {
+                    const totalAvailable = product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+                    return (
+                      <div className="text-sm text-gray-600">
+                        {totalAvailable}
+                      </div>
+                    );
+                  }
                 },
                 {
                   key: 'reserved',
                   label: 'Reserved',
-                  render: (product) => (
-                    <div className="text-sm text-gray-600">
-                      {product.stockItem?.reserved || 0}
-                    </div>
-                  )
+                  render: (product) => {
+                    const totalReserved = product.stockItems?.reduce((sum, item) => sum + item.reserved, 0) || 0;
+                    return (
+                      <div className="text-sm text-gray-600">
+                        {totalReserved}
+                      </div>
+                    );
+                  }
                 },
                 {
                   key: 'unitPrice',
@@ -402,38 +570,48 @@ export default function StockPage() {
                 {
                   key: 'avgCost',
                   label: 'Avg Cost',
-                  render: (product) => (
-                    <div className="text-sm text-gray-600">
-                      {formatCurrencyWithSymbol(product.stockItem?.averageCost || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
-                    </div>
-                  )
-                },
-                {
-                  key: 'reorderPoint',
-                  label: 'Reorder Point',
-                  render: (product) => (
-                    <div className="text-sm text-gray-600">
-                      {product.stockItem?.reorderPoint || 0} {product.uomBase}
-                    </div>
-                  )
+                  render: (product) => {
+                    const totalValue = product.stockItems?.reduce((sum, item) => sum + item.totalValue, 0) || 0;
+                    const totalQuantity = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+                    const avgCost = totalQuantity > 0 ? totalValue / totalQuantity : 0;
+                    return (
+                      <div className="text-sm text-gray-600">
+                        {formatCurrencyWithSymbol(avgCost, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
+                      </div>
+                    );
+                  }
                 },
                 {
                   key: 'warehouse',
                   label: 'Warehouse',
-                  render: (product) => (
-                    <div className="text-sm text-gray-600">
-                      {product.stockItem?.warehouse?.name || 'No Warehouse'}
-                    </div>
-                  )
+                  render: (product) => {
+                    const warehouseNames = product.stockItems?.map(item => item.warehouse?.name).filter(Boolean) || [];
+                    return (
+                      <div className="text-sm text-gray-600">
+                        {warehouseNames.length > 0 ? (
+                          <div className="space-y-1">
+                            {warehouseNames.map((name, index) => (
+                              <div key={index}>{name}</div>
+                            ))}
+                          </div>
+                        ) : (
+                          'No Warehouse'
+                        )}
+                      </div>
+                    );
+                  }
                 },
                 {
                   key: 'costValue',
                   label: 'Cost Value',
-                  render: (product) => (
-                    <div className="text-sm text-gray-600">
-                      {formatCurrencyWithSymbol(product.stockItem?.totalValue || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
-                    </div>
-                  )
+                  render: (product) => {
+                    const totalValue = product.stockItems?.reduce((sum, item) => sum + item.totalValue, 0) || 0;
+                    return (
+                      <div className="text-sm text-gray-600">
+                        {formatCurrencyWithSymbol(totalValue, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
+                      </div>
+                    );
+                  }
                 },
                 {
                   key: 'status',

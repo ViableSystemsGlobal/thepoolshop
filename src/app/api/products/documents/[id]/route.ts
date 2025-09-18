@@ -1,23 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile, unlink } from "fs/promises";
 import { join } from "path";
+import { prisma } from "@/lib/prisma";
 
 // DELETE /api/products/documents/[id] - Delete a document
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const documentId = params.id;
+    const { id: documentId } = await params;
 
-    // In a real application, you would:
-    // 1. Find the document in the database
-    // 2. Get the file path
-    // 3. Delete the file from filesystem
-    // 4. Delete the database record
+    // Find the document in the database
+    const document = await prisma.productDocument.findUnique({
+      where: { id: documentId }
+    });
 
-    // For now, we'll just return success
-    console.log(`Deleting document: ${documentId}`);
+    if (!document) {
+      return NextResponse.json(
+        { error: 'Document not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete the file from filesystem
+    try {
+      await unlink(document.filePath);
+    } catch (fileError) {
+      console.warn('File not found on filesystem:', document.filePath);
+    }
+
+    // Delete the database record
+    await prisma.productDocument.delete({
+      where: { id: documentId }
+    });
 
     return NextResponse.json({
       success: true,

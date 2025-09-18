@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         category: true,
-        stockItem: {
+        stockItems: {
           include: {
             warehouse: true
           }

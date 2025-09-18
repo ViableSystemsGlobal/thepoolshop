@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import { prisma } from "@/lib/prisma";
 
 // POST /api/products/documents - Upload a document
 export async function POST(request: NextRequest) {
@@ -60,18 +61,18 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     await writeFile(filepath, buffer);
 
-    // In a real application, you would save document metadata to database
-    // For now, we'll return success with file info
-    const document = {
-      id: `doc_${timestamp}`,
-      filename: file.name,
-      originalName: file.name,
-      size: file.size,
-      type: file.type,
-      path: filepath,
-      productId,
-      createdAt: new Date().toISOString(),
-    };
+    // Save document metadata to database
+    const document = await prisma.productDocument.create({
+      data: {
+        filename: filename,
+        originalName: file.name,
+        filePath: filepath,
+        fileSize: file.size,
+        mimeType: file.type,
+        productId: productId,
+        uploadedBy: 'system', // TODO: Get from session/auth
+      }
+    });
 
     return NextResponse.json({
       success: true,
@@ -80,8 +81,9 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error uploading document:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { error: 'Failed to upload document' },
+      { error: `Failed to upload document: ${errorMessage}` },
       { status: 500 }
     );
   }
@@ -100,26 +102,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // In a real application, you would fetch from database
-    // For now, we'll return mock data
-    const documents = [
-      {
-        id: 'doc_1',
-        filename: 'Product Manual.pdf',
-        size: 1024000,
-        type: 'application/pdf',
-        productId,
-        createdAt: new Date().toISOString(),
+    // Fetch documents from database
+    const documents = await prisma.productDocument.findMany({
+      where: {
+        productId: productId
       },
-      {
-        id: 'doc_2',
-        filename: 'Certificate.jpg',
-        size: 512000,
-        type: 'image/jpeg',
-        productId,
-        createdAt: new Date().toISOString(),
+      orderBy: {
+        createdAt: 'desc'
       }
-    ];
+    });
 
     return NextResponse.json({
       documents

@@ -44,7 +44,8 @@ export function GRNGenerationModal({ isOpen, onClose, products }: GRNGenerationM
   });
 
   const { success, error } = useToast();
-  const { customLogo } = useTheme();
+  const { customLogo, getThemeClasses } = useTheme();
+  const theme = getThemeClasses();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -377,7 +378,11 @@ export function GRNGenerationModal({ isOpen, onClose, products }: GRNGenerationM
           <Button variant="outline" onClick={onClose} disabled={isGenerating}>
             Cancel
           </Button>
-          <Button onClick={generateGRN} disabled={isGenerating}>
+          <Button 
+            onClick={generateGRN} 
+            disabled={isGenerating}
+            className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+          >
             {isGenerating ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

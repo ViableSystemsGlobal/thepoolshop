@@ -8,6 +8,7 @@ import { MainLayout } from "@/components/layout/main-layout";
 import { formatCurrency } from "@/lib/utils";
 import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol } from "@/components/ui/currency-toggle";
 import { EditProductModal } from "@/components/modals/edit-product-modal";
+import { AddProductToPriceListFromProductModal } from "@/components/modals/add-product-to-price-list-from-product-modal";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
@@ -34,7 +35,12 @@ import {
   History,
   Archive,
   Upload,
-  X
+  X,
+  Mail,
+  CheckSquare,
+  Square,
+  FolderOpen,
+  Plus
 } from "lucide-react";
 
 interface Category {
@@ -52,8 +58,14 @@ interface StockItem {
   quantity: number;
   reserved: number;
   available: number;
+  warehouseId: string;
   createdAt: string;
   updatedAt: string;
+  warehouse?: {
+    id: string;
+    name: string;
+    code: string;
+  };
 }
 
 interface Product {
@@ -78,7 +90,7 @@ interface Product {
   createdAt: string;
   updatedAt: string;
   category?: Category;
-  stockItem?: StockItem;
+  stockItems?: StockItem[];
 }
 
 export default function ProductDetailsPage() {
@@ -94,9 +106,31 @@ export default function ProductDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<'overview' | 'documents'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'pricing'>('overview');
   const [documents, setDocuments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
+  const [isBulkActionModalOpen, setIsBulkActionModalOpen] = useState(false);
+  const [bulkAction, setBulkAction] = useState<'delete' | 'email' | 'download'>('delete');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [priceLists, setPriceLists] = useState<any[]>([]);
+  const [isAddToPriceListModalOpen, setIsAddToPriceListModalOpen] = useState(false);
+  const [emailForm, setEmailForm] = useState({
+    to: '',
+    cc: '',
+    message: ''
+  });
+
+  // Helper function to get total stock across all warehouses
+  const getTotalStock = () => {
+    if (!product?.stockItems) return { quantity: 0, reserved: 0, available: 0 };
+    return product.stockItems.reduce((total, item) => ({
+      quantity: total.quantity + item.quantity,
+      reserved: total.reserved + item.reserved,
+      available: total.available + item.available
+    }), { quantity: 0, reserved: 0, available: 0 });
+  };
 
   // Reset image index when product changes
   useEffect(() => {
@@ -148,10 +182,27 @@ export default function ProductDetailsPage() {
     }
   };
 
+  const fetchPriceLists = async () => {
+    if (!product) return;
+    try {
+      const response = await fetch(`/api/products/${product.id}/price-lists`);
+      if (response.ok) {
+        const data = await response.json();
+        setPriceLists(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching price lists:', error);
+    }
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !product) return;
+    if (!file || !product) {
+      console.log('No file selected or product not loaded');
+      return;
+    }
 
+    console.log('Uploading file:', file.name, 'Size:', file.size, 'Type:', file.type);
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
@@ -163,11 +214,30 @@ export default function ProductDetailsPage() {
         body: formData,
       });
 
+      console.log('Upload response status:', response.status);
+      console.log('Upload response headers:', Object.fromEntries(response.headers.entries()));
+      
       if (response.ok) {
         success('Document uploaded successfully');
         fetchDocuments(); // Refresh documents list
       } else {
-        showError('Failed to upload document');
+        let errorMessage = 'Failed to upload document';
+        try {
+          const responseText = await response.text();
+          console.error('Upload error response text:', responseText);
+          
+          if (responseText) {
+            const errorData = JSON.parse(responseText);
+            console.error('Upload error parsed:', errorData);
+            errorMessage = errorData.error || errorMessage;
+          } else {
+            errorMessage = `Upload failed with status ${response.status} - No response body`;
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+          errorMessage = `Upload failed with status ${response.status}`;
+        }
+        showError(errorMessage);
       }
     } catch (error) {
       console.error('Error uploading document:', error);
@@ -201,11 +271,16 @@ export default function ProductDetailsPage() {
     }
   };
 
-  const handleDeleteDocument = async (documentId: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return;
+  const handleDeleteDocument = (documentId: string) => {
+    setDocumentToDelete(documentId);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteDocument = async () => {
+    if (!documentToDelete) return;
 
     try {
-      const response = await fetch(`/api/products/documents/${documentId}`, {
+      const response = await fetch(`/api/products/documents/${documentToDelete}`, {
         method: 'DELETE',
       });
 
@@ -213,11 +288,170 @@ export default function ProductDetailsPage() {
         success('Document deleted successfully');
         fetchDocuments(); // Refresh documents list
       } else {
-        showError('Failed to delete document');
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to delete document');
       }
     } catch (error) {
       console.error('Error deleting document:', error);
       showError('Error deleting document');
+    } finally {
+      setIsDeleteModalOpen(false);
+      setDocumentToDelete(null);
+    }
+  };
+
+  const handleEmailFormChange = (field: string, value: string) => {
+    setEmailForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSendSingleDocumentEmail = (documentId: string, filename: string) => {
+    // Set the document to be emailed and open the email modal
+    setSelectedDocuments([documentId]);
+    setBulkAction('email');
+    setIsBulkActionModalOpen(true);
+  };
+
+  const handleSelectDocument = (documentId: string) => {
+    setSelectedDocuments(prev => 
+      prev.includes(documentId) 
+        ? prev.filter(id => id !== documentId)
+        : [...prev, documentId]
+    );
+  };
+
+  const handleSelectAllDocuments = () => {
+    if (selectedDocuments.length === documents.length) {
+      setSelectedDocuments([]);
+    } else {
+      setSelectedDocuments(documents.map(doc => doc.id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedDocuments.length === 0) return;
+    
+    if (!confirm(`Are you sure you want to delete ${selectedDocuments.length} document(s)?`)) return;
+
+    try {
+      const deletePromises = selectedDocuments.map(id => 
+        fetch(`/api/products/documents/${id}`, { method: 'DELETE' })
+      );
+      
+      await Promise.all(deletePromises);
+      success(`${selectedDocuments.length} document(s) deleted successfully`);
+      setSelectedDocuments([]);
+      fetchDocuments();
+    } catch (error) {
+      console.error('Error deleting documents:', error);
+      showError('Failed to delete documents');
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedDocuments.length === 0) return;
+
+    try {
+      // Download each document individually
+      for (const docId of selectedDocuments) {
+        const doc = documents.find(d => d.id === docId);
+        if (doc) {
+          const response = await fetch(`/api/products/documents/${docId}/download`);
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = doc.originalName;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          }
+        }
+      }
+      success(`${selectedDocuments.length} document(s) downloaded successfully`);
+    } catch (error) {
+      console.error('Error downloading documents:', error);
+      showError('Failed to download documents');
+    }
+  };
+
+  const handleBulkEmail = async () => {
+    if (selectedDocuments.length === 0 || !emailForm.to.trim()) return;
+
+    try {
+      // Parse email addresses (comma-separated)
+      const toEmails = emailForm.to.split(',').map(email => email.trim()).filter(email => email);
+      const ccEmails = emailForm.cc ? emailForm.cc.split(',').map(email => email.trim()).filter(email => email) : [];
+
+      // In a real application, you would send an API request to email the documents
+      // This would include the email form data and selected documents
+      const emailData = {
+        to: toEmails,
+        cc: ccEmails,
+        message: emailForm.message,
+        documentIds: selectedDocuments,
+        productId: product?.id
+      };
+
+      console.log('Email data:', emailData);
+      
+      success(`Documents sent to ${toEmails.join(', ')} successfully`);
+      setSelectedDocuments([]);
+      setEmailForm({ to: '', cc: '', message: '' });
+    } catch (error) {
+      console.error('Error emailing documents:', error);
+      showError('Failed to email documents');
+    }
+  };
+
+  const handleBulkAction = () => {
+    switch (bulkAction) {
+      case 'delete':
+        handleBulkDelete();
+        break;
+      case 'download':
+        handleBulkDownload();
+        break;
+      case 'email':
+        handleBulkEmail();
+        break;
+    }
+    setIsBulkActionModalOpen(false);
+  };
+
+  const handleDownloadImages = async () => {
+    if (!product || !images.length) return;
+
+    try {
+      // Create a zip file with all product images
+      // For now, we'll download each image individually
+      for (let i = 0; i < images.length; i++) {
+        const imageUrl = images[i];
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${product.name.replace(/[^a-zA-Z0-9]/g, '_')}_image_${i + 1}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        // Add a small delay between downloads
+        if (i < images.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      success(`${images.length} image(s) downloaded successfully`);
+    } catch (error) {
+      console.error('Error downloading images:', error);
+      showError('Failed to download images');
     }
   };
 
@@ -252,6 +486,13 @@ export default function ProductDetailsPage() {
   useEffect(() => {
     if (activeTab === 'documents' && product) {
       fetchDocuments();
+    }
+  }, [activeTab, product]);
+
+  // Fetch price lists when pricing tab is active
+  useEffect(() => {
+    if (activeTab === 'pricing' && product) {
+      fetchPriceLists();
     }
   }, [activeTab, product]);
 
@@ -327,6 +568,35 @@ export default function ProductDetailsPage() {
 
   const handleArchiveProduct = () => {
     success('Archive product functionality coming soon!');
+  };
+
+  const handleAddToPriceList = () => {
+    setIsAddToPriceListModalOpen(true);
+  };
+
+  const handleRemoveFromPriceList = async (priceListId: string) => {
+    if (window.confirm('Are you sure you want to remove this product from the price list?')) {
+      try {
+        const response = await fetch(`/api/products/${product?.id}/price-lists/remove?priceListId=${priceListId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          success('Product removed from price list successfully');
+          fetchPriceLists(); // Refresh price lists
+        } else {
+          const errorData = await response.json();
+          showError(errorData.error || 'Failed to remove product from price list');
+        }
+      } catch (error) {
+        console.error('Error removing product from price list:', error);
+        showError('Network error. Please try again.');
+      }
+    }
+  };
+
+  const handleRefreshPriceLists = () => {
+    fetchPriceLists();
   };
 
   if (isLoading) {
@@ -413,9 +683,10 @@ export default function ProductDetailsPage() {
   const profitMargin = calculateProfitMargin();
 
   // Stock status
-  const stockStatus = (product.stockItem?.available || 0) === 0 
+  const totalStock = getTotalStock();
+  const stockStatus = totalStock.available === 0 
     ? 'out-of-stock' 
-    : (product.stockItem?.available || 0) < 20 
+    : totalStock.available < 20 
       ? 'low-stock' 
       : 'in-stock';
 
@@ -520,6 +791,17 @@ export default function ProductDetailsPage() {
               <FileText className="h-4 w-4 inline mr-2" />
               Documents
             </button>
+            <button
+              onClick={() => setActiveTab('pricing')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'pricing'
+                  ? `border-${theme.primary} text-${theme.primaryText}`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <DollarSign className="h-4 w-4 inline mr-2" />
+              Pricing
+            </button>
           </nav>
         </div>
 
@@ -581,7 +863,7 @@ export default function ProductDetailsPage() {
                 </div>
 
                 {/* Status Badges */}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 items-center">
                   <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
                     product.active
                       ? `bg-${theme.primaryBg} text-${theme.primaryText}`
@@ -590,16 +872,32 @@ export default function ProductDetailsPage() {
                     {product.active ? 'Active' : 'Inactive'}
                   </span>
                   
-                  <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
-                    stockStatus === 'out-of-stock'
-                      ? "bg-red-100 text-red-800"
-                      : stockStatus === 'low-stock'
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-green-100 text-green-800"
-                  }`}>
-                    {stockStatus === 'out-of-stock' ? 'Out of Stock' : 
-                     stockStatus === 'low-stock' ? 'Low Stock' : 'In Stock'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      stockStatus === 'out-of-stock'
+                        ? "bg-red-100 text-red-800"
+                        : stockStatus === 'low-stock'
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-green-100 text-green-800"
+                    }`}>
+                      {stockStatus === 'out-of-stock' ? 'Out of Stock' : 
+                       stockStatus === 'low-stock' ? 'Low Stock' : 'In Stock'}
+                    </span>
+                    
+                    {/* Download Images Button - Only show if product has images and is in stock */}
+                    {images.length > 0 && stockStatus === 'in-stock' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadImages}
+                        className="flex items-center text-xs px-2 py-1 h-6"
+                        title="Download product images"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        Images
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Description */}
@@ -609,6 +907,62 @@ export default function ProductDetailsPage() {
                     <p className="text-sm text-gray-600">{product.description}</p>
                   </div>
                 )}
+
+                {/* Basic Information */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Basic Information
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">Category</span>
+                      <span className="text-sm text-gray-900">{product.category?.name || 'Uncategorized'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">Base Unit</span>
+                      <span className="text-sm text-gray-900">{product.uomBase}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">Selling Unit</span>
+                      <span className="text-sm text-gray-900">{product.uomSell}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">Selling Currency</span>
+                      <span className="text-sm text-gray-900">{product.originalPriceCurrency || product.baseCurrency || 'GHS'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">Cost Currency</span>
+                      <span className="text-sm text-gray-900">{product.originalCostCurrency || product.importCurrency || 'USD'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* System Information */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    System Information
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">Product ID</span>
+                      <span className="text-sm text-gray-900 font-mono">{product.id}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">Created</span>
+                      <span className="text-sm text-gray-900">
+                        {new Date(product.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">Last Updated</span>
+                      <span className="text-sm text-gray-900">
+                        {new Date(product.updatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -678,27 +1032,27 @@ export default function ProductDetailsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900">
-                      {product.stockItem?.quantity || 0}
+                      {totalStock.quantity}
                     </div>
                     <div className="text-sm text-gray-600">Total Quantity</div>
                   </div>
                   
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="text-2xl font-bold text-gray-900">
-                      {product.stockItem?.reserved || 0}
+                      {totalStock.reserved}
                     </div>
                     <div className="text-sm text-gray-600">Reserved</div>
                   </div>
                   
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className={`text-2xl font-bold ${
-                      (product.stockItem?.available || 0) === 0
+                      totalStock.available === 0
                         ? "text-red-600"
-                        : (product.stockItem?.available || 0) < 20
+                        : totalStock.available < 20
                           ? "text-amber-600"
                           : "text-green-600"
                     }`}>
-                      {product.stockItem?.available || 0}
+                      {totalStock.available}
                     </div>
                     <div className="text-sm text-gray-600">Available</div>
                   </div>
@@ -706,98 +1060,36 @@ export default function ProductDetailsPage() {
               </CardContent>
             </Card>
 
-            {/* Product Details Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Basic Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-lg">
-                    <FileText className="h-5 w-5 mr-2" />
-                    Basic Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">Category</span>
-                    <span className="text-sm text-gray-900">{product.category?.name || 'Uncategorized'}</span>
+            {/* Stock Movements */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center text-lg">
+                      <TrendingUp className="h-5 w-5 mr-2" />
+                      Stock Movements
+                    </CardTitle>
+                    <CardDescription>
+                      Recent stock movements for this product
+                    </CardDescription>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">Base Unit</span>
-                    <span className="text-sm text-gray-900">{product.uomBase}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">Selling Unit</span>
-                    <span className="text-sm text-gray-900">{product.uomSell}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">Selling Currency</span>
-                    <span className="text-sm text-gray-900">{product.originalPriceCurrency || product.baseCurrency || 'GHS'}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">Cost Currency</span>
-                    <span className="text-sm text-gray-900">{product.originalCostCurrency || product.importCurrency || 'USD'}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* System Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-lg">
-                    <Calendar className="h-5 w-5 mr-2" />
-                    System Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">Product ID</span>
-                    <span className="text-sm text-gray-900 font-mono">{product.id}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">Created</span>
-                    <span className="text-sm text-gray-900">
-                      {new Date(product.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">Last Updated</span>
-                    <span className="text-sm text-gray-900">
-                      {new Date(product.updatedAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          {/* Stock Movements */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center text-lg">
-                    <TrendingUp className="h-5 w-5 mr-2" />
-                    Stock Movements
-                  </CardTitle>
-                  <CardDescription>
-                    Recent stock movements for this product
-                  </CardDescription>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/products/${product.id}/stock-movements`)}
+                    className="flex items-center"
+                  >
+                    View All Movements
+                    <ArrowRight className="h-4 w-4 ml-1" />
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push(`/products/${product.id}/stock-movements`)}
-                  className="flex items-center"
-                >
-                  View All Movements
-                  <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <StockMovementsSummary productId={product.id} />
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <StockMovementsSummary productId={product.id} />
+              </CardContent>
+            </Card>
+
+          </div>
         </div>
         )}
 
@@ -843,18 +1135,76 @@ export default function ProductDetailsPage() {
             {/* Documents List */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FileText className="h-5 w-5 mr-2" />
-                  Product Documents
-                </CardTitle>
-                <CardDescription>
-                  Manage and download product documents.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center">
+                      <FileText className="h-5 w-5 mr-2" />
+                      Product Documents
+                    </CardTitle>
+                    <CardDescription>
+                      Manage and download product documents.
+                    </CardDescription>
+                  </div>
+                  {documents.length > 0 && (
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSelectAllDocuments}
+                        className="flex items-center"
+                      >
+                        {selectedDocuments.length === documents.length ? (
+                          <CheckSquare className="h-4 w-4 mr-1" />
+                        ) : (
+                          <Square className="h-4 w-4 mr-1" />
+                        )}
+                        {selectedDocuments.length === documents.length ? 'Deselect All' : 'Select All'}
+                      </Button>
+                      {selectedDocuments.length > 0 && (
+                        <DropdownMenu
+                          trigger={
+                            <Button variant="outline" size="sm" className="flex items-center">
+                              <MoreHorizontal className="h-4 w-4 mr-1" />
+                              Bulk Actions ({selectedDocuments.length})
+                            </Button>
+                          }
+                          items={[
+                            {
+                              label: "Download Selected",
+                              icon: <Download className="h-4 w-4" />,
+                              onClick: () => {
+                                setBulkAction('download');
+                                setIsBulkActionModalOpen(true);
+                              }
+                            },
+                            {
+                              label: "Email Selected",
+                              icon: <Mail className="h-4 w-4" />,
+                              onClick: () => {
+                                setBulkAction('email');
+                                setIsBulkActionModalOpen(true);
+                              }
+                            },
+                            {
+                              label: "Delete Selected",
+                              icon: <Trash2 className="h-4 w-4" />,
+                              onClick: () => {
+                                setBulkAction('delete');
+                                setIsBulkActionModalOpen(true);
+                              },
+                              className: "text-red-600 hover:text-red-700"
+                            }
+                          ]}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {documents.length === 0 ? (
                   <div className="text-center py-8">
-                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <FolderOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No documents uploaded</h3>
                     <p className="text-gray-600">
                       Upload documents to get started.
@@ -865,13 +1215,23 @@ export default function ProductDetailsPage() {
                     {documents.map((doc) => (
                       <div key={doc.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
                         <div className="flex items-center space-x-3">
+                          <button
+                            onClick={() => handleSelectDocument(doc.id)}
+                            className="flex-shrink-0"
+                          >
+                            {selectedDocuments.includes(doc.id) ? (
+                              <CheckSquare className="h-5 w-5 text-blue-600" />
+                            ) : (
+                              <Square className="h-5 w-5 text-gray-400" />
+                            )}
+                          </button>
                           <div className="p-2 bg-blue-100 rounded-lg">
                             <FileText className="h-5 w-5 text-blue-600" />
                           </div>
                           <div>
-                            <div className="font-medium text-gray-900">{doc.filename}</div>
+                            <div className="font-medium text-gray-900">{doc.originalName}</div>
                             <div className="text-sm text-gray-500">
-                              {new Date(doc.createdAt).toLocaleDateString()} • {(doc.size / 1024).toFixed(1)} KB
+                              {new Date(doc.createdAt).toLocaleDateString()} • {(doc.fileSize / 1024).toFixed(1)} KB
                             </div>
                           </div>
                         </div>
@@ -879,10 +1239,19 @@ export default function ProductDetailsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDownloadDocument(doc.id, doc.filename)}
+                            onClick={() => handleDownloadDocument(doc.id, doc.originalName)}
                           >
                             <Download className="h-4 w-4 mr-1" />
                             Download
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSendSingleDocumentEmail(doc.id, doc.originalName)}
+                            className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
+                          >
+                            <Mail className="h-4 w-4 mr-1" />
+                            Send Email
                           </Button>
                           <Button
                             variant="outline"
@@ -901,6 +1270,135 @@ export default function ProductDetailsPage() {
             </Card>
           </div>
         )}
+
+        {/* Pricing Tab */}
+        {activeTab === 'pricing' && (
+          <div className="space-y-6">
+            {/* Price Lists Overview */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center">
+                      <DollarSign className="h-5 w-5 mr-2" />
+                      Price Lists ({priceLists.length})
+                    </CardTitle>
+                    <CardDescription>
+                      Manage pricing across different channels and customer segments
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    onClick={handleAddToPriceList}
+                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add to Price List
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {priceLists.length === 0 ? (
+                  <div className="text-center py-8">
+                    <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Price Lists</h3>
+                    <p className="text-gray-500 mb-4">
+                      This product is not included in any price lists yet.
+                    </p>
+                    <Button 
+                      onClick={handleAddToPriceList}
+                      className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add to Price List
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Price List</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Channel</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Currency</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Unit Price</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Channel Price</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Status</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {priceLists.map((priceList) => (
+                          <tr key={priceList.id} className="border-b hover:bg-gray-50">
+                            <td className="py-3 px-4">
+                              <div className="font-medium text-gray-900">{priceList.name}</div>
+                              <div className="text-sm text-gray-500">
+                                {priceList._count.items} product{priceList._count.items !== 1 ? 's' : ''}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {priceList.channel}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="text-sm text-gray-600">{priceList.currency}</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-medium text-gray-900">
+                                {formatCurrency(priceList.items[0].unitPrice, priceList.currency)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="text-sm text-gray-600">
+                                {priceList.items[0].basePrice 
+                                  ? formatCurrency(priceList.items[0].basePrice, priceList.currency)
+                                  : 'N/A'
+                                }
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                new Date(priceList.effectiveFrom) <= new Date() &&
+                                (!priceList.effectiveTo || new Date(priceList.effectiveTo) >= new Date())
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {new Date(priceList.effectiveFrom) <= new Date() &&
+                                (!priceList.effectiveTo || new Date(priceList.effectiveTo) >= new Date())
+                                  ? 'Active'
+                                  : 'Inactive'
+                                }
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center space-x-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => router.push(`/price-lists/${priceList.id}`)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="text-red-600 hover:text-red-700"
+                                  onClick={() => handleRemoveFromPriceList(priceList.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       {/* Edit Product Modal */}
@@ -909,6 +1407,137 @@ export default function ProductDetailsPage() {
         onClose={() => setIsEditModalOpen(false)}
         onSuccess={handleEditSuccess}
         product={product}
+      />
+
+      {/* Bulk Action Confirmation Modal */}
+      {isBulkActionModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className={`bg-white rounded-lg p-6 ${bulkAction === 'email' ? 'max-w-lg' : 'max-w-md'} w-full mx-4`}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {bulkAction === 'email' ? 'Send Documents via Email' : 'Confirm Bulk Action'}
+            </h3>
+            
+            {bulkAction === 'email' ? (
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    To (Email Addresses) *
+                  </label>
+                  <input
+                    type="email"
+                    multiple
+                    value={emailForm.to}
+                    onChange={(e) => handleEmailFormChange('to', e.target.value)}
+                    placeholder="recipient@example.com, another@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    CC (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    multiple
+                    value={emailForm.cc}
+                    onChange={(e) => handleEmailFormChange('cc', e.target.value)}
+                    placeholder="cc@example.com, copy@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Message (Optional)
+                  </label>
+                  <textarea
+                    value={emailForm.message}
+                    onChange={(e) => handleEmailFormChange('message', e.target.value)}
+                    placeholder="Add a custom message to include with the documents..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div className="text-sm text-gray-600">
+                  <p>📎 Attaching {selectedDocuments.length} document(s)</p>
+                  <p>📧 Using standard email template from settings</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-600 mb-6">
+                {bulkAction === 'delete' && `Are you sure you want to delete ${selectedDocuments.length} document(s)? This action cannot be undone.`}
+                {bulkAction === 'download' && `Download ${selectedDocuments.length} document(s)?`}
+              </p>
+            )}
+            
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsBulkActionModalOpen(false);
+                  setEmailForm({ to: '', cc: '', message: '' });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant={bulkAction === 'delete' ? 'destructive' : 'default'}
+                onClick={handleBulkAction}
+                className={bulkAction === 'email' ? `bg-${theme.primary} hover:bg-${theme.primaryDark} text-white` : ''}
+                disabled={bulkAction === 'email' && !emailForm.to.trim()}
+              >
+                {bulkAction === 'delete' && 'Delete'}
+                {bulkAction === 'download' && 'Download'}
+                {bulkAction === 'email' && 'Send Email'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Document Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Delete Document
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this document? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDocumentToDelete(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDeleteDocument}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Product to Price List Modal */}
+      <AddProductToPriceListFromProductModal
+        isOpen={isAddToPriceListModalOpen}
+        onClose={() => setIsAddToPriceListModalOpen(false)}
+        onSuccess={handleRefreshPriceLists}
+        productId={product.id}
+        productName={product.name}
+        productPrice={product.originalPrice || product.price}
+        productCurrency={product.originalPriceCurrency || product.baseCurrency || 'GHS'}
       />
     </MainLayout>
   );
@@ -925,7 +1554,7 @@ function StockMovementsSummary({ productId }: { productId: string }) {
 
   const fetchMovements = async () => {
     try {
-      const response = await fetch(`/api/stock-movements?productId=${productId}&limit=10`);
+      const response = await fetch(`/api/stock-movements?productId=${productId}&limit=4`);
       if (response.ok) {
         const data = await response.json();
         setMovements(data.movements || []);

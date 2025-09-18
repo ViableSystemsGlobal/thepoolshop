@@ -33,6 +33,36 @@ export function AIRecommendationCard({
   const theme = getThemeClasses();
   const [completedItems, setCompletedItems] = useState<string[]>([]);
 
+  // Helper function to get proper gradient background classes
+  const getGradientBackgroundClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'bg-gradient-to-br from-purple-600 to-purple-700',
+      'blue-600': 'bg-gradient-to-br from-blue-600 to-blue-700',
+      'green-600': 'bg-gradient-to-br from-green-600 to-green-700',
+      'orange-600': 'bg-gradient-to-br from-orange-600 to-orange-700',
+      'red-600': 'bg-gradient-to-br from-red-600 to-red-700',
+      'indigo-600': 'bg-gradient-to-br from-indigo-600 to-indigo-700',
+      'pink-600': 'bg-gradient-to-br from-pink-600 to-pink-700',
+      'teal-600': 'bg-gradient-to-br from-teal-600 to-teal-700',
+    };
+    return colorMap[theme.primary] || 'bg-gradient-to-br from-blue-600 to-blue-700';
+  };
+
+  // Helper function to get proper small icon background classes
+  const getSmallIconBackgroundClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'bg-gradient-to-br from-purple-500 to-purple-600',
+      'blue-600': 'bg-gradient-to-br from-blue-500 to-blue-600',
+      'green-600': 'bg-gradient-to-br from-green-500 to-green-600',
+      'orange-600': 'bg-gradient-to-br from-orange-500 to-orange-600',
+      'red-600': 'bg-gradient-to-br from-red-500 to-red-600',
+      'indigo-600': 'bg-gradient-to-br from-indigo-500 to-indigo-600',
+      'pink-600': 'bg-gradient-to-br from-pink-500 to-pink-600',
+      'teal-600': 'bg-gradient-to-br from-teal-500 to-teal-600',
+    };
+    return colorMap[theme.primary] || 'bg-gradient-to-br from-blue-500 to-blue-600';
+  };
+
   const handleComplete = (id: string) => {
     setCompletedItems(prev => [...prev, id]);
     onRecommendationComplete(id);
@@ -60,7 +90,7 @@ export function AIRecommendationCard({
     <Card className="p-3 bg-gradient-to-br from-slate-50 to-slate-100 border-0 shadow-lg">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <div className={`p-1.5 rounded-lg bg-gradient-to-br from-${theme.primary} to-${theme.primaryDark} shadow-lg`}>
+          <div className={`p-1.5 rounded-lg ${getGradientBackgroundClasses()} shadow-lg`}>
             {icon || <Sparkles className="w-4 h-4 text-white" />}
           </div>
           <div>
@@ -76,7 +106,7 @@ export function AIRecommendationCard({
 
       <div className="space-y-2">
         <div className="flex items-center space-x-2 mb-2">
-          <div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+          <div className={`w-5 h-5 ${getSmallIconBackgroundClasses()} rounded-full flex items-center justify-center`}>
             <Sparkles className="w-3 h-3 text-white" />
           </div>
           <h4 className="text-sm font-semibold text-gray-800">Today's Top Recommendations</h4>

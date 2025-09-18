@@ -15,6 +15,7 @@ import { EditProductModal } from "@/components/modals/edit-product-modal";
 import { ConfirmDeleteModal } from "@/components/modals/confirm-delete-modal";
 import { StockAdjustmentModal } from "@/components/modals/stock-adjustment-modal";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
@@ -80,7 +81,7 @@ interface Product {
   createdAt: string;
   updatedAt: string;
   category?: Category;
-  stockItem?: StockItem;
+  stockItems?: StockItem[];
 }
 
 // Mock data for now
@@ -138,9 +139,56 @@ export default function ProductsPage() {
   const [isStockAdjustmentOpen, setIsStockAdjustmentOpen] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isGRNModalOpen, setIsGRNModalOpen] = useState(false);
-  const { getThemeClasses } = useTheme();
+  const [isFiltersModalOpen, setIsFiltersModalOpen] = useState(false);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false); // This should come from user context
+  const [filters, setFilters] = useState({
+    priceRange: { min: '', max: '' },
+    stockRange: { min: '', max: '' },
+    status: '',
+    dateRange: { from: '', to: '' },
+    tags: [] as string[]
+  });
+  const { themeColor, getThemeClasses } = useTheme();
   const theme = getThemeClasses();
+  
+  // Debug: Log the current theme
+  console.log('Current themeColor:', themeColor);
+  console.log('Current theme object:', theme);
   const { success, error: showError } = useToast();
+
+  // Helper function to get proper focus ring classes
+  const getFocusRingClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'focus:ring-purple-500',
+      'blue-600': 'focus:ring-blue-500',
+      'green-600': 'focus:ring-green-500',
+      'orange-600': 'focus:ring-orange-500',
+      'red-600': 'focus:ring-red-500',
+      'indigo-600': 'focus:ring-indigo-500',
+      'pink-600': 'focus:ring-pink-500',
+      'teal-600': 'focus:ring-teal-500',
+    };
+    return colorMap[theme.primary] || 'focus:ring-blue-500';
+  };
+
+  // Helper function to get proper button background classes
+  const getButtonBackgroundClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'bg-purple-600 hover:bg-purple-700',
+      'blue-600': 'bg-blue-600 hover:bg-blue-700',
+      'green-600': 'bg-green-600 hover:bg-green-700',
+      'orange-600': 'bg-orange-600 hover:bg-orange-700',
+      'red-600': 'bg-red-600 hover:bg-red-700',
+      'indigo-600': 'bg-indigo-600 hover:bg-indigo-700',
+      'pink-600': 'bg-pink-600 hover:bg-pink-700',
+      'teal-600': 'bg-teal-600 hover:bg-teal-700',
+    };
+    const classes = colorMap[theme.primary] || 'bg-blue-600 hover:bg-blue-700';
+    console.log('Theme primary:', theme.primary, 'Button classes:', classes); // Debug log
+    return classes;
+  };
 
   const [aiRecommendations, setAiRecommendations] = useState([
     {
@@ -246,32 +294,102 @@ export default function ProductsPage() {
     fetchProducts(); // Refresh the products list to show updated images
   };
 
-  const handleDuplicateProduct = (product: Product) => {
-    // TODO: Implement duplicate product functionality
-    console.log('Duplicate product:', product.id);
-    success('Duplicate product functionality coming soon!');
+  const handleDuplicateProduct = async (product: Product) => {
+    try {
+      const response = await fetch('/api/products/duplicate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ productId: product.id }),
+      });
+
+      if (response.ok) {
+        const duplicatedProduct = await response.json();
+        fetchProducts(); // Refresh the products list
+        success(`Product "${product.name}" duplicated successfully as "${duplicatedProduct.name}"`);
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to duplicate product');
+      }
+    } catch (error) {
+      console.error('Error duplicating product:', error);
+      showError('Failed to duplicate product');
+    }
   };
 
-  const handleExportProduct = (product: Product) => {
-    // TODO: Implement export product functionality
-    console.log('Export product:', product.id);
-    success('Export product functionality coming soon!');
+  const handleExportProduct = async (product: Product) => {
+    try {
+      const response = await fetch('/api/products/export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: [product.id] }),
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `product-${product.sku}-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        success(`Product "${product.name}" exported successfully`);
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to export product');
+      }
+    } catch (error) {
+      console.error('Error exporting product:', error);
+      showError('Failed to export product');
+    }
   };
 
   const handleViewHistory = (product: Product) => {
-    // Navigate to product details page with history tab
-    router.push(`/products/${product.id}?tab=history`);
+    // Navigate to product stock movements page
+    router.push(`/products/${product.id}/stock-movements`);
   };
 
-  const handleArchiveProduct = (product: Product) => {
-    // TODO: Implement archive product functionality
-    console.log('Archive product:', product.id);
-    success('Archive product functionality coming soon!');
+  const handleArchiveProduct = async (product: Product) => {
+    try {
+      const response = await fetch('/api/products/archive', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: product.id }),
+      });
+
+      if (response.ok) {
+        setProducts(products.map(p => 
+          p.id === product.id ? { ...p, active: false } : p
+        ));
+        success(`Product "${product.name}" archived successfully`);
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to archive product');
+      }
+    } catch (error) {
+      console.error('Error archiving product:', error);
+      showError('Failed to archive product');
+    }
   };
 
   // Bulk action handlers
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedProducts.length === 0) return;
+    setIsBulkDeleteModalOpen(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!isAdmin && deleteConfirmation.toLowerCase() !== 'delete') {
+      showError('You must type "delete" to confirm deletion');
+      return;
+    }
     
     try {
       const response = await fetch('/api/products/bulk-delete', {
@@ -285,6 +403,8 @@ export default function ProductsPage() {
       if (response.ok) {
         setProducts(products.filter(p => !selectedProducts.includes(p.id)));
         setSelectedProducts([]);
+        setIsBulkDeleteModalOpen(false);
+        setDeleteConfirmation('');
         success(`Successfully deleted ${selectedProducts.length} product(s)`);
       } else {
         const errorData = await response.json();
@@ -293,6 +413,34 @@ export default function ProductsPage() {
     } catch (error) {
       console.error('Error deleting products:', error);
       showError('Failed to delete products');
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    try {
+      // Archive products instead of deleting
+      const response = await fetch('/api/products/bulk-archive', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedProducts }),
+      });
+
+      if (response.ok) {
+        setProducts(products.map(p => 
+          selectedProducts.includes(p.id) ? { ...p, status: 'archived' } : p
+        ));
+        setSelectedProducts([]);
+        setIsBulkDeleteModalOpen(false);
+        success(`Successfully archived ${selectedProducts.length} product(s)`);
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to archive products');
+      }
+    } catch (error) {
+      console.error('Error archiving products:', error);
+      showError('Failed to archive products');
     }
   };
 
@@ -371,6 +519,50 @@ export default function ProductsPage() {
       )
     );
     success("Recommendation completed! Great job!");
+  };
+
+  const applyFilters = () => {
+    // Filter products based on current filter state
+    let filtered = products;
+    
+    if (filters.priceRange.min) {
+      filtered = filtered.filter(p => (p.price || 0) >= parseFloat(filters.priceRange.min));
+    }
+    if (filters.priceRange.max) {
+      filtered = filtered.filter(p => (p.price || 0) <= parseFloat(filters.priceRange.max));
+    }
+    if (filters.stockRange.min) {
+      filtered = filtered.filter(p => {
+        const totalStock = p.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+        return totalStock >= parseInt(filters.stockRange.min);
+      });
+    }
+    if (filters.stockRange.max) {
+      filtered = filtered.filter(p => {
+        const totalStock = p.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+        return totalStock <= parseInt(filters.stockRange.max);
+      });
+    }
+    if (filters.status) {
+      filtered = filtered.filter(p => p.active ? 'active' : 'inactive' === filters.status);
+    }
+    
+    setProducts(filtered);
+    setIsFiltersModalOpen(false);
+    success('Filters applied successfully');
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      priceRange: { min: '', max: '' },
+      stockRange: { min: '', max: '' },
+      status: '',
+      dateRange: { from: '', to: '' },
+      tags: []
+    });
+    // Reload original products
+    fetchProducts();
+    success('Filters cleared');
   };
 
 
@@ -456,7 +648,10 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Low Stock</p>
-                <p className="text-xl font-bold text-orange-600">{products.filter(p => (p.stockItem?.available || 0) < 20 && (p.stockItem?.available || 0) > 0).length}</p>
+                <p className="text-xl font-bold text-orange-600">{products.filter(p => {
+                  const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+                  return totalAvailable < 20 && totalAvailable > 0;
+                }).length}</p>
               </div>
               <div className="p-2 rounded-full bg-orange-100">
                 <Package className="w-5 h-5 text-orange-600" />
@@ -468,7 +663,10 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Out of Stock</p>
-                <p className="text-xl font-bold text-red-600">{products.filter(p => (p.stockItem?.available || 0) === 0).length}</p>
+                <p className="text-xl font-bold text-red-600">{products.filter(p => {
+                  const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+                  return totalAvailable === 0;
+                }).length}</p>
               </div>
               <div className="p-2 rounded-full bg-red-100">
                 <Package className="w-5 h-5 text-red-600" />
@@ -488,14 +686,14 @@ export default function ProductsPage() {
                 placeholder="Search products by name or SKU..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className={`pl-10 ${getFocusRingClasses()}`}
               />
             </div>
           </div>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className={`px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 ${getFocusRingClasses()} bg-white text-gray-900`}
           >
             {categoryOptions.map(category => (
               <option key={category} value={category}>
@@ -503,7 +701,7 @@ export default function ProductsPage() {
               </option>
             ))}
           </select>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setIsFiltersModalOpen(true)}>
             <Filter className="mr-2 h-4 w-4" />
             More Filters
           </Button>
@@ -520,10 +718,10 @@ export default function ProductsPage() {
             bulkActions={
               <div className="flex gap-2">
                 <Button
-                  variant="outline"
                   size="sm"
                   onClick={handleGenerateGRN}
                   disabled={selectedProducts.length === 0}
+                  className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
                 >
                   <FileText className="h-4 w-4 mr-1" />
                   Generate GRN
@@ -602,18 +800,14 @@ export default function ProductsPage() {
                       <div className="text-sm font-medium text-gray-900">
                         {product.name}
                       </div>
+                      <div className="text-xs text-gray-500 font-mono">
+                        {product.sku}
+                      </div>
                       <div className="text-sm text-gray-500 truncate max-w-xs">
                         {product.description}
                       </div>
                     </div>
                   </div>
-                )
-              },
-              {
-                key: 'sku',
-                label: 'SKU',
-                render: (product) => (
-                  <span className="text-sm text-gray-900">{product.sku}</span>
                 )
               },
               {
@@ -635,16 +829,26 @@ export default function ProductsPage() {
               {
                 key: 'stock',
                 label: 'Stock',
+                render: (product) => {
+                  const totalAvailable = product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+                  return (
+                    <span className={`text-sm font-medium ${
+                      totalAvailable === 0 
+                        ? "text-red-600" 
+                        : totalAvailable < 20 
+                          ? "text-amber-600" 
+                          : `text-${theme.primary}`
+                    }`}>
+                      {totalAvailable}
+                    </span>
+                  );
+                }
+              },
+              {
+                key: 'sellingUnit',
+                label: 'Selling Unit',
                 render: (product) => (
-                  <span className={`text-sm font-medium ${
-                    (product.stockItem?.available || 0) === 0 
-                      ? "text-red-600" 
-                      : (product.stockItem?.available || 0) < 20 
-                        ? "text-amber-600" 
-                        : `text-${theme.primary}`
-                  }`}>
-                    {product.stockItem?.available || 0}
-                  </span>
+                  <span className="text-sm text-gray-900">{product.uomSell || 'pcs'}</span>
                 )
               },
               {
@@ -664,7 +868,7 @@ export default function ProductsPage() {
                 key: 'actions',
                 label: 'Actions',
                 render: (product) => (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center -space-x-1">
                     <Button 
                       variant="ghost" 
                       size="sm"
@@ -819,6 +1023,185 @@ export default function ProductsPage() {
         onClose={() => setIsGRNModalOpen(false)}
         products={products.filter(p => selectedProducts.includes(p.id))}
       />
+
+      {/* Filters Modal */}
+      <Dialog open={isFiltersModalOpen} onOpenChange={setIsFiltersModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Advanced Filters</DialogTitle>
+            <DialogDescription>
+              Filter products by price, stock, status, and more
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Price Range */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Price Range
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="number"
+                  placeholder="Min Price"
+                  value={filters.priceRange.min}
+                  onChange={(e) => setFilters(prev => ({
+                    ...prev,
+                    priceRange: { ...prev.priceRange, min: e.target.value }
+                  }))}
+                />
+                <Input
+                  type="number"
+                  placeholder="Max Price"
+                  value={filters.priceRange.max}
+                  onChange={(e) => setFilters(prev => ({
+                    ...prev,
+                    priceRange: { ...prev.priceRange, max: e.target.value }
+                  }))}
+                />
+              </div>
+            </div>
+
+            {/* Stock Range */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Stock Range
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="number"
+                  placeholder="Min Stock"
+                  value={filters.stockRange.min}
+                  onChange={(e) => setFilters(prev => ({
+                    ...prev,
+                    stockRange: { ...prev.stockRange, min: e.target.value }
+                  }))}
+                />
+                <Input
+                  type="number"
+                  placeholder="Max Stock"
+                  value={filters.stockRange.max}
+                  onChange={(e) => setFilters(prev => ({
+                    ...prev,
+                    stockRange: { ...prev.stockRange, max: e.target.value }
+                  }))}
+                />
+              </div>
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status
+              </label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+              >
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="discontinued">Discontinued</option>
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter className="flex justify-between">
+            <Button variant="outline" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsFiltersModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={applyFilters}
+                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+              >
+                Apply Filters
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Modal */}
+      <Dialog open={isBulkDeleteModalOpen} onOpenChange={setIsBulkDeleteModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">⚠️ Confirm Bulk Delete</DialogTitle>
+            <DialogDescription>
+              You are about to permanently delete {selectedProducts.length} product(s). This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <Archive className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800">
+                    Consider Archiving Instead
+                  </h3>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    If these products have associated inventory movements or are referenced elsewhere, 
+                    archiving is safer and preserves data integrity.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {!isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Type "delete" to confirm <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type="text"
+                  placeholder="Type 'delete' to confirm"
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  className="border-red-300 focus:border-red-500 focus:ring-red-500"
+                />
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Admin Override:</strong> You have admin privileges and can delete without typing confirmation.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex justify-between">
+            <Button variant="outline" onClick={handleBulkArchive}>
+              <Archive className="mr-2 h-4 w-4" />
+              Archive Instead
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => {
+                setIsBulkDeleteModalOpen(false);
+                setDeleteConfirmation('');
+              }}>
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={confirmBulkDelete}
+                disabled={!isAdmin && deleteConfirmation.toLowerCase() !== 'delete'}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Permanently
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </MainLayout>
   );

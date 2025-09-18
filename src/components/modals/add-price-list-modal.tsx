@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CurrencySelector } from "@/components/ui/currency-selector";
-import { 
-  X, 
-  DollarSign, 
-  Save, 
+import { useTheme } from "@/contexts/theme-context";
+import { useToast } from "@/contexts/toast-context";
+import {
+  X,
+  DollarSign,
+  Save,
   Loader2,
   AlertCircle,
   Calendar
@@ -18,21 +20,66 @@ interface AddPriceListModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialData?: {
+    name: string;
+    channel: string;
+    currency: string;
+    effectiveFrom: string;
+    effectiveTo: string;
+  };
 }
 
-export function AddPriceListModal({ isOpen, onClose, onSuccess }: AddPriceListModalProps) {
+export function AddPriceListModal({ isOpen, onClose, onSuccess, initialData }: AddPriceListModalProps) {
+  const { getThemeClasses } = useTheme();
   const [formData, setFormData] = useState({
     name: "",
-    description: "",
     channel: "retail",
     currency: "GHS",
     effectiveFrom: new Date().toISOString().split('T')[0],
     effectiveTo: "",
-    status: "draft",
   });
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Get theme classes
+  const theme = getThemeClasses();
+  const { success, error: showError } = useToast();
+
+  // Helper function to get proper focus ring classes
+  const getFocusRingClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'focus-visible:ring-purple-500',
+      'blue-600': 'focus-visible:ring-blue-500',
+      'green-600': 'focus-visible:ring-green-500',
+      'orange-600': 'focus-visible:ring-orange-500',
+      'red-600': 'focus-visible:ring-red-500',
+      'indigo-600': 'focus-visible:ring-indigo-500',
+      'pink-600': 'focus-visible:ring-pink-500',
+      'teal-600': 'focus-visible:ring-teal-500',
+      'cyan-600': 'focus-visible:ring-cyan-500',
+      'lime-600': 'focus-visible:ring-lime-500',
+      'amber-600': 'focus-visible:ring-amber-500',
+      'emerald-600': 'focus-visible:ring-emerald-500',
+      'violet-600': 'focus-visible:ring-violet-500',
+      'fuchsia-600': 'focus-visible:ring-fuchsia-500',
+      'rose-600': 'focus-visible:ring-rose-500',
+      'sky-600': 'focus-visible:ring-sky-500',
+      'slate-600': 'focus-visible:ring-slate-500',
+      'gray-600': 'focus-visible:ring-gray-500',
+      'zinc-600': 'focus-visible:ring-zinc-500',
+      'neutral-600': 'focus-visible:ring-neutral-500',
+      'stone-600': 'focus-visible:ring-stone-500',
+    };
+    return colorMap[theme.primary] || 'focus-visible:ring-blue-500';
+  };
+
+  // Update form data when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      setFormData(initialData);
+    }
+  }, [initialData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,28 +98,31 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess }: AddPriceListMo
         }),
       });
 
-      if (response.ok) {
-        onSuccess();
-        onClose();
-        // Reset form
-        setFormData({
-          name: "",
-          description: "",
-          channel: "retail",
-          currency: "GHS",
-          effectiveFrom: new Date().toISOString().split('T')[0],
-          effectiveTo: "",
-          status: "draft",
-        });
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to create price list');
-      }
-    } catch (error) {
-      setError('Network error. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+          if (response.ok) {
+            success("Price List Created", `"${formData.name}" has been successfully created.`);
+            onSuccess();
+            onClose();
+            // Reset form
+            setFormData({
+              name: "",
+              channel: "retail",
+              currency: "GHS",
+              effectiveFrom: new Date().toISOString().split('T')[0],
+              effectiveTo: "",
+            });
+          } else {
+            const errorData = await response.json();
+            const errorMessage = errorData.error || 'Failed to create price list';
+            setError(errorMessage);
+            showError("Creation Failed", errorMessage);
+          }
+        } catch (error) {
+          const errorMessage = 'Network error. Please try again.';
+          setError(errorMessage);
+          showError("Network Error", errorMessage);
+        } finally {
+          setIsLoading(false);
+        }
   };
 
   const handleInputChange = (field: string, value: any) => {
@@ -123,22 +173,11 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess }: AddPriceListMo
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
                   placeholder="e.g., Standard Retail (GHS)"
+                  className={getFocusRingClasses()}
                   required
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  placeholder="Description of this price list..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  rows={3}
-                />
-              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -147,7 +186,7 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess }: AddPriceListMo
                 <select
                   value={formData.channel}
                   onChange={(e) => handleInputChange('channel', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary.replace('-600', '-200')} focus:border-transparent bg-white text-gray-900`}
                   required
                 >
                   <option value="retail">Retail</option>
@@ -186,24 +225,26 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess }: AddPriceListMo
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Effective From *
                   </label>
-                  <Input
-                    type="date"
-                    value={formData.effectiveFrom}
-                    onChange={(e) => handleInputChange('effectiveFrom', e.target.value)}
-                    required
-                  />
+                       <Input
+                         type="date"
+                         value={formData.effectiveFrom}
+                         onChange={(e) => handleInputChange('effectiveFrom', e.target.value)}
+                         className={getFocusRingClasses()}
+                         required
+                       />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Effective To
                   </label>
-                  <Input
-                    type="date"
-                    value={formData.effectiveTo}
-                    onChange={(e) => handleInputChange('effectiveTo', e.target.value)}
-                    min={formData.effectiveFrom}
-                  />
+                       <Input
+                         type="date"
+                         value={formData.effectiveTo}
+                         onChange={(e) => handleInputChange('effectiveTo', e.target.value)}
+                         min={formData.effectiveFrom}
+                         className={getFocusRingClasses()}
+                       />
                   <p className="text-xs text-gray-500 mt-1">
                     Leave empty for no expiration
                   </p>
@@ -211,35 +252,13 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess }: AddPriceListMo
               </div>
             </div>
 
-            {/* Status */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Status</h3>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Initial Status
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => handleInputChange('status', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                >
-                  <option value="draft">Draft</option>
-                  <option value="active">Active</option>
-                  <option value="scheduled">Scheduled</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Draft: Not yet active | Active: Currently in use | Scheduled: Will activate on effective date
-                </p>
-              </div>
-            </div>
 
             {/* Actions */}
             <div className="flex items-center justify-end space-x-3 pt-4 border-t">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading} className="bg-orange-600 hover:bg-orange-700">
+              <Button type="submit" disabled={isLoading} className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

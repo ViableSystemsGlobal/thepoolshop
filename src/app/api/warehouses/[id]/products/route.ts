@@ -24,15 +24,20 @@ export async function GET(
     // Get all products that have stock items in this warehouse
     const products = await prisma.product.findMany({
       where: {
-        stockItem: {
-          warehouseId: id,
+        stockItems: {
+          some: {
+            warehouseId: id,
+          },
         },
       },
       include: {
         category: true,
-        stockItem: {
+        stockItems: {
           where: {
             warehouseId: id,
+          },
+          include: {
+            warehouse: true,
           },
         },
       },

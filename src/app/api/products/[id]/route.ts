@@ -12,7 +12,7 @@ export async function GET(
       where: { id },
       include: {
         category: true,
-        stockItem: {
+        stockItems: {
           include: {
             warehouse: true
           }
@@ -124,7 +124,7 @@ export async function PUT(
       data: updateData,
       include: {
         category: true,
-        stockItem: {
+        stockItems: {
           include: {
             warehouse: true
           }

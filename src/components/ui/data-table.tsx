@@ -17,6 +17,7 @@ interface DataTableProps<T = Record<string, unknown>> {
   selectedItems?: string[];
   onSelectionChange?: (selectedIds: string[]) => void;
   bulkActions?: React.ReactNode;
+  getRowClassName?: (item: T) => string;
 }
 
 export function DataTable<T extends { id?: string }>({ 
@@ -27,7 +28,8 @@ export function DataTable<T extends { id?: string }>({
   enableSelection = false,
   selectedItems = [],
   onSelectionChange,
-  bulkActions
+  bulkActions,
+  getRowClassName
 }: DataTableProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
   
@@ -61,7 +63,7 @@ export function DataTable<T extends { id?: string }>({
   const handleSelectAll = () => {
     if (!onSelectionChange) return;
     
-    const allIds = data.map(item => item.id);
+    const allIds = data.map(item => item.id).filter(Boolean) as string[];
     const isAllSelected = allIds.every(id => selectedItems.includes(id));
     
     if (isAllSelected) {
@@ -82,7 +84,7 @@ export function DataTable<T extends { id?: string }>({
     }
   };
 
-  const isAllSelected = data.length > 0 && data.every(item => selectedItems.includes(item.id));
+  const isAllSelected = data.length > 0 && data.every(item => item.id && selectedItems.includes(item.id));
   const isIndeterminate = selectedItems.length > 0 && !isAllSelected;
 
   // Reset to page 1 when data changes
@@ -143,25 +145,31 @@ export function DataTable<T extends { id?: string }>({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {paginatedData.map((item, index) => (
-              <tr key={item.id || index} className="hover:bg-gray-50">
+            {paginatedData.map((item, index) => {
+              const rowClassName = getRowClassName ? getRowClassName(item) : "";
+              const baseClassName = "hover:bg-gray-50";
+              const finalClassName = rowClassName ? `${rowClassName} ${baseClassName}` : baseClassName;
+              
+              return (
+                <tr key={item.id || index} className={finalClassName}>
                 {enableSelection && (
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
                       type="checkbox"
-                      checked={selectedItems.includes(item.id)}
-                      onChange={() => handleSelectItem(item.id)}
+                      checked={item.id ? selectedItems.includes(item.id) : false}
+                      onChange={() => item.id && handleSelectItem(item.id)}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                   </td>
                 )}
                 {columns.map((column) => (
                   <td key={column.key} className="px-6 py-4 whitespace-nowrap">
-                    {column.render ? column.render(item) : item[column.key]}
+                    {column.render ? column.render(item) : (item as any)[column.key]}
                   </td>
                 ))}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

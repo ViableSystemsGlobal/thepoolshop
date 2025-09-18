@@ -71,22 +71,13 @@ const navigation = [
     ]
   },
   { 
-    name: "Products", 
-    href: "/products", 
-    icon: Package,
-    badge: null,
-    children: [
-      { name: "All Products", href: "/products", icon: Package },
-      { name: "Price Lists", href: "/price-lists", icon: FileText },
-      { name: "Categories", href: "/settings/products/categories", icon: Folder },
-    ]
-  },
-  { 
     name: "Inventory", 
     href: "/inventory", 
     icon: Warehouse,
     badge: null,
     children: [
+      { name: "All Products", href: "/products", icon: Package },
+      { name: "Price Lists", href: "/price-lists", icon: FileText },
       { name: "Stock Overview", href: "/inventory/stock", icon: BarChart3 },
       { name: "Stock Movements", href: "/inventory/stock-movements", icon: BarChart3 },
       { name: "Warehouses", href: "/warehouses", icon: Building },
@@ -218,6 +209,21 @@ export default function Sidebar() {
     return colorMap[theme.primary] || 'focus:ring-blue-500';
   };
 
+  // Helper function to get proper gradient background classes
+  const getGradientBackgroundClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'bg-gradient-to-br from-purple-600 to-purple-700',
+      'blue-600': 'bg-gradient-to-br from-blue-600 to-blue-700',
+      'green-600': 'bg-gradient-to-br from-green-600 to-green-700',
+      'orange-600': 'bg-gradient-to-br from-orange-600 to-orange-700',
+      'red-600': 'bg-gradient-to-br from-red-600 to-red-700',
+      'indigo-600': 'bg-gradient-to-br from-indigo-600 to-indigo-700',
+      'pink-600': 'bg-gradient-to-br from-pink-600 to-pink-700',
+      'teal-600': 'bg-gradient-to-br from-teal-600 to-teal-700',
+    };
+    return colorMap[theme.primary] || 'bg-gradient-to-br from-blue-600 to-blue-700';
+  };
+
   const toggleSection = (sectionName: string) => {
     setExpandedSections(prev => 
       prev.includes(sectionName) 
@@ -255,46 +261,20 @@ export default function Sidebar() {
       collapsed ? "w-16" : "w-64"
     )}>
       {/* Header */}
-      <div className="flex h-16 items-center justify-center border-b border-gray-200 px-4">
-        {!collapsed && (
-          <div className="flex items-center space-x-2">
-            {customLogo ? (
-              <img 
-                src={customLogo} 
-                alt="Logo" 
-                className="h-8 w-8 rounded-lg object-cover"
-              />
-            ) : (
-              <div className={`h-8 w-8 rounded-lg bg-gradient-to-br from-${theme.primary} to-${theme.primaryDark} flex items-center justify-center`}>
-                <Building className="h-5 w-5 text-white" />
-              </div>
-            )}
-            <span className="text-lg font-semibold text-gray-900">AD Pools</span>
+      <div className="flex h-20 items-center justify-center border-b border-gray-200 px-2">
+        {customLogo ? (
+          <img 
+            src={customLogo} 
+            alt="Logo" 
+            className="h-16 w-auto max-w-full rounded-lg object-contain"
+          />
+        ) : (
+          <div className={`h-16 w-16 rounded-lg ${getGradientBackgroundClasses()} flex items-center justify-center shadow-lg`}>
+            <Building className="h-9 w-9 text-white" />
           </div>
-        )}
-        {collapsed && (
-          customLogo ? (
-            <img 
-              src={customLogo} 
-              alt="Logo" 
-              className="h-8 w-8 rounded-lg object-cover"
-            />
-          ) : (
-            <div className={`h-8 w-8 rounded-lg bg-gradient-to-br from-${theme.primary} to-${theme.primaryDark} flex items-center justify-center`}>
-              <Building className="h-5 w-5 text-white" />
-            </div>
-          )
         )}
       </div>
 
-      {/* Test Mode Pill */}
-      <div className="px-4 py-2">
-        <div className="flex items-center justify-center">
-          <span className={`inline-flex items-center rounded-full ${theme.primaryBg} px-2 py-1 text-xs font-medium ${theme.primaryText}`}>
-            Test Mode
-          </span>
-        </div>
-      </div>
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
@@ -398,14 +378,6 @@ export default function Sidebar() {
       <div className="border-t border-gray-200 p-4">
         {!collapsed ? (
           <>
-            {/* Business Unit Switch */}
-            <div className="mb-4">
-              <select className={`w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 ${getFocusRingClasses()} focus:border-transparent`}>
-                <option>Retail</option>
-                <option>Projects</option>
-                <option>Wholesale</option>
-              </select>
-            </div>
 
             {/* User Menu */}
             <div className="flex items-center space-x-3 mb-3">

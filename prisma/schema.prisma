@@ -12,7 +12,7 @@ model User {
   email      String      @unique
   name       String?
   image      String?
-  role       UserRole    @default("SALES_REP")
+  role       UserRole    @default(SALES_REP)
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   accounts   Account[]
@@ -107,10 +107,30 @@ model Product {
   category               Category        @relation(fields: [categoryId], references: [id])
   proformaLines          ProformaLine[]
   quotationLines         QuotationLine[]
-  stockItem              StockItem?
+  stockItems             StockItem[]
   movements              StockMovement[]
+  documents              ProductDocument[]
 
   @@map("products")
+}
+
+model ProductDocument {
+  id          String   @id @default(cuid())
+  filename    String
+  originalName String
+  filePath    String
+  fileSize    Int
+  mimeType    String
+  description String?
+  tags        String?
+  isPublic    Boolean  @default(false)
+  productId   String
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_documents")
 }
 
 model PriceList {
@@ -147,7 +167,7 @@ model PriceListItem {
 model Account {
   id            String        @id @default(cuid())
   name          String
-  type          AccountType   @default("INDIVIDUAL")
+  type          AccountType   @default(INDIVIDUAL)
   email         String?
   phone         String?
   address       String?
@@ -191,7 +211,7 @@ model Lead {
   phone     String?
   company   String?
   source    String?
-  status    LeadStatus @default("NEW")
+  status    LeadStatus @default(NEW)
   score     Int        @default(0)
   notes     String?
   ownerId   String
@@ -205,7 +225,7 @@ model Lead {
 model Opportunity {
   id          String           @id @default(cuid())
   name        String
-  stage       OpportunityStage @default("NEW")
+  stage       OpportunityStage @default(NEW)
   value       Float?
   probability Int              @default(0)
   closeDate   DateTime?
@@ -220,7 +240,7 @@ model Opportunity {
 model Quotation {
   id         String          @id @default(cuid())
   number     String          @unique
-  status     QuotationStatus @default("DRAFT")
+  status     QuotationStatus @default(DRAFT)
   subject    String
   validUntil DateTime?
   notes      String?
@@ -258,7 +278,7 @@ model QuotationLine {
 model Proforma {
   id          String         @id @default(cuid())
   number      String         @unique
-  status      ProformaStatus @default("DRAFT")
+  status      ProformaStatus @default(DRAFT)
   subject     String
   validUntil  DateTime?
   notes       String?
@@ -296,7 +316,7 @@ model ProformaLine {
 
 model StockItem {
   id           String          @id @default(cuid())
-  productId    String          @unique
+  productId    String
   quantity     Float           @default(0)
   reserved     Float           @default(0)
   available    Float           @default(0)
@@ -310,6 +330,7 @@ model StockItem {
   product      Product         @relation(fields: [productId], references: [id])
   movements    StockMovement[]
 
+  @@unique([productId, warehouseId])
   @@map("stock_items")
 }
 

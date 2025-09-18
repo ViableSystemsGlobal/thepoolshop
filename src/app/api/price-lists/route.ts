@@ -65,12 +65,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       name,
-      description,
       channel,
       currency = "USD",
       effectiveFrom,
       effectiveTo,
-      status = "draft",
     } = body;
 
     // Validate required fields
@@ -99,12 +97,10 @@ export async function POST(request: NextRequest) {
     const priceList = await prisma.priceList.create({
       data: {
         name,
-        description,
         channel,
         currency,
         effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : new Date(),
         effectiveTo: effectiveTo ? new Date(effectiveTo) : null,
-        status,
       },
       include: {
         items: {

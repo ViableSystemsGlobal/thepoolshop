@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,7 @@ export function CurrencySelector({
   const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchCurrencies();
@@ -52,6 +53,22 @@ export function CurrencySelector({
       convertCurrency();
     }
   }, [amount, selectedCurrency, showConversion]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
 
   const fetchCurrencies = async () => {
     try {
@@ -97,7 +114,7 @@ export function CurrencySelector({
   const selectedCurrencyData = currencies.find(c => c.code === selectedCurrency);
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div ref={dropdownRef} className={`space-y-2 relative ${className}`}>
       <div className="flex items-center space-x-2">
         <Button
           variant="outline"
@@ -123,11 +140,11 @@ export function CurrencySelector({
       </div>
 
       {isOpen && (
-        <Card className="absolute z-10 w-64 mt-1">
+        <Card className="absolute z-50 w-64 mt-1 shadow-lg border border-gray-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Select Currency</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="space-y-1 max-h-60 overflow-y-auto">
             {currencies.map((currency) => (
               <Button
                 key={currency.id}

@@ -7,7 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { MainLayout } from "@/components/layout/main-layout";
 import { useTheme } from "@/contexts/theme-context";
+import { useToast } from "@/contexts/toast-context";
 import { formatCurrency } from "@/lib/utils";
+import { AddProductToPriceListModal } from "@/components/modals/add-product-to-price-list-modal";
+import { EditPriceListModal } from "@/components/modals/edit-price-list-modal";
+import { EditPriceListItemModal } from "@/components/modals/edit-price-list-item-modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   ArrowLeft,
   DollarSign, 
@@ -23,192 +28,32 @@ import {
 } from "lucide-react";
 
 interface PriceList {
-  id: number;
+  id: string;
   name: string;
-  description: string;
   channel: string;
   currency: string;
   effectiveFrom: string;
-  effectiveTo: string;
-  productCount: number;
-  status: string;
+  effectiveTo: string | null;
   createdAt: string;
+  updatedAt: string;
+  items?: Array<{
+    id: string;
+    productId: string;
+    unitPrice: number;
+    basePrice: number | null;
+    exchangeRate: number | null;
+    product: {
+      id: string;
+      name: string;
+      sku: string;
+      uomSell: string;
+    };
+  }>;
+  _count?: {
+    items: number;
+  };
 }
 
-interface PriceListItem {
-  id: number;
-  productId: number;
-  productName: string;
-  productSku: string;
-  unitPrice: number;
-  basePrice: number;
-  exchangeRate: number;
-  createdAt: string;
-}
-
-// Mock data for all price lists
-const mockPriceLists: PriceList[] = [
-  {
-    id: 1,
-    name: "Standard Retail",
-    description: "Standard pricing for retail customers",
-    channel: "retail",
-    currency: "USD",
-    effectiveFrom: "2024-01-01",
-    effectiveTo: "2024-12-31",
-    productCount: 25,
-    status: "active",
-    createdAt: "2024-01-01"
-  },
-  {
-    id: 2,
-    name: "Wholesale Pricing",
-    description: "Discounted pricing for wholesale customers",
-    channel: "wholesale",
-    currency: "USD",
-    effectiveFrom: "2024-01-01",
-    effectiveTo: "2024-12-31",
-    productCount: 20,
-    status: "active",
-    createdAt: "2024-01-02"
-  },
-  {
-    id: 3,
-    name: "Distributor Pricing",
-    description: "Special pricing for authorized distributors",
-    channel: "distributor",
-    currency: "USD",
-    effectiveFrom: "2024-01-01",
-    effectiveTo: "2024-12-31",
-    productCount: 18,
-    status: "active",
-    createdAt: "2024-01-03"
-  },
-  {
-    id: 4,
-    name: "Holiday Sale 2024",
-    description: "Limited time holiday pricing",
-    channel: "retail",
-    currency: "USD",
-    effectiveFrom: "2024-11-01",
-    effectiveTo: "2024-12-31",
-    productCount: 15,
-    status: "scheduled",
-    createdAt: "2024-10-15"
-  }
-];
-
-// Mock data for price list items (different for each price list)
-const mockPriceListItems: { [key: number]: PriceListItem[] } = {
-  1: [ // Standard Retail
-    {
-      id: 1,
-      productId: 1,
-      productName: "Dell Laptop",
-      productSku: "LAPTOP-001",
-      unitPrice: 1200.00,
-      basePrice: 1200.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-01-01"
-    },
-    {
-      id: 2,
-      productId: 2,
-      productName: "Office Chair",
-      productSku: "CHAIR-001",
-      unitPrice: 150.00,
-      basePrice: 150.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-01-01"
-    },
-    {
-      id: 3,
-      productId: 3,
-      productName: "24\" Monitor",
-      productSku: "MONITOR-001",
-      unitPrice: 200.00,
-      basePrice: 200.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-01-01"
-    }
-  ],
-  2: [ // Wholesale Pricing
-    {
-      id: 4,
-      productId: 1,
-      productName: "Dell Laptop",
-      productSku: "LAPTOP-001",
-      unitPrice: 1000.00,
-      basePrice: 1200.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-01-02"
-    },
-    {
-      id: 5,
-      productId: 2,
-      productName: "Office Chair",
-      productSku: "CHAIR-001",
-      unitPrice: 120.00,
-      basePrice: 150.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-01-02"
-    }
-  ],
-  3: [ // Distributor Pricing
-    {
-      id: 6,
-      productId: 1,
-      productName: "Dell Laptop",
-      productSku: "LAPTOP-001",
-      unitPrice: 900.00,
-      basePrice: 1200.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-01-03"
-    },
-    {
-      id: 7,
-      productId: 3,
-      productName: "24\" Monitor",
-      productSku: "MONITOR-001",
-      unitPrice: 160.00,
-      basePrice: 200.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-01-03"
-    }
-  ],
-  4: [ // Holiday Sale 2024
-    {
-      id: 8,
-      productId: 1,
-      productName: "Dell Laptop",
-      productSku: "LAPTOP-001",
-      unitPrice: 999.00,
-      basePrice: 1200.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-10-15"
-    },
-    {
-      id: 9,
-      productId: 2,
-      productName: "Office Chair",
-      productSku: "CHAIR-001",
-      unitPrice: 99.00,
-      basePrice: 150.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-10-15"
-    },
-    {
-      id: 10,
-      productId: 3,
-      productName: "24\" Monitor",
-      productSku: "MONITOR-001",
-      unitPrice: 149.00,
-      basePrice: 200.00,
-      exchangeRate: 1.0,
-      createdAt: "2024-10-15"
-    }
-  ]
-};
 
 export default function PriceListDetailsPage() {
   const params = useParams();
@@ -217,27 +62,44 @@ export default function PriceListDetailsPage() {
   const theme = getThemeClasses();
   
   const [priceList, setPriceList] = useState<PriceList | null>(null);
-  const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isEditItemModalOpen, setIsEditItemModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const { success, error: showError } = useToast();
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const priceListId = parseInt(params.id as string);
-      const foundPriceList = mockPriceLists.find(pl => pl.id === priceListId);
-      const foundItems = mockPriceListItems[priceListId] || [];
-      
-      setPriceList(foundPriceList || null);
-      setPriceListItems(foundItems);
-      setIsLoading(false);
-    }, 500);
+    const fetchPriceList = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch(`/api/price-lists/${params.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setPriceList(data);
+        } else {
+          console.error('Failed to fetch price list');
+          setPriceList(null);
+        }
+      } catch (error) {
+        console.error('Error fetching price list:', error);
+        setPriceList(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (params.id) {
+      fetchPriceList();
+    }
   }, [params.id]);
 
-  const filteredItems = priceListItems.filter(item =>
-    item.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.productSku.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredItems = priceList?.items?.filter(item =>
+    item.product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.product.sku.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -249,6 +111,20 @@ export default function PriceListDetailsPage() {
         return "bg-gray-100 text-gray-800";
       default:
         return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getPriceListStatus = (priceList: PriceList) => {
+    const now = new Date();
+    const effectiveFrom = new Date(priceList.effectiveFrom);
+    const effectiveTo = priceList.effectiveTo ? new Date(priceList.effectiveTo) : null;
+    
+    if (now < effectiveFrom) {
+      return "scheduled";
+    } else if (!effectiveTo || now <= effectiveTo) {
+      return "active";
+    } else {
+      return "expired";
     }
   };
 
@@ -266,25 +142,119 @@ export default function PriceListDetailsPage() {
   };
 
   const handleEdit = () => {
-    console.log('Edit price list:', params.id);
-    alert('Edit functionality coming soon!');
+    setIsEditModalOpen(true);
   };
 
-  const handleCopy = () => {
-    console.log('Copy price list:', params.id);
-    alert('Copy functionality coming soon!');
+  const handleCopy = async () => {
+    if (!priceList) return;
+    
+    try {
+      const response = await fetch('/api/price-lists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `${priceList.name} (Copy)`,
+          channel: priceList.channel,
+          currency: priceList.currency,
+          effectiveFrom: new Date().toISOString().split('T')[0],
+          effectiveTo: priceList.effectiveTo,
+        }),
+      });
+
+      if (response.ok) {
+        const newPriceList = await response.json();
+        success("Price List Copied", `"${newPriceList.name}" has been created successfully.`);
+        router.push(`/price-lists/${newPriceList.id}`);
+      } else {
+        const errorData = await response.json();
+        showError("Copy Failed", errorData.error || 'Failed to copy price list');
+      }
+    } catch (error) {
+      showError("Network Error", 'Network error. Please try again.');
+    }
   };
 
   const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this price list?')) {
-      console.log('Delete price list:', params.id);
-      alert('Delete functionality coming soon!');
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!priceList) return;
+    
+    try {
+      const response = await fetch(`/api/price-lists/${priceList.id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        success("Price List Deleted", `"${priceList.name}" has been deleted successfully.`);
+        router.push('/price-lists');
+      } else {
+        const errorData = await response.json();
+        showError("Delete Failed", errorData.error || 'Failed to delete price list');
+      }
+    } catch (error) {
+      showError("Network Error", 'Network error. Please try again.');
+    } finally {
+      setIsDeleteModalOpen(false);
     }
   };
 
   const handleAddProduct = () => {
-    console.log('Add product to price list:', params.id);
-    alert('Add product functionality coming soon!');
+    setIsAddProductModalOpen(true);
+  };
+
+  const handleRefreshData = () => {
+    // Refresh the price list data
+    if (params.id) {
+      const fetchPriceList = async () => {
+        try {
+          setIsLoading(true);
+          const response = await fetch(`/api/price-lists/${params.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            setPriceList(data);
+          } else {
+            console.error('Failed to fetch price list');
+            setPriceList(null);
+          }
+        } catch (error) {
+          console.error('Error fetching price list:', error);
+          setPriceList(null);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchPriceList();
+    }
+  };
+
+  const handleEditItem = (item: any) => {
+    setEditingItem(item);
+    setIsEditItemModalOpen(true);
+  };
+
+  const handleDeleteItem = async (itemId: string, productName: string) => {
+    if (window.confirm(`Are you sure you want to remove "${productName}" from this price list?`)) {
+      try {
+        const response = await fetch(`/api/price-lists/${priceList?.id}/items/${itemId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          success("Product Removed", `"${productName}" has been removed from the price list.`);
+          handleRefreshData(); // Refresh the price list data
+        } else {
+          const errorData = await response.json();
+          showError("Delete Failed", errorData.error || 'Failed to remove product from price list');
+        }
+      } catch (error) {
+        console.error('Error deleting price list item:', error);
+        showError("Network Error", 'Network error. Please try again.');
+      }
+    }
   };
 
   if (isLoading) {
@@ -331,7 +301,7 @@ export default function PriceListDetailsPage() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{priceList.name}</h1>
-              <p className="text-gray-600">{priceList.description}</p>
+              <p className="text-gray-600">{priceList.channel} • {priceList.currency}</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -376,7 +346,7 @@ export default function PriceListDetailsPage() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Products</p>
-                  <p className="text-2xl font-bold text-blue-600">{priceList.productCount}</p>
+                  <p className="text-2xl font-bold text-blue-600">{priceList._count?.items || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -390,8 +360,8 @@ export default function PriceListDetailsPage() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Status</p>
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(priceList.status)}`}>
-                    {priceList.status}
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(getPriceListStatus(priceList))}`}>
+                    {getPriceListStatus(priceList)}
                   </span>
                 </div>
               </div>
@@ -418,7 +388,7 @@ export default function PriceListDetailsPage() {
           <CardHeader>
             <CardTitle>Price List Details</CardTitle>
             <CardDescription>
-              Effective from {new Date(priceList.effectiveFrom).toLocaleDateString()} to {new Date(priceList.effectiveTo).toLocaleDateString()}
+              Effective from {new Date(priceList.effectiveFrom).toLocaleDateString()} to {priceList.effectiveTo ? new Date(priceList.effectiveTo).toLocaleDateString() : 'No expiration'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -429,10 +399,6 @@ export default function PriceListDetailsPage() {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Name:</span>
                     <span className="font-medium">{priceList.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Description:</span>
-                    <span className="font-medium">{priceList.description}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Channel:</span>
@@ -457,11 +423,11 @@ export default function PriceListDetailsPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Effective To:</span>
-                    <span className="font-medium">{new Date(priceList.effectiveTo).toLocaleDateString()}</span>
+                    <span className="font-medium">{priceList.effectiveTo ? new Date(priceList.effectiveTo).toLocaleDateString() : 'No expiration'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Status:</span>
-                    <span className="font-medium">{priceList.status}</span>
+                    <span className="font-medium">{getPriceListStatus(priceList)}</span>
                   </div>
                 </div>
               </div>
@@ -479,7 +445,7 @@ export default function PriceListDetailsPage() {
                   Manage products and their pricing in this price list
                 </CardDescription>
               </div>
-              <Button onClick={handleAddProduct} className="bg-orange-600 hover:bg-orange-700">
+              <Button onClick={handleAddProduct} className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Product
               </Button>
@@ -506,9 +472,9 @@ export default function PriceListDetailsPage() {
                   <tr className="border-b">
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Product</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">SKU</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Selling Unit</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Unit Price</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Base Price</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Exchange Rate</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">{priceList.channel.charAt(0).toUpperCase() + priceList.channel.slice(1)} Price</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Actions</th>
                   </tr>
                 </thead>
@@ -516,26 +482,37 @@ export default function PriceListDetailsPage() {
                   {filteredItems.map((item) => (
                     <tr key={item.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-4">
-                        <div className="font-medium text-gray-900">{item.productName}</div>
+                        <div className="font-medium text-gray-900">{item.product.name}</div>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-sm text-gray-600">{item.productSku}</span>
+                        <span className="text-sm text-gray-600">{item.product.sku}</span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="font-medium text-gray-900">{formatCurrency(item.unitPrice)}</span>
+                        <span className="text-sm text-gray-600">{item.product.uomSell || 'pcs'}</span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-sm text-gray-600">{formatCurrency(item.basePrice)}</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(item.unitPrice, priceList.currency)}</span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-sm text-gray-600">{item.exchangeRate.toFixed(4)}</span>
+                        <span className="text-sm text-gray-600">{item.basePrice ? formatCurrency(item.basePrice, priceList.currency) : 'N/A'}</span>
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditItem(item)}
+                            title="Edit pricing"
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleDeleteItem(item.id, item.product.name)}
+                            title="Remove from price list"
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -547,6 +524,67 @@ export default function PriceListDetailsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Add Product Modal */}
+        <AddProductToPriceListModal
+          isOpen={isAddProductModalOpen}
+          onClose={() => setIsAddProductModalOpen(false)}
+          onSuccess={handleRefreshData}
+          priceListId={params.id as string}
+        />
+
+        {/* Edit Price List Modal */}
+        <EditPriceListModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSuccess={handleRefreshData}
+          priceList={priceList}
+        />
+
+        {/* Delete Confirmation Modal */}
+        <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete Price List</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-gray-600">
+                Are you sure you want to delete the price list "{priceList?.name}"? This action cannot be undone and will remove all associated pricing data.
+              </p>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={confirmDelete}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Price List Item Modal */}
+        {editingItem && (
+          <EditPriceListItemModal
+            isOpen={isEditItemModalOpen}
+            onClose={() => {
+              setIsEditItemModalOpen(false);
+              setEditingItem(null);
+            }}
+            onSuccess={handleRefreshData}
+            priceListId={priceList?.id || ''}
+            itemId={editingItem.id}
+            productName={editingItem.product.name}
+            currentUnitPrice={editingItem.unitPrice}
+            currentBasePrice={editingItem.basePrice}
+            currency={priceList?.currency || 'GHS'}
+            channel={priceList?.channel || 'retail'}
+          />
+        )}
       </div>
     </MainLayout>
   );

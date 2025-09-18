@@ -18,28 +18,34 @@ export async function POST(request: NextRequest) {
       },
       include: {
         category: true,
-        stockItems: {
-          include: {
-            warehouse: true
-          }
-        }
+        stockItems: true
       }
     });
 
     // Transform data for export
-    const exportData = products.map(product => ({
-      'Product Name': product.name,
-      'SKU': product.sku,
-      'Description': product.description || '',
-      'Category': product.category?.name || 'Uncategorized',
-      'Unit Price': product.unitPrice,
-      'Cost Price': product.costPrice,
-      'Status': product.isActive ? 'Active' : 'Inactive',
-      'Total Stock': product.stockItems.reduce((sum, item) => sum + item.quantity, 0),
-      'Warehouses': product.stockItems.map(item => `${item.warehouse.name} (${item.quantity})`).join(', '),
-      'Created Date': new Date(product.createdAt).toLocaleDateString(),
-      'Last Updated': new Date(product.updatedAt).toLocaleDateString()
-    }));
+    const exportData = products.map(product => {
+      // Calculate total stock across all warehouses
+      const totalStock = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+      const totalAvailable = product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+      const totalReserved = product.stockItems?.reduce((sum, item) => sum + item.reserved, 0) || 0;
+      
+      return {
+        'Product Name': product.name,
+        'SKU': product.sku,
+        'Description': product.description || '',
+        'Category': product.category?.name || 'Uncategorized',
+        'Unit Price': product.price || 0,
+        'Cost Price': product.cost || 0,
+        'Status': product.active ? 'Active' : 'Inactive',
+        'Total Stock': totalStock,
+        'Available Stock': totalAvailable,
+        'Reserved Stock': totalReserved,
+        'Base Unit': product.uomBase,
+        'Selling Unit': product.uomSell,
+        'Created Date': new Date(product.createdAt).toLocaleDateString(),
+        'Last Updated': new Date(product.updatedAt).toLocaleDateString()
+      };
+    });
 
     return NextResponse.json({ 
       data: exportData,

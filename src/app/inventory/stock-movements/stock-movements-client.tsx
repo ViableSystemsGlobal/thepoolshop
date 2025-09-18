@@ -80,6 +80,21 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
   const theme = getThemeClasses();
   const { success, error: showError } = useToast();
 
+  // Helper function to get proper button background classes
+  const getButtonBackgroundClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'bg-purple-600 hover:bg-purple-700',
+      'blue-600': 'bg-blue-600 hover:bg-blue-700',
+      'green-600': 'bg-green-600 hover:bg-green-700',
+      'orange-600': 'bg-orange-600 hover:bg-orange-700',
+      'red-600': 'bg-red-600 hover:bg-red-700',
+      'indigo-600': 'bg-indigo-600 hover:bg-indigo-700',
+      'pink-600': 'bg-pink-600 hover:bg-pink-700',
+      'teal-600': 'bg-teal-600 hover:bg-teal-700',
+    };
+    return colorMap[theme.primary] || 'bg-blue-600 hover:bg-blue-700';
+  };
+
   const [aiRecommendations, setAiRecommendations] = useState([
     {
       id: '1',
@@ -285,7 +300,7 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
           </Button>
           <Button 
             onClick={() => setIsAddModalOpen(true)}
-            className={`bg-${theme.primary} hover:bg-${theme.primaryHover} text-white`}
+            className={`${getButtonBackgroundClasses()} text-white`}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Stock Movement
