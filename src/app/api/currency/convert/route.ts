@@ -1,68 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { convertCurrency } from "@/lib/currency";
 
-// POST /api/currency/convert - Convert currency
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { fromCurrency, toCurrency, amount } = body;
+    const { fromCurrency, toCurrency, amount, date } = await request.json();
 
-    if (!fromCurrency || !toCurrency || !amount) {
+    if (!fromCurrency || !toCurrency || amount === undefined) {
       return NextResponse.json(
-        { error: 'Missing required fields: fromCurrency, toCurrency, amount' },
+        { error: "Missing required parameters: fromCurrency, toCurrency, amount" },
         { status: 400 }
       );
     }
 
-    if (fromCurrency === toCurrency) {
-      return NextResponse.json({
-        convertedAmount: amount,
-        exchangeRate: 1,
-        fromCurrency,
-        toCurrency
-      });
-    }
+    const conversion = await convertCurrency(fromCurrency, toCurrency, amount, date ? new Date(date) : undefined);
 
-    // Get the exchange rate
-    const exchangeRate = await prisma.exchangeRate.findFirst({
-      where: {
-        fromCurrency,
-        toCurrency,
-        isActive: true,
-        effectiveFrom: {
-          lte: new Date()
-        },
-        OR: [
-          { effectiveTo: null },
-          { effectiveTo: { gte: new Date() } }
-        ]
-      },
-      orderBy: {
-        effectiveFrom: 'desc'
-      }
-    });
-
-    if (!exchangeRate) {
+    if (!conversion) {
       return NextResponse.json(
-        { error: `Exchange rate not found for ${fromCurrency} to ${toCurrency}` },
-        { status: 404 }
+        { error: `Unable to convert ${fromCurrency} to ${toCurrency}` },
+        { status: 400 }
       );
     }
 
-    const convertedAmount = amount * exchangeRate.rate;
-
-    return NextResponse.json({
-      convertedAmount,
-      exchangeRate: exchangeRate.rate,
-      fromCurrency,
-      toCurrency,
-      source: exchangeRate.source,
-      effectiveFrom: exchangeRate.effectiveFrom
-    });
+    return NextResponse.json(conversion);
   } catch (error) {
-    console.error('Error converting currency:', error);
+    console.error("Error in currency conversion API:", error);
     return NextResponse.json(
-      { error: 'Failed to convert currency' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

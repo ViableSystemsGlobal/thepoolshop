@@ -575,9 +575,9 @@ export default function ProductStockMovementsPage() {
                         case 'SALE':
                           return 'Customer';
                         case 'TRANSFER_IN':
-                          return movement.fromWarehouse?.name || movement.warehouse?.name || 'Other Warehouse';
+                          return movement.warehouse?.name || 'Unknown Warehouse';
                         case 'TRANSFER_OUT':
-                          return movement.toWarehouse?.name || movement.warehouse?.name || 'Other Warehouse';
+                          return movement.warehouse?.name || 'Unknown Warehouse';
                         case 'TRANSFER':
                           // For combined transfer type, show both warehouses
                           if (movement.fromWarehouse && movement.toWarehouse) {

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
 
 // DELETE /api/warehouses/[id] - Delete a warehouse
 export async function DELETE(
@@ -108,8 +110,26 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
-    const { name, code, address, city, country, isActive } = body;
+    
+    // Check if request is FormData (for image upload) or JSON
+    const contentType = request.headers.get('content-type') || '';
+    let name, code, address, city, country, isActive, image;
+    
+    if (contentType.includes('multipart/form-data')) {
+      // Handle FormData (with potential image upload)
+      const formData = await request.formData();
+      name = formData.get('name') as string;
+      code = formData.get('code') as string;
+      address = formData.get('address') as string;
+      city = formData.get('city') as string;
+      country = formData.get('country') as string;
+      isActive = formData.get('isActive') === 'true';
+      image = formData.get('image') as File | null;
+    } else {
+      // Handle JSON (backward compatibility)
+      const body = await request.json();
+      ({ name, code, address, city, country, isActive } = body);
+    }
 
     // Check if warehouse exists
     const existingWarehouse = await prisma.warehouse.findUnique({
@@ -137,6 +157,36 @@ export async function PUT(
       }
     }
 
+    // Handle image upload
+    let imagePath = existingWarehouse.image;
+    if (image && image.size > 0) {
+      try {
+        // Create uploads directory if it doesn't exist
+        const uploadsDir = join(process.cwd(), 'uploads', 'warehouses');
+        await mkdir(uploadsDir, { recursive: true });
+
+        // Generate unique filename
+        const timestamp = Date.now();
+        const fileExtension = image.name.split('.').pop();
+        const filename = `${id}-${timestamp}.${fileExtension}`;
+        const filepath = join(uploadsDir, filename);
+
+        // Convert File to Buffer and save
+        const bytes = await image.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filepath, buffer);
+
+        // Update image path
+        imagePath = `uploads/warehouses/${filename}`;
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        return NextResponse.json(
+          { error: "Failed to upload image" },
+          { status: 500 }
+        );
+      }
+    }
+
     // Update the warehouse
     const updatedWarehouse = await prisma.warehouse.update({
       where: { id },
@@ -146,6 +196,7 @@ export async function PUT(
         ...(address !== undefined && { address }),
         ...(city !== undefined && { city }),
         ...(country !== undefined && { country }),
+        ...(imagePath !== undefined && { image: imagePath }),
         ...(isActive !== undefined && { isActive }),
       },
     });

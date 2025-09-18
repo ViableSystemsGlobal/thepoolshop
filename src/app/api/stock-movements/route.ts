@@ -20,7 +20,15 @@ export async function GET(request: NextRequest) {
 
     const movements = await prisma.stockMovement.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        type: true,
+        quantity: true,
+        reference: true,
+        reason: true,
+        notes: true,
+        userId: true,
+        createdAt: true,
         product: {
           select: {
             id: true,

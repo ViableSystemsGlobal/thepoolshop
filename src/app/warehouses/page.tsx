@@ -34,6 +34,7 @@ interface Warehouse {
   address?: string;
   city?: string;
   country?: string;
+  image?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -222,27 +223,27 @@ export default function WarehousesPage() {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex items-center space-x-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search warehouses..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <Button variant="outline">
-          <Filter className="h-4 w-4 mr-2" />
-          Filters
-        </Button>
-      </div>
-
       {/* Warehouses Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Warehouses</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Warehouses ({filteredWarehouses.length})</CardTitle>
+            <div className="flex items-center space-x-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search warehouses..."
+                  className="pl-10 w-64"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Button variant="outline">
+                <Filter className="h-4 w-4 mr-2" />
+                Filters
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -314,9 +315,17 @@ export default function WarehousesPage() {
                   label: 'Warehouse',
                   render: (warehouse) => (
                     <div className="flex items-center">
-                      <div className="p-2 rounded-lg bg-blue-100 mr-3">
-                        <Building className="h-4 w-4 text-blue-600" />
-                      </div>
+                      {warehouse.image ? (
+                        <img 
+                          src={`/${warehouse.image}`} 
+                          alt={warehouse.name}
+                          className="w-10 h-10 rounded-lg object-cover mr-3"
+                        />
+                      ) : (
+                        <div className="p-2 rounded-lg bg-blue-100 mr-3">
+                          <Building className="h-4 w-4 text-blue-600" />
+                        </div>
+                      )}
                       <div>
                         <div className="font-medium text-gray-900">{warehouse.name}</div>
                       </div>

@@ -21,7 +21,19 @@ interface BulkStockMovementData {
 // POST /api/stock-movements/bulk - Create multiple stock movements
 export async function POST(request: NextRequest) {
   try {
-    const body: BulkStockMovementData = await request.json();
+    const formData = await request.formData();
+    const movementsData = formData.get('movements') as string;
+    const grnFile = formData.get('grnFile') as File | null;
+    const poFile = formData.get('poFile') as File | null;
+    
+    if (!movementsData) {
+      return NextResponse.json(
+        { error: 'No movements provided' },
+        { status: 400 }
+      );
+    }
+
+    const body: BulkStockMovementData = JSON.parse(movementsData);
     const { movements } = body;
 
     if (!movements || !Array.isArray(movements) || movements.length === 0) {
@@ -51,11 +63,93 @@ export async function POST(request: NextRequest) {
       batches.push(movements.slice(i, i + batchSize));
     }
 
+    let createdMovementIds: string[] = [];
+
     for (const batch of batches) {
       const batchResults = await processBatch(batch);
       results.successCount += batchResults.successCount;
       results.errorCount += batchResults.errorCount;
       results.details.push(...batchResults.details);
+      
+      // Collect created movement IDs for GRN attachment
+      const batchMovementIds = batchResults.details
+        .filter(detail => detail.success && detail.stockMovementId)
+        .map(detail => detail.stockMovementId);
+      createdMovementIds.push(...batchMovementIds);
+    }
+
+    // Handle GRN file upload for all created movements
+    if (grnFile && grnFile.size > 0 && createdMovementIds.length > 0) {
+      try {
+        const grnBuffer = await grnFile.arrayBuffer();
+        const grnPath = `uploads/stock-movements/bulk-${Date.now()}-${grnFile.name}`;
+        
+        // Create directory if it doesn't exist
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        const dir = path.dirname(grnPath);
+        await fs.mkdir(dir, { recursive: true });
+        
+        // Save file
+        await fs.writeFile(grnPath, Buffer.from(grnBuffer));
+        
+        // Update all movements with GRN file path
+        for (const movementId of createdMovementIds) {
+          const existingMovement = await prisma.stockMovement.findUnique({
+            where: { id: movementId },
+            select: { notes: true }
+          });
+          
+          const updatedNotes = existingMovement?.notes 
+            ? `${existingMovement.notes}\n\nGRN: ${grnPath}`
+            : `GRN: ${grnPath}`;
+            
+          await prisma.stockMovement.update({
+            where: { id: movementId },
+            data: { notes: updatedNotes }
+          });
+        }
+      } catch (fileError) {
+        console.error('Error saving GRN file for bulk upload:', fileError);
+        // Don't fail the entire request if file save fails
+      }
+    }
+
+    // Handle PO file upload for all created movements
+    if (poFile && poFile.size > 0 && createdMovementIds.length > 0) {
+      try {
+        const poBuffer = await poFile.arrayBuffer();
+        const poPath = `uploads/stock-movements/bulk-po-${Date.now()}-${poFile.name}`;
+        
+        // Create directory if it doesn't exist
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        const dir = path.dirname(poPath);
+        await fs.mkdir(dir, { recursive: true });
+        
+        // Save file
+        await fs.writeFile(poPath, Buffer.from(poBuffer));
+        
+        // Update all movements with PO file path
+        for (const movementId of createdMovementIds) {
+          const existingMovement = await prisma.stockMovement.findUnique({
+            where: { id: movementId },
+            select: { notes: true }
+          });
+          
+          const updatedNotes = existingMovement?.notes 
+            ? `${existingMovement.notes}\n\nPO: ${poPath}`
+            : `PO: ${poPath}`;
+            
+          await prisma.stockMovement.update({
+            where: { id: movementId },
+            data: { notes: updatedNotes }
+          });
+        }
+      } catch (fileError) {
+        console.error('Error saving PO file for bulk upload:', fileError);
+        // Don't fail the entire request if file save fails
+      }
     }
 
     return NextResponse.json({

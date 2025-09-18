@@ -42,6 +42,8 @@ export function CurrencySelector({
   const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(true);
+  const [currenciesError, setCurrenciesError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -72,13 +74,20 @@ export function CurrencySelector({
 
   const fetchCurrencies = async () => {
     try {
+      setIsLoadingCurrencies(true);
+      setCurrenciesError(null);
       const response = await fetch('/api/currencies');
       if (response.ok) {
         const data = await response.json();
         setCurrencies(data);
+      } else {
+        setCurrenciesError('Failed to load currencies');
       }
     } catch (error) {
       console.error('Error fetching currencies:', error);
+      setCurrenciesError('Failed to load currencies');
+    } finally {
+      setIsLoadingCurrencies(false);
     }
   };
 
@@ -116,15 +125,15 @@ export function CurrencySelector({
   return (
     <div ref={dropdownRef} className={`space-y-2 relative ${className}`}>
       <div className="flex items-center space-x-2">
-        <Button
-          variant="outline"
+        <button
+          type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center space-x-2"
+          className="flex items-center space-x-2 w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <span className="text-lg">{selectedCurrencyData?.symbol || '$'}</span>
-          <span>{selectedCurrency}</span>
-          <ChevronDown className="h-4 w-4" />
-        </Button>
+          <span className="font-medium">{selectedCurrency}</span>
+          <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
 
         {onAmountChange && (
           <Input
@@ -140,29 +149,53 @@ export function CurrencySelector({
       </div>
 
       {isOpen && (
-        <Card className="absolute z-50 w-64 mt-1 shadow-lg border border-gray-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Select Currency</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 max-h-60 overflow-y-auto">
-            {currencies.map((currency) => (
-              <Button
-                key={currency.id}
-                variant={selectedCurrency === currency.code ? "default" : "ghost"}
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => {
-                  onCurrencyChange(currency.code);
-                  setIsOpen(false);
-                }}
-              >
-                <span className="text-lg mr-2">{currency.symbol}</span>
-                <span className="font-medium">{currency.code}</span>
-                <span className="text-sm text-gray-500 ml-2">{currency.name}</span>
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
+        <div className="absolute z-[9999] w-64 mt-1 bg-white shadow-lg border border-gray-200 rounded-lg">
+          <div className="p-3 border-b border-gray-100">
+            <h3 className="text-sm font-medium text-gray-900">Select Currency</h3>
+          </div>
+          <div className="max-h-60 overflow-y-auto p-2">
+            {isLoadingCurrencies ? (
+              <div className="p-3 text-sm text-gray-500 text-center">
+                Loading currencies...
+              </div>
+            ) : currenciesError ? (
+              <div className="p-3 text-sm text-red-500 text-center">
+                {currenciesError}
+                <button 
+                  onClick={fetchCurrencies}
+                  className="ml-2 text-blue-500 hover:text-blue-700 underline"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : currencies.length === 0 ? (
+              <div className="p-3 text-sm text-gray-500 text-center">
+                No currencies available
+              </div>
+            ) : (
+              currencies.map((currency) => (
+                <button
+                  key={currency.id}
+                  className={`w-full flex items-center px-3 py-2 text-left rounded-md hover:bg-gray-50 transition-colors ${
+                    selectedCurrency === currency.code 
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                      : 'text-gray-700'
+                  }`}
+                  onClick={() => {
+                    onCurrencyChange(currency.code);
+                    setIsOpen(false);
+                  }}
+                >
+                  <span className="text-lg mr-3">{currency.symbol}</span>
+                  <div className="flex-1">
+                    <div className="font-medium">{currency.code}</div>
+                    <div className="text-sm text-gray-500">{currency.name}</div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
       )}
 
       {showConversion && convertedAmount !== null && (

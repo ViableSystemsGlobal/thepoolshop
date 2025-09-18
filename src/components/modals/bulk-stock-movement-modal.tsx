@@ -42,6 +42,8 @@ interface BulkStockMovementModalProps {
 }
 
 interface StockMovementRow {
+  id: string;
+  rowNumber: number;
   sku: string;
   productName?: string;
   quantity: number;
@@ -67,8 +69,24 @@ const movementTypes = [
 ];
 
 export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStockMovementModalProps) {
-  const { theme, customLogo } = useTheme();
+  const { getThemeClasses } = useTheme();
+  const theme = getThemeClasses();
   const { success, error: showError } = useToast();
+
+  // Helper function to get proper button background classes
+  const getButtonBackgroundClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'bg-purple-600 hover:bg-purple-700',
+      'blue-600': 'bg-blue-600 hover:bg-blue-700',
+      'green-600': 'bg-green-600 hover:bg-green-700',
+      'orange-600': 'bg-orange-600 hover:bg-orange-700',
+      'red-600': 'bg-red-600 hover:bg-red-700',
+      'indigo-600': 'bg-indigo-600 hover:bg-indigo-700',
+      'pink-600': 'bg-pink-600 hover:bg-pink-700',
+      'teal-600': 'bg-teal-600 hover:bg-teal-700',
+    };
+    return colorMap[theme.primary] || 'bg-blue-600 hover:bg-blue-700';
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [step, setStep] = useState<'upload' | 'review' | 'processing' | 'complete'>('upload');
@@ -78,13 +96,6 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
   const [isLoading, setIsLoading] = useState(false);
   const [grnFile, setGrnFile] = useState<File | null>(null);
   const [poFile, setPoFile] = useState<File | null>(null);
-  const [showGrnGenerator, setShowGrnGenerator] = useState(false);
-  const [grnFormData, setGrnFormData] = useState({
-    supplierName: '',
-    poNumber: '',
-    receivedBy: '',
-    date: new Date().toLocaleDateString('en-CA')
-  });
   const [processingResults, setProcessingResults] = useState<{
     success: number;
     errors: number;
@@ -196,6 +207,8 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
           }
 
           return {
+            id: `row-${index + 1}`,
+            rowNumber: index + 1,
             sku: row.SKU || '',
             productName: row['Product Name'] || '',
             quantity: Number(row.Quantity) || 0,
@@ -210,9 +223,8 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
             errors,
             isValid: errors.length === 0,
             productId: product?.id,
-            warehouseId: warehouse?.id,
-            rowNumber: index + 2 // +2 because Excel is 1-indexed and we skip header
-          } as StockMovementRow & { rowNumber: number };
+            warehouseId: warehouse?.id
+          } as StockMovementRow;
         });
 
         setUploadedData(processedData);
@@ -241,9 +253,44 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
   };
 
   const updateRowData = (rowId: string, field: keyof StockMovementRow, value: any) => {
-    setUploadedData(prev => prev.map(row => 
-      row.id === rowId ? { ...row, [field]: value } : row
-    ));
+    setUploadedData(prev => prev.map(row => {
+      if (row.id === rowId) {
+        const updatedRow = { ...row, [field]: value };
+        
+        // Revalidate the row after update
+        const errors: string[] = [];
+        
+        // Validate required fields
+        if (!updatedRow.sku) errors.push('SKU is required');
+        if (!updatedRow.quantity || isNaN(Number(updatedRow.quantity))) errors.push('Valid quantity is required');
+        if (!updatedRow.type) errors.push('Type is required');
+        if (!updatedRow.warehouseCode) errors.push('Warehouse Code is required');
+
+        // Validate SKU exists
+        const product = products.find(p => p.sku === updatedRow.sku);
+        if (!product && updatedRow.sku) errors.push('SKU not found in system');
+
+        // Validate warehouse exists
+        const warehouse = warehouses.find(w => w.code === updatedRow.warehouseCode);
+        if (!warehouse && updatedRow.warehouseCode) errors.push('Warehouse code not found in system');
+
+        // Validate type
+        const validTypes = ['RECEIPT', 'ADJUSTMENT', 'TRANSFER_OUT', 'TRANSFER_IN'];
+        if (updatedRow.type && !validTypes.includes(updatedRow.type)) {
+          errors.push('Invalid type. Must be RECEIPT, ADJUSTMENT, TRANSFER_OUT, or TRANSFER_IN');
+        }
+
+        return {
+          ...updatedRow,
+          errors,
+          isValid: errors.length === 0,
+          productId: product?.id,
+          warehouseId: warehouse?.id,
+          productName: product?.name || updatedRow.productName
+        };
+      }
+      return row;
+    }));
   };
 
   const generateQuickGRN = async () => {
@@ -432,25 +479,36 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
     try {
       const validRows = uploadedData.filter(row => row.isValid);
       
+      // Create FormData to send both movements and files
+      const formData = new FormData();
+      formData.append('movements', JSON.stringify({
+        movements: validRows.map(row => ({
+          productId: row.productId,
+          stockItemId: '', // Will be determined by API
+          type: row.type,
+          quantity: row.quantity,
+          warehouseId: row.warehouseId,
+          reference: row.reference,
+          reason: row.reason,
+          notes: row.notes,
+          unitCost: row.unitCost,
+          totalCost: row.totalCost
+        }))
+      }));
+
+      // Add GRN file if uploaded
+      if (grnFile) {
+        formData.append('grnFile', grnFile);
+      }
+
+      // Add PO file if uploaded
+      if (poFile) {
+        formData.append('poFile', poFile);
+      }
+
       const response = await fetch('/api/stock-movements/bulk', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          movements: validRows.map(row => ({
-            productId: row.productId,
-            stockItemId: '', // Will be determined by API
-            type: row.type,
-            quantity: row.quantity,
-            warehouseId: row.warehouseId,
-            reference: row.reference,
-            reason: row.reason,
-            notes: row.notes,
-            unitCost: row.unitCost,
-            totalCost: row.totalCost
-          }))
-        }),
+        body: formData,
       });
 
       const result = await response.json();
@@ -524,97 +582,56 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
                 </p>
               </div>
 
-              {/* Quick GRN Generator */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="font-medium text-blue-900">Quick GRN Generator</h4>
-                    <p className="text-sm text-blue-700">Generate a GRN document for your stock movements</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowGrnGenerator(!showGrnGenerator)}
-                    className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    {showGrnGenerator ? 'Hide' : 'Generate GRN'}
-                  </Button>
-                </div>
-
-                {showGrnGenerator && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Supplier Name <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={grnFormData.supplierName}
-                          onChange={(e) => setGrnFormData({ ...grnFormData, supplierName: e.target.value })}
-                          placeholder="Enter supplier name"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          PO Number <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={grnFormData.poNumber}
-                          onChange={(e) => setGrnFormData({ ...grnFormData, poNumber: e.target.value })}
-                          placeholder="Enter PO number"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Received By <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={grnFormData.receivedBy}
-                          onChange={(e) => setGrnFormData({ ...grnFormData, receivedBy: e.target.value })}
-                          placeholder="Enter receiver name"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Date
-                        </label>
-                        <input
-                          type="date"
-                          value={grnFormData.date}
-                          onChange={(e) => setGrnFormData({ ...grnFormData, date: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <Button
-                        onClick={generateQuickGRN}
-                        disabled={!grnFormData.supplierName || !grnFormData.poNumber || !grnFormData.receivedBy}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Generate & Download GRN
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
 
               <div className="flex justify-center space-x-4">
                 <Button onClick={downloadTemplate} variant="outline">
                   <Download className="h-4 w-4 mr-2" />
                   Download Template
                 </Button>
-                <Button onClick={() => fileInputRef.current?.click()}>
+                <Button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-white border-0"
+                  style={{ 
+                    backgroundColor: theme.primary === 'purple-600' ? '#9333ea' : 
+                                    theme.primary === 'blue-600' ? '#2563eb' :
+                                    theme.primary === 'green-600' ? '#16a34a' :
+                                    theme.primary === 'orange-600' ? '#ea580c' :
+                                    theme.primary === 'red-600' ? '#dc2626' :
+                                    theme.primary === 'indigo-600' ? '#4f46e5' :
+                                    theme.primary === 'pink-600' ? '#db2777' :
+                                    theme.primary === 'teal-600' ? '#0d9488' : '#2563eb',
+                    '--hover-bg': theme.primary === 'purple-600' ? '#7c3aed' : 
+                                 theme.primary === 'blue-600' ? '#1d4ed8' :
+                                 theme.primary === 'green-600' ? '#15803d' :
+                                 theme.primary === 'orange-600' ? '#c2410c' :
+                                 theme.primary === 'red-600' ? '#b91c1c' :
+                                 theme.primary === 'indigo-600' ? '#4338ca' :
+                                 theme.primary === 'pink-600' ? '#be185d' :
+                                 theme.primary === 'teal-600' ? '#0f766e' : '#1d4ed8'
+                  } as React.CSSProperties}
+                  onMouseEnter={(e) => {
+                    const hoverColor = theme.primary === 'purple-600' ? '#7c3aed' : 
+                                     theme.primary === 'blue-600' ? '#1d4ed8' :
+                                     theme.primary === 'green-600' ? '#15803d' :
+                                     theme.primary === 'orange-600' ? '#c2410c' :
+                                     theme.primary === 'red-600' ? '#b91c1c' :
+                                     theme.primary === 'indigo-600' ? '#4338ca' :
+                                     theme.primary === 'pink-600' ? '#be185d' :
+                                     theme.primary === 'teal-600' ? '#0f766e' : '#1d4ed8';
+                    e.currentTarget.style.backgroundColor = hoverColor;
+                  }}
+                  onMouseLeave={(e) => {
+                    const normalColor = theme.primary === 'purple-600' ? '#9333ea' : 
+                                      theme.primary === 'blue-600' ? '#2563eb' :
+                                      theme.primary === 'green-600' ? '#16a34a' :
+                                      theme.primary === 'orange-600' ? '#ea580c' :
+                                      theme.primary === 'red-600' ? '#dc2626' :
+                                      theme.primary === 'indigo-600' ? '#4f46e5' :
+                                      theme.primary === 'pink-600' ? '#db2777' :
+                                      theme.primary === 'teal-600' ? '#0d9488' : '#2563eb';
+                    e.currentTarget.style.backgroundColor = normalColor;
+                  }}
+                >
                   <Upload className="h-4 w-4 mr-2" />
                   Choose File
                 </Button>
@@ -646,12 +663,84 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
                   Review Upload Data
                 </h3>
                 <div className="flex space-x-2">
-                  <Button variant="outline" onClick={() => setStep('upload')}>
+                  <Button 
+                    onClick={() => setStep('upload')}
+                    className="text-white border-0"
+                    style={{ 
+                      backgroundColor: theme.primary === 'purple-600' ? '#9333ea' : 
+                                      theme.primary === 'blue-600' ? '#2563eb' :
+                                      theme.primary === 'green-600' ? '#16a34a' :
+                                      theme.primary === 'orange-600' ? '#ea580c' :
+                                      theme.primary === 'red-600' ? '#dc2626' :
+                                      theme.primary === 'indigo-600' ? '#4f46e5' :
+                                      theme.primary === 'pink-600' ? '#db2777' :
+                                      theme.primary === 'teal-600' ? '#0d9488' : '#2563eb'
+                    }}
+                    onMouseEnter={(e) => {
+                      const hoverColor = theme.primary === 'purple-600' ? '#7c3aed' : 
+                                       theme.primary === 'blue-600' ? '#1d4ed8' :
+                                       theme.primary === 'green-600' ? '#15803d' :
+                                       theme.primary === 'orange-600' ? '#c2410c' :
+                                       theme.primary === 'red-600' ? '#b91c1c' :
+                                       theme.primary === 'indigo-600' ? '#4338ca' :
+                                       theme.primary === 'pink-600' ? '#be185d' :
+                                       theme.primary === 'teal-600' ? '#0f766e' : '#1d4ed8';
+                      e.currentTarget.style.backgroundColor = hoverColor;
+                    }}
+                    onMouseLeave={(e) => {
+                      const normalColor = theme.primary === 'purple-600' ? '#9333ea' : 
+                                        theme.primary === 'blue-600' ? '#2563eb' :
+                                        theme.primary === 'green-600' ? '#16a34a' :
+                                        theme.primary === 'orange-600' ? '#ea580c' :
+                                        theme.primary === 'red-600' ? '#dc2626' :
+                                        theme.primary === 'indigo-600' ? '#4f46e5' :
+                                        theme.primary === 'pink-600' ? '#db2777' :
+                                        theme.primary === 'teal-600' ? '#0d9488' : '#2563eb';
+                      e.currentTarget.style.backgroundColor = normalColor;
+                    }}
+                  >
                     Back
                   </Button>
                   <Button 
                     onClick={processBulkUpload}
                     disabled={validRows.length === 0 || !grnFile}
+                    className="text-white border-0"
+                    style={{ 
+                      backgroundColor: theme.primary === 'purple-600' ? '#9333ea' : 
+                                      theme.primary === 'blue-600' ? '#2563eb' :
+                                      theme.primary === 'green-600' ? '#16a34a' :
+                                      theme.primary === 'orange-600' ? '#ea580c' :
+                                      theme.primary === 'red-600' ? '#dc2626' :
+                                      theme.primary === 'indigo-600' ? '#4f46e5' :
+                                      theme.primary === 'pink-600' ? '#db2777' :
+                                      theme.primary === 'teal-600' ? '#0d9488' : '#2563eb'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!e.currentTarget.disabled) {
+                        const hoverColor = theme.primary === 'purple-600' ? '#7c3aed' : 
+                                         theme.primary === 'blue-600' ? '#1d4ed8' :
+                                         theme.primary === 'green-600' ? '#15803d' :
+                                         theme.primary === 'orange-600' ? '#c2410c' :
+                                         theme.primary === 'red-600' ? '#b91c1c' :
+                                         theme.primary === 'indigo-600' ? '#4338ca' :
+                                         theme.primary === 'pink-600' ? '#be185d' :
+                                         theme.primary === 'teal-600' ? '#0f766e' : '#1d4ed8';
+                        e.currentTarget.style.backgroundColor = hoverColor;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!e.currentTarget.disabled) {
+                        const normalColor = theme.primary === 'purple-600' ? '#9333ea' : 
+                                          theme.primary === 'blue-600' ? '#2563eb' :
+                                          theme.primary === 'green-600' ? '#16a34a' :
+                                          theme.primary === 'orange-600' ? '#ea580c' :
+                                          theme.primary === 'red-600' ? '#dc2626' :
+                                          theme.primary === 'indigo-600' ? '#4f46e5' :
+                                          theme.primary === 'pink-600' ? '#db2777' :
+                                          theme.primary === 'teal-600' ? '#0d9488' : '#2563eb';
+                        e.currentTarget.style.backgroundColor = normalColor;
+                      }
+                    }}
                   >
                     Process {validRows.length} Valid Rows
                   </Button>
@@ -748,10 +837,54 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
                           {invalidRows.map((row, index) => (
                             <tr key={index} className="border-b">
                               <td className="py-2">{row.rowNumber}</td>
-                              <td className="py-2">{row.sku}</td>
-                              <td className="py-2">{row.quantity}</td>
-                              <td className="py-2">{row.type}</td>
-                              <td className="py-2">{row.warehouseCode}</td>
+                              <td className="py-2">
+                                <select
+                                  value={row.sku}
+                                  onChange={(e) => updateRowData(row.id, 'sku', e.target.value)}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
+                                >
+                                  <option value="">Select SKU</option>
+                                  {products.map(product => (
+                                    <option key={product.id} value={product.sku}>
+                                      {product.sku} - {product.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="py-2">
+                                <input
+                                  type="number"
+                                  value={row.quantity}
+                                  onChange={(e) => updateRowData(row.id, 'quantity', Number(e.target.value))}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
+                                />
+                              </td>
+                              <td className="py-2">
+                                <select
+                                  value={row.type}
+                                  onChange={(e) => updateRowData(row.id, 'type', e.target.value)}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
+                                >
+                                  <option value="RECEIPT">RECEIPT</option>
+                                  <option value="ADJUSTMENT">ADJUSTMENT</option>
+                                  <option value="TRANSFER_OUT">TRANSFER_OUT</option>
+                                  <option value="TRANSFER_IN">TRANSFER_IN</option>
+                                </select>
+                              </td>
+                              <td className="py-2">
+                                <select
+                                  value={row.warehouseCode}
+                                  onChange={(e) => updateRowData(row.id, 'warehouseCode', e.target.value)}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
+                                >
+                                  <option value="">Select Warehouse</option>
+                                  {warehouses.map(warehouse => (
+                                    <option key={warehouse.id} value={warehouse.code}>
+                                      {warehouse.code} - {warehouse.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
                               <td className="py-2">
                                 <div className="text-red-600">
                                   {row.errors?.map((error, i) => (
@@ -809,7 +942,14 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
                                 </select>
                               </td>
                               <td className="py-2">{row.productName}</td>
-                              <td className="py-2">{row.quantity}</td>
+                              <td className="py-2">
+                                <input
+                                  type="number"
+                                  value={row.quantity}
+                                  onChange={(e) => updateRowData(row.id, 'quantity', Number(e.target.value))}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
+                                />
+                              </td>
                               <td className="py-2">
                                 <select
                                   value={row.type}
@@ -902,7 +1042,42 @@ export function BulkStockMovementModal({ isOpen, onClose, onSuccess }: BulkStock
                 <Button variant="outline" onClick={handleClose}>
                   Close
                 </Button>
-                <Button onClick={handleSuccess}>
+                <Button 
+                  onClick={handleSuccess}
+                  className="text-white border-0"
+                  style={{ 
+                    backgroundColor: theme.primary === 'purple-600' ? '#9333ea' : 
+                                    theme.primary === 'blue-600' ? '#2563eb' :
+                                    theme.primary === 'green-600' ? '#16a34a' :
+                                    theme.primary === 'orange-600' ? '#ea580c' :
+                                    theme.primary === 'red-600' ? '#dc2626' :
+                                    theme.primary === 'indigo-600' ? '#4f46e5' :
+                                    theme.primary === 'pink-600' ? '#db2777' :
+                                    theme.primary === 'teal-600' ? '#0d9488' : '#2563eb'
+                  }}
+                  onMouseEnter={(e) => {
+                    const hoverColor = theme.primary === 'purple-600' ? '#7c3aed' : 
+                                     theme.primary === 'blue-600' ? '#1d4ed8' :
+                                     theme.primary === 'green-600' ? '#15803d' :
+                                     theme.primary === 'orange-600' ? '#c2410c' :
+                                     theme.primary === 'red-600' ? '#b91c1c' :
+                                     theme.primary === 'indigo-600' ? '#4338ca' :
+                                     theme.primary === 'pink-600' ? '#be185d' :
+                                     theme.primary === 'teal-600' ? '#0f766e' : '#1d4ed8';
+                    e.currentTarget.style.backgroundColor = hoverColor;
+                  }}
+                  onMouseLeave={(e) => {
+                    const normalColor = theme.primary === 'purple-600' ? '#9333ea' : 
+                                      theme.primary === 'blue-600' ? '#2563eb' :
+                                      theme.primary === 'green-600' ? '#16a34a' :
+                                      theme.primary === 'orange-600' ? '#ea580c' :
+                                      theme.primary === 'red-600' ? '#dc2626' :
+                                      theme.primary === 'indigo-600' ? '#4f46e5' :
+                                      theme.primary === 'pink-600' ? '#db2777' :
+                                      theme.primary === 'teal-600' ? '#0d9488' : '#2563eb';
+                    e.currentTarget.style.backgroundColor = normalColor;
+                  }}
+                >
                   View Stock Movements
                 </Button>
               </div>

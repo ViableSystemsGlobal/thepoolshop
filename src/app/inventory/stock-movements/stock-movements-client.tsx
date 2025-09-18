@@ -10,6 +10,8 @@ import { useToast } from "@/contexts/toast-context";
 import { AddStockMovementModal } from "@/components/modals/add-stock-movement-modal";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { DataTable } from "@/components/ui/data-table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { BulkStockMovementModal } from "@/components/modals/bulk-stock-movement-modal";
 import { 
   Plus, 
@@ -29,7 +31,10 @@ import {
   User,
   FileText,
   Eye,
-  FileSpreadsheet
+  FileSpreadsheet,
+  MoreHorizontal,
+  Download,
+  Undo2
 } from "lucide-react";
 
 interface StockMovement {
@@ -41,6 +46,7 @@ interface StockMovement {
   notes?: string;
   userId?: string;
   createdAt: string;
+  origin?: string;
   product: {
     id: string;
     name: string;
@@ -51,6 +57,21 @@ interface StockMovement {
     id: string;
     quantity: number;
     available: number;
+  };
+  warehouse?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  fromWarehouse?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  toWarehouse?: {
+    id: string;
+    name: string;
+    code: string;
   };
 }
 
@@ -74,6 +95,10 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
   const [selectedMovements, setSelectedMovements] = useState<string[]>([]);
+  const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [selectedWarehouse, setSelectedWarehouse] = useState("all");
   const router = useRouter();
   const searchParams = useSearchParams();
   const { getThemeClasses } = useTheme();
@@ -250,6 +275,63 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
     setIsBulkUploadModalOpen(false);
   };
 
+  const handleDownloadGRN = async (movement: StockMovement) => {
+    try {
+      // Debug: Log the notes content
+      console.log('Movement notes:', movement.notes);
+      
+      // Check if movement has any GRN-related content in notes
+      if (!movement.notes || (!movement.notes.includes('GRN:') && !movement.notes.includes('grn') && !movement.notes.includes('uploads/stock-movements'))) {
+        showError(`No GRN document found for this movement. Notes: ${movement.notes || 'No notes'}`);
+        return;
+      }
+
+      const response = await fetch(`/api/stock-movements/${movement.id}/grn`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        showError(errorData.error || "Failed to download GRN");
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `GRN-${movement.reference || movement.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      success("GRN document downloaded successfully");
+    } catch (error) {
+      console.error('Error downloading GRN:', error);
+      showError("Failed to download GRN document");
+    }
+  };
+
+  const handleReverseMovement = async (movement: StockMovement) => {
+    try {
+      const response = await fetch(`/api/stock-movements/${movement.id}/reverse`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reverse movement');
+      }
+
+      success("Movement reversed successfully");
+      fetchMovements(); // Refresh the table
+    } catch (error) {
+      console.error('Error reversing movement:', error);
+      showError("Failed to reverse movement");
+    }
+  };
+
   const getMovementTypeInfo = (type: string) => {
     return movementTypes.find(t => t.value === type) || movementTypes[movementTypes.length - 1];
   };
@@ -263,7 +345,19 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
       (movement.reason && movement.reason.toLowerCase().includes(searchLower));
     
     const matchesType = selectedType === "all" || movement.type === selectedType;
-    return matchesSearch && matchesType;
+    
+    // Date filtering
+    const movementDate = new Date(movement.createdAt);
+    const matchesDateFrom = !dateFrom || movementDate >= new Date(dateFrom);
+    const matchesDateTo = !dateTo || movementDate <= new Date(dateTo + 'T23:59:59');
+    
+    // Warehouse filtering
+    const matchesWarehouse = selectedWarehouse === "all" || 
+      (selectedWarehouse === "main" && movement.warehouse?.name === "Main Warehouse") ||
+      (selectedWarehouse === "retail" && movement.warehouse?.name === "Retail Store") ||
+      (selectedWarehouse === "poolshop" && movement.warehouse?.name === "PoolShop Main");
+    
+    return matchesSearch && matchesType && matchesDateFrom && matchesDateTo && matchesWarehouse;
   });
 
   const getQuantityColor = (quantity: number) => {
@@ -372,10 +466,20 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
         </div>
       </div>
 
-      {/* Search and Filters */}
+      {/* Movements Table */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-4">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Stock Movements ({filteredMovements.length})</CardTitle>
+              <CardDescription>
+                Complete history of all stock movements and adjustments
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6 pb-0">
+          <div className="flex items-center space-x-4 mb-6">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -388,7 +492,6 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Filter className="h-4 w-4 text-gray-500" />
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
@@ -401,19 +504,18 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
                   </option>
                 ))}
               </select>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setIsMoreFiltersOpen(true)}
+                className="flex items-center space-x-1"
+              >
+                <Filter className="h-4 w-4" />
+                <span>More Filters</span>
+              </Button>
             </div>
           </div>
         </CardContent>
-      </Card>
-
-      {/* Movements Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Stock Movements ({filteredMovements.length})</CardTitle>
-          <CardDescription>
-            Complete history of all stock movements and adjustments
-          </CardDescription>
-        </CardHeader>
         <CardContent className="p-0">
           <DataTable
             data={filteredMovements}
@@ -438,10 +540,8 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
                           'Reference': movement.reference || '',
                           'Reason': movement.reason || '',
                           'Date': new Date(movement.createdAt).toLocaleDateString(),
-                          'Stock After': movement.stockAfter,
-                          'Unit Cost': movement.unitCost || 0,
-                          'Total Cost': movement.totalCost || 0,
-                          'Warehouse': movement.warehouse.name
+                          'Stock After': movement.stockItem.quantity,
+                          'Available': movement.stockItem.available
                         }));
                       downloadCSV(exportData, `stock_movements_export_${new Date().toISOString().split('T')[0]}.csv`);
                       success(`Successfully exported ${selectedMovements.length} movement(s)`);
@@ -450,14 +550,15 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
                     }
                   }}
                   disabled={selectedMovements.length === 0}
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
                 >
                   Export
                 </Button>
                 <Button
-                  variant="destructive"
                   size="sm"
                   onClick={() => success('Delete functionality coming soon!')}
                   disabled={selectedMovements.length === 0}
+                  className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   Delete
                 </Button>
@@ -500,6 +601,51 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
                     </span>
                   </div>
                 )
+              },
+              {
+                key: 'origin',
+                label: 'Origin/Destination',
+                render: (movement) => {
+                  // Generate origin based on movement type and warehouse information
+                  const getOrigin = () => {
+                    switch (movement.type) {
+                      case 'RECEIPT':
+                        return 'Supplier';
+                      case 'SALE':
+                        return 'Customer';
+                      case 'TRANSFER_IN':
+                        return movement.toWarehouse?.name || movement.warehouse?.name || 'Other Warehouse';
+                      case 'TRANSFER_OUT':
+                        return movement.fromWarehouse?.name || movement.warehouse?.name || 'Other Warehouse';
+                      case 'TRANSFER':
+                        // For combined transfer type, show both warehouses
+                        if (movement.fromWarehouse && movement.toWarehouse) {
+                          return `${movement.fromWarehouse.name} → ${movement.toWarehouse.name}`;
+                        } else if (movement.fromWarehouse) {
+                          return `${movement.fromWarehouse.name} → Other`;
+                        } else if (movement.toWarehouse) {
+                          return `Other → ${movement.toWarehouse.name}`;
+                        }
+                        return 'Warehouse Transfer';
+                      case 'RETURN':
+                        return 'Customer Return';
+                      case 'ADJUSTMENT':
+                        return movement.warehouse?.name || 'System Adjustment';
+                      case 'DAMAGE':
+                      case 'THEFT':
+                      case 'EXPIRY':
+                        return movement.warehouse?.name || 'Internal';
+                      default:
+                        return movement.warehouse?.name || 'Unknown';
+                    }
+                  };
+
+                  return (
+                    <span className="text-sm text-gray-600">
+                      {movement.origin || getOrigin()}
+                    </span>
+                  );
+                }
               },
               {
                 key: 'reference',
@@ -577,15 +723,32 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
                 key: 'actions',
                 label: 'Actions',
                 render: (movement) => (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => router.push(`/products/${movement.product.id}`)}
-                    className="flex items-center text-blue-600 hover:text-blue-700"
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    View Product
-                  </Button>
+                  <DropdownMenu
+                    trigger={
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <span className="sr-only">Open menu</span>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    }
+                    items={[
+                      {
+                        label: "View Product",
+                        icon: <Eye className="h-4 w-4" />,
+                        onClick: () => router.push(`/products/${movement.product.id}`)
+                      },
+                      {
+                        label: "Download GRN",
+                        icon: <Download className="h-4 w-4" />,
+                        onClick: () => handleDownloadGRN(movement)
+                      },
+                      {
+                        label: "Reverse Movement",
+                        icon: <Undo2 className="h-4 w-4" />,
+                        onClick: () => handleReverseMovement(movement)
+                      }
+                    ]}
+                    align="right"
+                  />
                 )
               }
             ]}
@@ -607,6 +770,90 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
         onClose={() => setIsBulkUploadModalOpen(false)}
         onSuccess={handleBulkUploadSuccess}
       />
+
+      {/* More Filters Modal */}
+      <Dialog open={isMoreFiltersOpen} onOpenChange={setIsMoreFiltersOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>More Filters</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date From
+              </label>
+              <Input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => {
+                  const selectedDate = e.target.value;
+                  if (dateTo && selectedDate && new Date(selectedDate) > new Date(dateTo)) {
+                    setDateTo("");
+                  }
+                  setDateFrom(selectedDate);
+                }}
+                className="focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date To
+              </label>
+              <Input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => {
+                  const selectedDate = e.target.value;
+                  if (dateFrom && selectedDate && new Date(selectedDate) < new Date(dateFrom)) {
+                    setDateTo("");
+                  } else {
+                    setDateTo(selectedDate);
+                  }
+                }}
+                className="focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500"
+              />
+              {dateFrom && dateTo && new Date(dateTo) < new Date(dateFrom) && (
+                <p className="text-red-500 text-xs mt-1">Date To cannot be before Date From</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Warehouse
+              </label>
+              <select
+                value={selectedWarehouse}
+                onChange={(e) => setSelectedWarehouse(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+              >
+                <option value="all">All Warehouses</option>
+                <option value="main">Main Warehouse</option>
+                <option value="retail">Retail Store</option>
+                <option value="poolshop">PoolShop Main</option>
+              </select>
+            </div>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                  setSelectedWarehouse("all");
+                }}
+              >
+                Clear Filters
+              </Button>
+              <Button
+                onClick={() => setIsMoreFiltersOpen(false)}
+                className={`${getButtonBackgroundClasses()} text-white`}
+              >
+                Apply Filters
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

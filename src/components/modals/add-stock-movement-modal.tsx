@@ -25,11 +25,16 @@ interface Product {
   name: string;
   sku: string;
   uomBase: string;
-  stockItem?: {
+  stockItems?: {
     id: string;
     quantity: number;
     available: number;
-  };
+    warehouse: {
+      id: string;
+      name: string;
+      code: string;
+    };
+  }[];
 }
 
 interface Warehouse {
@@ -62,6 +67,9 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
     reason: "",
     notes: "",
     warehouseId: "",
+    transferDirection: "OUT" as "IN" | "OUT",
+    transferFromWarehouse: "",
+    transferToWarehouse: "",
   });
   const [products, setProducts] = useState<Product[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -70,6 +78,7 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [grnFile, setGrnFile] = useState<File | null>(null);
+  const [poFile, setPoFile] = useState<File | null>(null);
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const { success, error: showError } = useToast();
@@ -78,6 +87,13 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
     const file = event.target.files?.[0];
     if (file) {
       setGrnFile(file);
+    }
+  };
+
+  const handlePoFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setPoFile(file);
     }
   };
 
@@ -142,18 +158,11 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
       description: "Manual stock adjustment"
     },
     {
-      value: "TRANSFER_IN",
-      label: "Transfer In",
+      value: "TRANSFER",
+      label: "Transfer",
       icon: <ArrowRightLeft className="h-4 w-4" />,
       color: "text-purple-600",
-      description: "Stock transferred in from another warehouse"
-    },
-    {
-      value: "TRANSFER_OUT",
-      label: "Transfer Out",
-      icon: <ArrowRightLeft className="h-4 w-4" />,
-      color: "text-orange-600",
-      description: "Stock transferred out to another warehouse"
+      description: "Stock transferred between warehouses"
     },
     {
       value: "SALE",
@@ -204,6 +213,11 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
     product.sku.toLowerCase().includes(productSearch.toLowerCase())
   );
 
+  // Helper function to get total available stock for a product
+  const getTotalAvailableStock = (product: Product) => {
+    return product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
+  };
+
   const handleProductSelect = (product: Product) => {
     setSelectedProduct(product);
     setFormData(prev => ({ ...prev, productId: product.id }));
@@ -241,32 +255,81 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
       return;
     }
 
+    // Validate transfer fields for TRANSFER type
+    if (formData.type === "TRANSFER") {
+      if (formData.transferDirection === "OUT" && !formData.transferToWarehouse) {
+        showError("Validation Error", "Please select a destination warehouse for transfer out");
+        setIsSubmitting(false);
+        return;
+      }
+      if (formData.transferDirection === "IN" && !formData.transferFromWarehouse) {
+        showError("Validation Error", "Please select a source warehouse for transfer in");
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     // Check if trying to remove more stock than available
-    if (formData.quantity < 0 && selectedProduct?.stockItem) {
-      const availableStock = selectedProduct.stockItem.available;
-      if (Math.abs(formData.quantity) > availableStock) {
+    const isStockOutMovement = ["SALE", "DAMAGE", "THEFT", "EXPIRY"].includes(formData.type) || 
+                              (formData.type === "TRANSFER" && formData.transferDirection === "OUT");
+    const isAdjustmentOut = formData.type === "ADJUSTMENT" && formData.quantity < 0;
+    
+    if ((isStockOutMovement || isAdjustmentOut) && selectedProduct) {
+      const availableStock = getTotalAvailableStock(selectedProduct);
+      if (formData.quantity > availableStock) {
         showError("Validation Error", `Cannot remove more stock than available. Available: ${availableStock}`);
         setIsSubmitting(false);
         return;
       }
     }
 
+    // Validate unit cost for stock-in movements
+    const isStockInMovement = ["RECEIPT", "RETURN"].includes(formData.type) || 
+                             (formData.type === "TRANSFER" && formData.transferDirection === "IN");
+    if (isStockInMovement && formData.unitCost <= 0) {
+      showError("Validation Error", "Unit cost is required for stock-in movements");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('productId', formData.productId);
+      formDataToSend.append('type', formData.type);
+      const isStockOutMovement = ["SALE", "DAMAGE", "THEFT", "EXPIRY"].includes(formData.type) || 
+                                (formData.type === "TRANSFER" && formData.transferDirection === "OUT");
+      // For stock-out movements, send negative quantity; for stock-in, send positive
+      formDataToSend.append('quantity', String(isStockOutMovement 
+        ? -formData.quantity 
+        : formData.quantity));
+      if (formData.unitCost > 0) {
+        formDataToSend.append('unitCost', String(formData.unitCost));
+      }
+      formDataToSend.append('reference', formData.reference);
+      formDataToSend.append('reason', formData.reason);
+      formDataToSend.append('notes', formData.notes);
+      formDataToSend.append('warehouseId', formData.warehouseId);
+      
+      // Add transfer-specific fields
+      if (formData.type === "TRANSFER") {
+        formDataToSend.append('transferDirection', formData.transferDirection);
+        formDataToSend.append('transferFromWarehouse', formData.transferFromWarehouse);
+        formDataToSend.append('transferToWarehouse', formData.transferToWarehouse);
+      }
+      
+      // Add GRN file if it exists
+      if (grnFile) {
+        formDataToSend.append('grnFile', grnFile);
+      }
+      
+      // Add PO file if it exists
+      if (poFile) {
+        formDataToSend.append('poFile', poFile);
+      }
+
       const response = await fetch('/api/stock-movements', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          productId: formData.productId,
-          type: formData.type,
-          quantity: formData.quantity,
-          unitCost: formData.unitCost > 0 ? formData.unitCost : null,
-          reference: formData.reference,
-          reason: formData.reason,
-          notes: formData.notes,
-          warehouseId: formData.warehouseId,
-        }),
+        body: formDataToSend,
       });
 
       if (response.ok) {
@@ -284,9 +347,14 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
           reason: "",
           notes: "",
           warehouseId: warehouses.length > 0 ? warehouses[0].id : "",
+          transferDirection: "OUT",
+          transferFromWarehouse: "",
+          transferToWarehouse: "",
         });
         setSelectedProduct(null);
         setProductSearch("");
+        setGrnFile(null);
+        setPoFile(null);
       } else {
         const errorData = await response.json();
         showError("Error", errorData.error || 'Failed to add stock movement');
@@ -349,10 +417,9 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
                     >
                       <div className="font-medium text-gray-900">{product.name}</div>
                       <div className="text-sm text-gray-500">{product.sku}</div>
-                      {product.stockItem && (
+                      {product.stockItems && product.stockItems.length > 0 && (
                         <div className="text-xs text-gray-400">
-                          Current Stock: {product.stockItem.quantity} {product.uomBase} 
-                          (Available: {product.stockItem.available})
+                          Available Stock: {getTotalAvailableStock(product)} {product.uomBase}
                         </div>
                       )}
                     </div>
@@ -385,7 +452,9 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Quantity *
+                {["SALE", "DAMAGE", "THEFT", "EXPIRY"].includes(formData.type) || 
+                 (formData.type === "TRANSFER" && formData.transferDirection === "OUT") ? 
+                 "Quantity to Remove *" : "Quantity *"}
               </label>
               <Input
                 type="number"
@@ -394,30 +463,45 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
                 placeholder="Enter quantity"
                 required
                 className="flex-1"
-                min={["SALE", "DAMAGE", "THEFT", "TRANSFER_OUT", "EXPIRY"].includes(formData.type) ? 1 : (formData.type === "ADJUSTMENT" ? undefined : 1)}
-                max={["SALE", "DAMAGE", "THEFT", "TRANSFER_OUT", "EXPIRY"].includes(formData.type) ? (selectedProduct?.stockItem?.quantity || 0) : undefined}
+                min={["SALE", "DAMAGE", "THEFT", "EXPIRY"].includes(formData.type) || 
+                     (formData.type === "TRANSFER" && formData.transferDirection === "OUT") ? 1 : 
+                     (formData.type === "ADJUSTMENT" ? undefined : 1)}
+                 max={["SALE", "DAMAGE", "THEFT", "EXPIRY"].includes(formData.type) || 
+                      (formData.type === "TRANSFER" && formData.transferDirection === "OUT") ? 
+                      (selectedProduct ? getTotalAvailableStock(selectedProduct) : 0) : undefined}
               />
               <p className="text-xs text-gray-500 mt-1">
-                {formData.quantity > 0 ? "Positive for stock in" : "Negative for stock out"}
+                {["SALE", "DAMAGE", "THEFT", "EXPIRY"].includes(formData.type) || 
+                 (formData.type === "TRANSFER" && formData.transferDirection === "OUT") ? 
+                 `Available stock: ${selectedProduct ? getTotalAvailableStock(selectedProduct) : 0} ${selectedProduct?.uomBase || 'units'}` :
+                 (formData.quantity > 0 ? "Positive for stock in" : "Negative for stock out")}
               </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Unit Cost
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.unitCost}
-                onChange={(e) => setFormData({ ...formData, unitCost: Number(e.target.value) })}
-                placeholder="Enter unit cost (optional)"
-                min="0"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Required for stock in movements
-              </p>
-            </div>
+            {/* Only show Unit Cost for stock-in movements */}
+            {["RECEIPT", "RETURN"].includes(formData.type) || 
+             (formData.type === "TRANSFER" && formData.transferDirection === "IN") || 
+             (formData.type === "ADJUSTMENT" && formData.quantity > 0) ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Unit Cost {["RECEIPT", "RETURN"].includes(formData.type) ? "*" : ""}
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formData.unitCost}
+                  onChange={(e) => setFormData({ ...formData, unitCost: Number(e.target.value) })}
+                  placeholder="Enter unit cost"
+                  min="0"
+                  required={["RECEIPT", "RETURN"].includes(formData.type)}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {["RECEIPT", "RETURN"].includes(formData.type) ? 
+                   "Required for stock in movements" : 
+                   "Optional for adjustments"}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {/* Warehouse Selection */}
@@ -439,6 +523,68 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
               ))}
             </select>
           </div>
+
+          {/* Transfer Fields - Only show for TRANSFER type */}
+          {formData.type === "TRANSFER" && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Transfer Direction *
+                </label>
+                <select
+                  value={formData.transferDirection}
+                  onChange={(e) => setFormData({ ...formData, transferDirection: e.target.value as "IN" | "OUT" })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="OUT">Transfer Out</option>
+                  <option value="IN">Transfer In</option>
+                </select>
+              </div>
+
+              {formData.transferDirection === "OUT" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Destination Warehouse *
+                  </label>
+                  <select
+                    value={formData.transferToWarehouse}
+                    onChange={(e) => setFormData({ ...formData, transferToWarehouse: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select destination warehouse</option>
+                    {warehouses.filter(w => w.id !== formData.warehouseId).map((warehouse) => (
+                      <option key={warehouse.id} value={warehouse.id}>
+                        {warehouse.name} ({warehouse.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {formData.transferDirection === "IN" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Source Warehouse *
+                  </label>
+                  <select
+                    value={formData.transferFromWarehouse}
+                    onChange={(e) => setFormData({ ...formData, transferFromWarehouse: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select source warehouse</option>
+                    {warehouses.filter(w => w.id !== formData.warehouseId).map((warehouse) => (
+                      <option key={warehouse.id} value={warehouse.id}>
+                        {warehouse.name} ({warehouse.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Reference and Reason */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -479,24 +625,46 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
             />
           </div>
 
-          {/* GRN Upload - Required for RECEIPT type */}
+          {/* Document Uploads - Required for RECEIPT type */}
           {formData.type === 'RECEIPT' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                GRN Document <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handleGrnFileUpload}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              />
-              {grnFile && (
-                <p className="text-sm text-green-600 mt-1">✓ {grnFile.name}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">
-                Upload the Goods Receipt Note for this stock receipt
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* GRN Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  GRN Document <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={handleGrnFileUpload}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {grnFile && (
+                  <p className="text-sm text-green-600 mt-1">✓ {grnFile.name}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Goods Receipt Note
+                </p>
+              </div>
+
+              {/* PO Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Purchase Order Document
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={handlePoFileUpload}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+                {poFile && (
+                  <p className="text-sm text-green-600 mt-1">✓ {poFile.name}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Purchase Order (optional)
+                </p>
+              </div>
             </div>
           )}
 

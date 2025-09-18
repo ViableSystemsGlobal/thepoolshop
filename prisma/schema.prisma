@@ -341,6 +341,7 @@ model Warehouse {
   address          String?
   city             String?
   country          String?
+  image            String?
   isActive         Boolean         @default(true)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
