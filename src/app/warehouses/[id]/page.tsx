@@ -59,6 +59,7 @@ interface Product {
   id: string;
   name: string;
   sku: string;
+  costPrice: number;
   category: {
     name: string;
   };
@@ -220,7 +221,10 @@ export default function WarehouseDetailsPage() {
 
   // Calculate totals
   const totalProducts = products.length;
-  const totalValue = products.reduce((sum, product) => sum + (product.stockItems?.[0]?.totalValue || 0), 0);
+  const totalValue = products.reduce((sum, product) => {
+    const quantity = product.stockItems?.[0]?.quantity || 0;
+    return sum + (quantity * (product.costPrice || 0));
+  }, 0);
   const totalQuantity = products.reduce((sum, product) => sum + (product.stockItems?.[0]?.quantity || 0), 0);
 
   // Convert currency when totalValue changes
@@ -363,12 +367,14 @@ export default function WarehouseDetailsPage() {
       for (const product of products) {
         const stockItem = product.stockItems?.[0];
         if (stockItem) {
-          const avgCostConversion = await convertCurrencyClient('USD', currency, stockItem.averageCost);
-          const totalValueConversion = await convertCurrencyClient('USD', currency, stockItem.totalValue);
+          const costPriceConversion = await convertCurrencyClient('USD', currency, product.costPrice || 0);
+          const quantity = stockItem.quantity || 0;
+          const totalValue = quantity * (product.costPrice || 0);
+          const totalValueConversion = await convertCurrencyClient('USD', currency, totalValue);
           
           productConversions[product.id] = {
-            averageCost: avgCostConversion?.convertedAmount || stockItem.averageCost,
-            totalValue: totalValueConversion?.convertedAmount || stockItem.totalValue
+            averageCost: costPriceConversion?.convertedAmount || (product.costPrice || 0),
+            totalValue: totalValueConversion?.convertedAmount || totalValue
           };
         }
       }
@@ -732,7 +738,7 @@ export default function WarehouseDetailsPage() {
                                   </div>
                                 ) : (
                                   formatCurrencyWithSymbol(
-                                    convertedProductValues[product.id]?.averageCost || product.stockItems?.[0]?.averageCost || 0,
+                                    convertedProductValues[product.id]?.averageCost || product.costPrice || 0,
                                     selectedCurrency
                                   )
                                 )}
@@ -747,7 +753,7 @@ export default function WarehouseDetailsPage() {
                                   </div>
                                 ) : (
                                   formatCurrencyWithSymbol(
-                                    convertedProductValues[product.id]?.totalValue || product.stockItems?.[0]?.totalValue || 0,
+                                    convertedProductValues[product.id]?.totalValue || ((product.stockItems?.[0]?.quantity || 0) * (product.costPrice || 0)),
                                     selectedCurrency
                                   )
                                 )}

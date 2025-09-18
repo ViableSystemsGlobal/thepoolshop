@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/contexts/theme-context";
 import { ToastProvider } from "@/contexts/toast-context";
+import { LoadingProvider } from "@/contexts/loading-context";
 import { ToastContainer } from "@/components/toast-container";
 import { HydrationBoundary } from "@/components/hydration-boundary";
 
@@ -21,12 +22,14 @@ export default function RootLayout({
             <body className="antialiased" suppressHydrationWarning={true}>
               <HydrationBoundary>
                 <ThemeProvider>
-                  <ToastProvider>
-                    <AuthSessionProvider>
-                      {children}
-                      <ToastContainer />
-                    </AuthSessionProvider>
-                  </ToastProvider>
+                  <LoadingProvider>
+                    <ToastProvider>
+                      <AuthSessionProvider>
+                        {children}
+                        <ToastContainer />
+                      </AuthSessionProvider>
+                    </ToastProvider>
+                  </LoadingProvider>
                 </ThemeProvider>
               </HydrationBoundary>
             </body>

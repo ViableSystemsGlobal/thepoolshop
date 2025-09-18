@@ -86,6 +86,7 @@ interface Product {
   uomSell: string;
   price?: number;
   cost?: number;
+  costPrice: number;
   originalPrice?: number;
   originalCost?: number;
   originalPriceCurrency?: string;
@@ -902,8 +903,8 @@ export default function ProductDetailsPage() {
                        stockStatus === 'low-stock' ? 'Low Stock' : 'In Stock'}
                     </span>
                     
-                    {/* Download Images Button - Only show if product has images and is in stock */}
-                    {images.length > 0 && stockStatus === 'in-stock' && (
+                    {/* Download Images Button - Show if product has images */}
+                    {images.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1512,16 +1513,16 @@ export default function ProductDetailsPage() {
                                   {stockItem.reorderPoint.toLocaleString()}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-right">
-                                <span className="text-gray-600">
-                                  {formatCurrencyWithSymbol(stockItem.averageCost, currency)}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <span className="font-medium text-gray-900">
-                                  {formatCurrencyWithSymbol(stockItem.totalValue, currency)}
-                                </span>
-                              </td>
+                               <td className="py-3 px-4 text-right">
+                                 <span className="text-gray-600">
+                                   {formatCurrencyWithSymbol(product?.costPrice || 0, currency)}
+                                 </span>
+                               </td>
+                               <td className="py-3 px-4 text-right">
+                                 <span className="font-medium text-gray-900">
+                                   {formatCurrencyWithSymbol((stockItem.quantity * (product?.costPrice || 0)), currency)}
+                                 </span>
+                               </td>
                               <td className="py-3 px-4 text-center">
                                 {isOutOfStock ? (
                                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">

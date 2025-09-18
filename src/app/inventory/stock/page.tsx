@@ -39,6 +39,7 @@ interface Product {
   uomBase: string;
   active: boolean;
   price: number;
+  cost: number;
   originalPrice?: number;
   originalPriceCurrency?: string;
   originalCostCurrency?: string;
@@ -158,7 +159,8 @@ export default function StockPage() {
     return totalAvailable === 0;
   }).length;
   const totalInventoryCost = products.reduce((sum, p) => {
-    const totalValue = p.stockItems?.reduce((sum, item) => sum + item.totalValue, 0) || 0;
+    const totalQuantity = p.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+    const totalValue = totalQuantity * (p.cost || 0);
     return sum + totalValue;
   }, 0);
 
@@ -462,9 +464,8 @@ export default function StockPage() {
                           .map(product => {
                             const totalAvailable = product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
                             const totalReserved = product.stockItems?.reduce((sum, item) => sum + item.reserved, 0) || 0;
-                            const totalValue = product.stockItems?.reduce((sum, item) => sum + item.totalValue, 0) || 0;
                             const totalQuantity = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-                            const avgCost = totalQuantity > 0 ? totalValue / totalQuantity : 0;
+                            const totalValue = totalQuantity * (product.cost || 0);
                             const maxReorderPoint = product.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
                             const warehouseNames = product.stockItems?.map(item => item.warehouse?.name).filter(Boolean) || [];
                             
@@ -475,7 +476,7 @@ export default function StockPage() {
                               'Available Stock': totalAvailable,
                               'Reserved': totalReserved,
                               'Unit Price': product.price || 0,
-                              'Average Cost': avgCost,
+                              'Cost Price': product.cost || 0,
                               'Total Value': totalValue,
                               'Warehouse': warehouseNames.join(', ') || 'N/A',
                               'Status': totalAvailable > 0 ? 'In Stock' : 'Out of Stock'
@@ -568,18 +569,13 @@ export default function StockPage() {
                   )
                 },
                 {
-                  key: 'avgCost',
-                  label: 'Avg Cost',
-                  render: (product) => {
-                    const totalValue = product.stockItems?.reduce((sum, item) => sum + item.totalValue, 0) || 0;
-                    const totalQuantity = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-                    const avgCost = totalQuantity > 0 ? totalValue / totalQuantity : 0;
-                    return (
-                      <div className="text-sm text-gray-600">
-                        {formatCurrencyWithSymbol(avgCost, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
-                      </div>
-                    );
-                  }
+                  key: 'costPrice',
+                  label: 'Cost Price',
+                  render: (product) => (
+                    <div className="text-sm text-gray-600">
+                      {formatCurrencyWithSymbol(product.cost || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
+                    </div>
+                  )
                 },
                 {
                   key: 'warehouse',
@@ -605,7 +601,8 @@ export default function StockPage() {
                   key: 'costValue',
                   label: 'Cost Value',
                   render: (product) => {
-                    const totalValue = product.stockItems?.reduce((sum, item) => sum + item.totalValue, 0) || 0;
+                    const totalQuantity = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+                    const totalValue = totalQuantity * (product.cost || 0);
                     return (
                       <div className="text-sm text-gray-600">
                         {formatCurrencyWithSymbol(totalValue, currency, product.originalCostCurrency || product.importCurrency || 'USD')}

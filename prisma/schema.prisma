@@ -93,6 +93,7 @@ model Product {
   uomSell                String          @default("pcs")
   price                  Float?
   cost                   Float?
+  costPrice              Float?
   originalPrice          Float?
   originalCost           Float?
   originalPriceCurrency  String?

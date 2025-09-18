@@ -18,6 +18,7 @@ import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
+import { useApiLoading } from "@/hooks/use-api-loading";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { DataTable } from "@/components/ui/data-table";
 import { GRNGenerationModal } from "@/components/modals/grn-generation-modal";
@@ -133,6 +134,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { withLoading } = useApiLoading();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -257,8 +259,7 @@ export default function ProductsPage() {
   }, []);
 
   const fetchProducts = async (page: number = currentPage) => {
-    setIsLoading(true);
-    try {
+    await withLoading(async () => {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: itemsPerPage.toString(),
@@ -284,12 +285,12 @@ export default function ProductsPage() {
         console.error('Failed to fetch products');
         setProducts([]);
       }
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      setProducts([]);
-    } finally {
-      setIsLoading(false);
-    }
+    }, {
+      onError: (error) => {
+        console.error('Error fetching products:', error);
+        setProducts([]);
+      }
+    });
   };
 
   const fetchCategories = async () => {
@@ -415,6 +416,74 @@ export default function ProductsPage() {
   const handleBulkDelete = () => {
     if (selectedProducts.length === 0) return;
     setIsBulkDeleteModalOpen(true);
+  };
+
+  const handleBulkActivate = async () => {
+    if (selectedProducts.length === 0) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/products/bulk-activate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedProducts }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to activate products');
+      }
+
+      const result = await response.json();
+      
+      // Update the products in state
+      setProducts(products.map(p => 
+        selectedProducts.includes(p.id) ? { ...p, active: true } : p
+      ));
+      setSelectedProducts([]);
+      
+      success("Products Activated", `Successfully activated ${result.count} product(s)`);
+    } catch (error) {
+      console.error('Error activating products:', error);
+      showError("Activation Failed", 'Failed to activate selected products. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBulkDeactivate = async () => {
+    if (selectedProducts.length === 0) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/products/bulk-deactivate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedProducts }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to deactivate products');
+      }
+
+      const result = await response.json();
+      
+      // Update the products in state
+      setProducts(products.map(p => 
+        selectedProducts.includes(p.id) ? { ...p, active: false } : p
+      ));
+      setSelectedProducts([]);
+      
+      success("Products Deactivated", `Successfully deactivated ${result.count} product(s)`);
+    } catch (error) {
+      console.error('Error deactivating products:', error);
+      showError("Deactivation Failed", 'Failed to deactivate selected products. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const confirmBulkDelete = async () => {
@@ -748,6 +817,24 @@ export default function ProductsPage() {
             onPageChange={handlePageChange}
             bulkActions={
               <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleBulkActivate}
+                  disabled={selectedProducts.length === 0}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Package className="h-4 w-4 mr-1" />
+                  Make Active
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleBulkDeactivate}
+                  disabled={selectedProducts.length === 0}
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  <Archive className="h-4 w-4 mr-1" />
+                  Make Inactive
+                </Button>
                 <Button
                   size="sm"
                   onClick={handleGenerateGRN}

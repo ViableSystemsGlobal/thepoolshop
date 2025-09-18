@@ -78,6 +78,8 @@ export function AddWarehouseModal({ isOpen, onClose, onSuccess }: AddWarehouseMo
     setIsLoading(true);
     
     try {
+      console.log('Sending warehouse data:', formData);
+      
       const response = await fetch('/api/warehouses', {
         method: 'POST',
         headers: {
@@ -86,17 +88,35 @@ export function AddWarehouseModal({ isOpen, onClose, onSuccess }: AddWarehouseMo
         body: JSON.stringify(formData),
       });
 
+      console.log('Response status:', response.status, response.statusText);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('API error:', errorData);
         throw new Error(errorData.error || 'Failed to create warehouse');
       }
 
+      const result = await response.json();
+      console.log('Warehouse created successfully:', result);
+      
       success("Warehouse created successfully!");
       onSuccess();
       handleClose();
     } catch (error) {
       console.error('Error creating warehouse:', error);
-      showError(error instanceof Error ? error.message : 'Failed to create warehouse');
+      let errorMessage = 'Failed to create warehouse';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('already exists')) {
+          errorMessage = error.message;
+        } else if (error.message.includes('Name and code are required')) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = `Failed to create warehouse: ${error.message}`;
+        }
+      }
+      
+      showError(errorMessage);
     } finally {
       setIsLoading(false);
     }

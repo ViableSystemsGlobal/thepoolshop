@@ -59,11 +59,27 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
     const data = [];
     const errors = [];
 
-    // Validate headers
-    const requiredHeaders = ['SKU', 'Name', 'Category'];
-    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-    if (missingHeaders.length > 0) {
-      errors.push(`Missing required headers: ${missingHeaders.join(', ')}`);
+    // Validate headers - check for required fields with flexible column names
+    const requiredFields = ['sku', 'name'];
+    const headerMap: { [key: string]: string } = {
+      'SKU': 'sku', 'sku': 'sku', 'product_sku': 'sku',
+      'Name': 'name', 'name': 'name', 'product_name': 'name',
+      'Description': 'description', 'description': 'description', 'product_description': 'description',
+      'Price': 'price', 'price': 'price', 'selling_price': 'price',
+      'Cost': 'cost', 'cost': 'cost', 'cost_price': 'cost', 'purchase_price': 'cost',
+      'Quantity': 'quantity', 'quantity': 'quantity', 'stock_quantity': 'quantity',
+      'Reorder Point': 'reorder_point', 'reorder_point': 'reorder_point',
+      'Import Currency': 'import_currency', 'import_currency': 'import_currency', 'currency': 'import_currency',
+      'UOM Base': 'uom_base', 'uom_base': 'uom_base', 'unit_base': 'uom_base',
+      'UOM Sell': 'uom_sell', 'uom_sell': 'uom_sell', 'unit_sell': 'uom_sell',
+      'Active': 'active', 'active': 'active'
+    };
+
+    const normalizedHeaders = headers.map(h => headerMap[h] || h.toLowerCase());
+    const missingRequiredFields = requiredFields.filter(field => !normalizedHeaders.includes(field));
+    
+    if (missingRequiredFields.length > 0) {
+      errors.push(`Missing required fields: ${missingRequiredFields.join(', ')}`);
     }
 
     // Parse data rows
@@ -79,9 +95,16 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
         row[header] = values[index];
       });
 
+      // Validate required fields using normalized column names
+      const normalizedRow: { [key: string]: string } = {};
+      headers.forEach((header, index) => {
+        const normalizedKey = headerMap[header] || header.toLowerCase();
+        normalizedRow[normalizedKey] = values[index];
+      });
+
       // Validate required fields
-      if (!row.SKU || !row.Name || !row.Category) {
-        errors.push(`Row ${i + 1}: Missing required fields (SKU, Name, or Category)`);
+      if (!normalizedRow.sku || !normalizedRow.name) {
+        errors.push(`Row ${i + 1}: Missing required fields (SKU and Name are required)`);
       }
 
       data.push(row);
@@ -131,10 +154,13 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
       formData.append('file', selectedFile);
 
       // Send file to API endpoint
+      console.log('Sending file to API:', selectedFile.name, selectedFile.size, selectedFile.type);
       const response = await fetch('/api/products/bulk-import', {
         method: 'POST',
         body: formData,
       });
+      
+      console.log('API response status:', response.status, response.statusText);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -158,7 +184,25 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
       // Call onSuccess to refresh the parent component
       onSuccess();
     } catch (error) {
-      const errorMessage = 'Failed to process file. Please try again.';
+      console.error('Bulk import error:', error);
+      let errorMessage = 'Failed to process file. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('No file provided')) {
+          errorMessage = 'No file selected. Please select a CSV file to import.';
+        } else if (error.message.includes('No valid data found')) {
+          errorMessage = 'No valid data found in the file. Please check your CSV format.';
+        } else if (error.message.includes('No categories found')) {
+          errorMessage = 'No categories found. Please create a category first.';
+        } else if (error.message.includes('No warehouses found')) {
+          errorMessage = 'No warehouses found. Please create a warehouse first.';
+        } else {
+          errorMessage = `Import failed: ${error.message}`;
+        }
+      }
+      
       setError(errorMessage);
       showError("Import Failed", errorMessage);
     } finally {
@@ -179,12 +223,13 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
   };
 
   const downloadTemplate = () => {
-    // Create CSV template
+    // Create CSV template with all supported fields
     const csvContent = [
-      'SKU,Name,Description,Category,Price,Cost,Import Currency,UOM Base,UOM Sell,Active',
-      'PROD-001,Premium Headphones,High-quality wireless headphones,Electronics,299.99,200.00,USD,pcs,pcs,true',
-      'PROD-002,Office Chair,Ergonomic office chair,Furniture,199.99,120.00,USD,pcs,pcs,true',
-      'PROD-003,Fitness Tracker,Smart fitness tracker,Electronics,149.99,80.00,USD,pcs,pcs,true'
+      'SKU,Name,Description,Price,Cost,Quantity,Reorder Point,Import Currency,UOM Base,UOM Sell,Active',
+      'PROD-001,Premium Headphones,High-quality wireless headphones,299.99,200.00,50,10,USD,pcs,pcs,true',
+      'PROD-002,Office Chair,Ergonomic office chair,199.99,120.00,25,5,USD,pcs,pcs,true',
+      'PROD-003,Fitness Tracker,Smart fitness tracker,149.99,80.00,100,20,USD,pcs,pcs,true',
+      'PROD-004,Wireless Mouse,Ergonomic wireless mouse,29.99,15.00,200,25,USD,pcs,pcs,true'
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -423,20 +468,29 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
 
           {/* Instructions */}
           <div className="space-y-3">
-            <h3 className="text-lg font-medium">Required Fields</h3>
+            <h3 className="text-lg font-medium">Template Fields</h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="space-y-1">
-                <div className="font-medium">Required:</div>
-                <div>• SKU (unique)</div>
-                <div>• Name</div>
-                <div>• Category</div>
+                <div className="font-medium text-red-600">Required:</div>
+                <div>• SKU (unique identifier)</div>
+                <div>• Name (product name)</div>
               </div>
               <div className="space-y-1">
-                <div className="font-medium">Optional:</div>
+                <div className="font-medium text-blue-600">Optional:</div>
                 <div>• Description</div>
                 <div>• Price & Cost</div>
+                <div>• Quantity (initial stock)</div>
+                <div>• Reorder Point</div>
+                <div>• Import Currency</div>
                 <div>• UOM Base & Sell</div>
+                <div>• Active (true/false)</div>
               </div>
+            </div>
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+              <div className="font-medium mb-1">Note:</div>
+              <div>• Products will be assigned to the first available category automatically</div>
+              <div>• Stock items will be created in the first available warehouse</div>
+              <div>• Currency defaults to USD if not specified</div>
             </div>
           </div>
 
@@ -467,7 +521,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                   </Button>
                   <Button 
                     onClick={handleImport}
-                    disabled={previewData?.invalidRows > 0}
+                    disabled={!!(previewData?.invalidRows && previewData.invalidRows > 0)}
                     className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
                   >
                     {isUploading ? (

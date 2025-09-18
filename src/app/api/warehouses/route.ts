@@ -24,11 +24,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('Creating warehouse...');
     const body = await request.json();
     const { name, code, address, city, country } = body;
 
+    console.log('Warehouse data:', { name, code, address, city, country });
+
     // Validate required fields
     if (!name || !code) {
+      console.log('Validation failed: Missing name or code');
       return NextResponse.json(
         { error: 'Name and code are required' },
         { status: 400 }
@@ -41,12 +45,14 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingWarehouse) {
+      console.log(`Warehouse with code ${code} already exists:`, existingWarehouse);
       return NextResponse.json(
-        { error: 'Warehouse with this code already exists' },
+        { error: `Warehouse with code "${code}" already exists. Please use a different code.` },
         { status: 400 }
       );
     }
 
+    console.log('Creating warehouse in database...');
     const warehouse = await prisma.warehouse.create({
       data: {
         name,
@@ -54,14 +60,20 @@ export async function POST(request: NextRequest) {
         address,
         city,
         country,
+        isActive: true, // Default to active
       },
     });
 
+    console.log('✅ Warehouse created successfully:', warehouse);
     return NextResponse.json({ warehouse }, { status: 201 });
   } catch (error) {
-    console.error('Error creating warehouse:', error);
+    console.error('❌ Error creating warehouse:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to create warehouse' },
+      { 
+        error: `Failed to create warehouse: ${errorMessage}`,
+        details: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

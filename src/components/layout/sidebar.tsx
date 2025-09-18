@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useTheme } from "@/contexts/theme-context";
+import { useNavigationLoading } from "@/hooks/use-navigation-loading";
 import {
   LayoutDashboard,
   Users,
@@ -146,6 +147,7 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { getThemeClasses, customLogo } = useTheme();
   const theme = getThemeClasses();
+  const { navigateWithLoading } = useNavigationLoading();
 
   // Helper function to get proper background classes
   const getBackgroundClasses = (isActive: boolean, isHover: boolean = false) => {
@@ -309,10 +311,10 @@ export default function Sidebar() {
                   )}
                 </button>
               ) : (
-                <Link
-                  href={item.href}
+                <button
+                  onClick={() => navigateWithLoading(item.href)}
                   className={cn(
-                    "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full text-left",
                     isActiveItem
                       ? `${getBackgroundClasses(true)} text-white`
                       : `text-gray-700 ${getHoverBackgroundClasses()} hover:text-white`
@@ -320,18 +322,18 @@ export default function Sidebar() {
                 >
                   <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                   {!collapsed && item.name}
-                </Link>
+                </button>
               )}
 
               {/* Children */}
               {hasChildren && isExpanded && !collapsed && (
                 <div className="ml-6 mt-1 space-y-1">
                   {item.children!.map((child) => (
-                    <Link
+                    <button
                       key={child.name}
-                      href={child.href}
+                      onClick={() => navigateWithLoading(child.href)}
                       className={cn(
-                        "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                        "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full text-left",
                         isActive(child.href)
                           ? getTextColorClasses()
                           : `text-gray-600 ${getTextColorClasses(true)}`
@@ -339,7 +341,7 @@ export default function Sidebar() {
                     >
                       <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
                       {child.name}
-                    </Link>
+                    </button>
                   ))}
                 </div>
               )}

@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
       categoryId,
       price,
       cost,
+      costPrice,
       costCurrency,
       sellingCurrency,
       exchangeRateMode,
@@ -170,6 +171,7 @@ export async function POST(request: NextRequest) {
         categoryId,
         price: price ? parseFloat(price) : 0,
         cost: cost ? parseFloat(cost) : 0,
+        costPrice: costPrice ? parseFloat(costPrice) : (cost ? parseFloat(cost) : 0),
         originalPrice: originalPrice ? parseFloat(originalPrice) : (price ? parseFloat(price) : 0),
         originalCost: originalCost ? parseFloat(originalCost) : (cost ? parseFloat(cost) : 0),
         originalPriceCurrency: originalPriceCurrency || sellingCurrency || "USD",
@@ -193,6 +195,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Create initial stock item for the product
+    const productCostPrice = costPrice ? parseFloat(costPrice) : (cost ? parseFloat(cost) : 0);
     await prisma.stockItem.create({
       data: {
         productId: product.id,
@@ -200,7 +203,7 @@ export async function POST(request: NextRequest) {
         reserved: 0,
         available: 0,
         averageCost: cost ? parseFloat(cost) : 0,
-        totalValue: 0,
+        totalValue: 0 * productCostPrice, // Will be 0 initially, but uses costPrice for consistency
         reorderPoint: reorderPoint ? parseFloat(reorderPoint) : 0,
         warehouseId: defaultWarehouse?.id, // Assign to default warehouse
       },

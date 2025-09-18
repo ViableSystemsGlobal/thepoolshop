@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Get backorders with related data
-    const backorders = await prisma.backorder.findMany({
+    let backorders = [];
+    try {
+      backorders = await prisma.backorder.findMany({
       where,
       include: {
         product: {
@@ -82,15 +84,37 @@ export async function GET(request: NextRequest) {
       take: limit,
       skip: offset,
     });
+    } catch (error) {
+      console.error('Error fetching backorders:', error);
+      // Return empty result if there's an error
+      return NextResponse.json({
+        backorders: [],
+        summary: {
+          total: 0,
+          pending: 0,
+          partiallyFulfilled: 0,
+          urgent: 0,
+          high: 0,
+          totalValue: 0,
+          totalQuantity: 0
+        }
+      });
+    }
 
     // Calculate summary statistics
-    const allBackorders = await prisma.backorder.findMany({
-      where: {
-        status: {
-          in: ['PENDING', 'PARTIALLY_FULFILLED']
+    let allBackorders = [];
+    try {
+      allBackorders = await prisma.backorder.findMany({
+        where: {
+          status: {
+            in: ['PENDING', 'PARTIALLY_FULFILLED']
+          }
         }
-      }
-    });
+      });
+    } catch (error) {
+      console.error('Error fetching backorders for summary:', error);
+      allBackorders = [];
+    }
 
     const summary = {
       total: allBackorders.length,
