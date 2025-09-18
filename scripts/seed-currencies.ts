@@ -98,7 +98,8 @@ async function seedCurrencies() {
       categoryId: electronicsCategory.id,
       price: 299.99, // Import price in USD
       cost: 200.00,  // Cost in USD
-      importCurrency: 'USD',
+      originalPriceCurrency: 'USD',
+      originalCostCurrency: 'USD',
     },
     {
       id: 'prod-002',
@@ -108,7 +109,8 @@ async function seedCurrencies() {
       categoryId: furnitureCategory.id,
       price: 199.99, // Import price in USD
       cost: 120.00,  // Cost in USD
-      importCurrency: 'USD',
+      originalPriceCurrency: 'USD',
+      originalCostCurrency: 'USD',
     },
     {
       id: 'prod-003',
@@ -118,7 +120,8 @@ async function seedCurrencies() {
       categoryId: electronicsCategory.id,
       price: 149.99, // Import price in USD
       cost: 80.00,   // Cost in USD
-      importCurrency: 'USD',
+      originalPriceCurrency: 'USD',
+      originalCostCurrency: 'USD',
     },
   ];
 
