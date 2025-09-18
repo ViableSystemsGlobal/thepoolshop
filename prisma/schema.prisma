@@ -19,6 +19,7 @@ model User {
   leads      Lead[]
   proformas  Proforma[]
   quotations Quotation[]
+  backorders Backorder[]
 
   @@map("users")
 }
@@ -110,6 +111,7 @@ model Product {
   stockItems             StockItem[]
   movements              StockMovement[]
   documents              ProductDocument[]
+  backorders             Backorder[]
 
   @@map("products")
 }
@@ -184,6 +186,7 @@ model Account {
   opportunities Opportunity[]
   proformas     Proforma[]
   quotations    Quotation[]
+  backorders    Backorder[]
 
   @@map("accounts")
 }
@@ -378,6 +381,34 @@ model StockMovement {
   @@map("stock_movements")
 }
 
+model Backorder {
+  id          String        @id @default(cuid())
+  orderNumber String        // Reference to the original order (quotation/proforma number)
+  orderType   OrderType     // QUOTATION or PROFORMA
+  orderId     String        // ID of the original quotation or proforma
+  productId   String
+  quantity    Float         // Quantity ordered
+  quantityFulfilled Float   @default(0) // Quantity already fulfilled
+  quantityPending   Float   // Quantity still pending (quantity - quantityFulfilled)
+  unitPrice   Float
+  lineTotal   Float
+  status      BackorderStatus @default(PENDING)
+  priority    BackorderPriority @default(NORMAL)
+  expectedDate DateTime?    // Expected fulfillment date
+  notes       String?
+  accountId   String
+  ownerId     String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  fulfilledAt DateTime?
+  
+  product     Product       @relation(fields: [productId], references: [id])
+  account     Account       @relation(fields: [accountId], references: [id])
+  owner       User          @relation(fields: [ownerId], references: [id])
+
+  @@map("backorders")
+}
+
 model Activity {
   id         String   @id @default(cuid())
   entityType String
@@ -450,4 +481,23 @@ enum StockMovementType {
   THEFT
   EXPIRY
   OTHER
+}
+
+enum OrderType {
+  QUOTATION
+  PROFORMA
+}
+
+enum BackorderStatus {
+  PENDING
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+}
+
+enum BackorderPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }

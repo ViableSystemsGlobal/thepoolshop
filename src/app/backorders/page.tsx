@@ -9,7 +9,6 @@ import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
 import { DataTable } from "@/components/ui/data-table";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Package, 
   AlertTriangle, 
@@ -31,51 +30,75 @@ import {
   Hash,
   Building,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  User,
+  Calendar,
+  FileText
 } from "lucide-react";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 
-interface BackorderProduct {
+interface Backorder {
   id: string;
-  sku: string;
-  name: string;
-  description?: string;
-  category: {
+  orderNumber: string;
+  orderType: 'QUOTATION' | 'PROFORMA';
+  orderId: string;
+  productId: string;
+  quantity: number;
+  quantityFulfilled: number;
+  quantityPending: number;
+  unitPrice: number;
+  lineTotal: number;
+  status: 'PENDING' | 'PARTIALLY_FULFILLED' | 'FULFILLED' | 'CANCELLED';
+  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  expectedDate?: string;
+  notes?: string;
+  accountId: string;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+  fulfilledAt?: string;
+  product: {
     id: string;
+    sku: string;
     name: string;
-  };
-  price?: number;
-  cost?: number;
-  baseCurrency: string;
-  stockStatus: 'out-of-stock' | 'low-stock' | 'in-stock';
-  totalStock: number;
-  totalReserved: number;
-  totalAvailable: number;
-  maxReorderPoint: number;
-  totalValue: number;
-  stockItems: Array<{
-    id: string;
-    warehouse?: {
+    description?: string;
+    category: {
       id: string;
       name: string;
-      code: string;
     };
-    quantity: number;
-    available: number;
-    reserved: number;
-    reorderPoint: number;
-    averageCost: number;
-    totalValue: number;
-  }>;
-  lastUpdated: string;
+    stockItems: Array<{
+      id: string;
+      warehouse?: {
+        id: string;
+        name: string;
+        code: string;
+      };
+      quantity: number;
+      available: number;
+      reserved: number;
+    }>;
+  };
+  account: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+  };
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+  };
 }
 
 interface BackorderSummary {
   total: number;
-  outOfStock: number;
-  lowStock: number;
+  pending: number;
+  partiallyFulfilled: number;
+  urgent: number;
+  high: number;
   totalValue: number;
-  criticalItems: number;
+  totalQuantity: number;
 }
 
 export default function BackordersPage() {
@@ -83,46 +106,47 @@ export default function BackordersPage() {
   const { success, error: showError } = useToast();
   const theme = getThemeClasses();
 
-  const [products, setProducts] = useState<BackorderProduct[]>([]);
+  const [backorders, setBackorders] = useState<Backorder[]>([]);
   const [summary, setSummary] = useState<BackorderSummary>({
     total: 0,
-    outOfStock: 0,
-    lowStock: 0,
+    pending: 0,
+    partiallyFulfilled: 0,
+    urgent: 0,
+    high: 0,
     totalValue: 0,
-    criticalItems: 0
+    totalQuantity: 0
   });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedWarehouse, setSelectedWarehouse] = useState("");
+  const [selectedPriority, setSelectedPriority] = useState("all");
+  const [selectedAccount, setSelectedAccount] = useState("");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isBulkActionOpen, setIsBulkActionOpen] = useState(false);
   const [bulkAction, setBulkAction] = useState("");
-  const [categories, setCategories] = useState<Array<{id: string, name: string}>>([]);
-  const [warehouses, setWarehouses] = useState<Array<{id: string, name: string, code: string}>>([]);
+  const [accounts, setAccounts] = useState<Array<{id: string, name: string}>>([]);
 
   // AI Recommendations for backorders
   const aiRecommendations = [
     {
-      id: 'urgent-reorder',
-      title: 'Urgent Reorder Required',
-      description: `${summary.criticalItems} critical items need immediate attention`,
+      id: 'urgent-backorders',
+      title: 'Urgent Backorders',
+      description: `${summary.urgent} urgent backorders need immediate fulfillment`,
       priority: 'high' as const,
       completed: false
     },
     {
-      id: 'optimize-reorder-points',
-      title: 'Optimize Reorder Points',
-      description: 'Review and adjust reorder points based on demand patterns',
+      id: 'high-priority-orders',
+      title: 'High Priority Orders',
+      description: `${summary.high} high priority backorders require attention`,
       priority: 'medium' as const,
       completed: false
     },
     {
-      id: 'supplier-negotiation',
-      title: 'Supplier Negotiation',
-      description: 'Negotiate better terms for frequently out-of-stock items',
+      id: 'stock-replenishment',
+      title: 'Stock Replenishment',
+      description: 'Review stock levels to prevent future backorders',
       priority: 'medium' as const,
       completed: false
     }
@@ -137,15 +161,15 @@ export default function BackordersPage() {
       setIsLoading(true);
       const params = new URLSearchParams();
       if (selectedStatus !== "all") params.append('status', selectedStatus);
-      if (selectedCategory) params.append('category', selectedCategory);
-      if (selectedWarehouse) params.append('warehouse', selectedWarehouse);
+      if (selectedPriority !== "all") params.append('priority', selectedPriority);
+      if (selectedAccount) params.append('account', selectedAccount);
 
       const response = await fetch(`/api/backorders?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch backorders');
       }
       const data = await response.json();
-      setProducts(data.products || []);
+      setBackorders(data.backorders || []);
       setSummary(data.summary || summary);
     } catch (error) {
       console.error('Error fetching backorders:', error);
@@ -155,51 +179,58 @@ export default function BackordersPage() {
     }
   };
 
-  const fetchCategories = async () => {
+  const fetchAccounts = async () => {
     try {
-      const response = await fetch('/api/categories');
+      const response = await fetch('/api/accounts');
       if (response.ok) {
         const data = await response.json();
-        setCategories(data.categories || []);
+        setAccounts(data.accounts || []);
       }
     } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
-  };
-
-  const fetchWarehouses = async () => {
-    try {
-      const response = await fetch('/api/warehouses');
-      if (response.ok) {
-        const data = await response.json();
-        setWarehouses(data.warehouses || []);
-      }
-    } catch (error) {
-      console.error('Error fetching warehouses:', error);
+      console.error('Error fetching accounts:', error);
     }
   };
 
   useEffect(() => {
     fetchBackorders();
-    fetchCategories();
-    fetchWarehouses();
-  }, [selectedStatus, selectedCategory, selectedWarehouse]);
+    fetchAccounts();
+  }, [selectedStatus, selectedPriority, selectedAccount]);
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category.name.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredBackorders = backorders.filter(backorder => {
+    const matchesSearch = backorder.product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      backorder.product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      backorder.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      backorder.account.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
 
-  const getStockStatusInfo = (status: string) => {
+  const getStatusInfo = (status: string) => {
     switch (status) {
-      case 'out-of-stock':
-        return { label: 'Out of Stock', color: 'bg-red-100 text-red-800', icon: <XCircle className="h-4 w-4" /> };
-      case 'low-stock':
-        return { label: 'Low Stock', color: 'bg-yellow-100 text-yellow-800', icon: <AlertTriangle className="h-4 w-4" /> };
+      case 'PENDING':
+        return { label: 'Pending', color: 'bg-red-100 text-red-800', icon: <Clock className="h-4 w-4" /> };
+      case 'PARTIALLY_FULFILLED':
+        return { label: 'Partial', color: 'bg-yellow-100 text-yellow-800', icon: <AlertTriangle className="h-4 w-4" /> };
+      case 'FULFILLED':
+        return { label: 'Fulfilled', color: 'bg-green-100 text-green-800', icon: <CheckCircle className="h-4 w-4" /> };
+      case 'CANCELLED':
+        return { label: 'Cancelled', color: 'bg-gray-100 text-gray-800', icon: <XCircle className="h-4 w-4" /> };
       default:
-        return { label: 'In Stock', color: 'bg-green-100 text-green-800', icon: <CheckCircle className="h-4 w-4" /> };
+        return { label: 'Unknown', color: 'bg-gray-100 text-gray-800', icon: <AlertTriangle className="h-4 w-4" /> };
+    }
+  };
+
+  const getPriorityInfo = (priority: string) => {
+    switch (priority) {
+      case 'URGENT':
+        return { label: 'Urgent', color: 'bg-red-100 text-red-800', icon: <ArrowUp className="h-4 w-4" /> };
+      case 'HIGH':
+        return { label: 'High', color: 'bg-orange-100 text-orange-800', icon: <ArrowUp className="h-4 w-4" /> };
+      case 'NORMAL':
+        return { label: 'Normal', color: 'bg-blue-100 text-blue-800', icon: <ArrowDown className="h-4 w-4" /> };
+      case 'LOW':
+        return { label: 'Low', color: 'bg-gray-100 text-gray-800', icon: <ArrowDown className="h-4 w-4" /> };
+      default:
+        return { label: 'Normal', color: 'bg-blue-100 text-blue-800', icon: <ArrowDown className="h-4 w-4" /> };
     }
   };
 
@@ -207,18 +238,6 @@ export default function BackordersPage() {
     if (!bulkAction || selectedItems.length === 0) return;
 
     try {
-      const items = selectedItems.map(itemId => {
-        const product = products.find(p => p.id === itemId);
-        return {
-          productId: itemId,
-          productName: product?.name,
-          warehouseId: product?.stockItems[0]?.warehouse?.id,
-          newReorderPoint: product?.maxReorderPoint ? product.maxReorderPoint * 1.5 : 10,
-          quantity: product?.maxReorderPoint ? Math.ceil(product.maxReorderPoint * 2) : 20,
-          unitCost: product?.cost || 0
-        };
-      });
-
       const response = await fetch('/api/backorders', {
         method: 'POST',
         headers: {
@@ -226,8 +245,9 @@ export default function BackordersPage() {
         },
         body: JSON.stringify({
           action: bulkAction,
-          items,
-          notes: `Bulk ${bulkAction} for ${selectedItems.length} items`
+          backorderIds: selectedItems,
+          priority: bulkAction === 'update_priority' ? 'HIGH' : undefined,
+          notes: `Bulk ${bulkAction} for ${selectedItems.length} backorders`
         }),
       });
 
@@ -249,17 +269,18 @@ export default function BackordersPage() {
 
   const handleExport = () => {
     const csvContent = [
-      ['SKU', 'Product Name', 'Category', 'Stock Status', 'Total Stock', 'Available', 'Reorder Point', 'Total Value', 'Last Updated'].join(','),
-      ...filteredProducts.map(product => [
-        `"${product.sku}"`,
-        `"${product.name}"`,
-        `"${product.category.name}"`,
-        `"${getStockStatusInfo(product.stockStatus).label}"`,
-        product.totalStock,
-        product.totalAvailable,
-        product.maxReorderPoint,
-        product.totalValue,
-        new Date(product.lastUpdated).toLocaleDateString()
+      ['Order Number', 'Product', 'SKU', 'Customer', 'Quantity', 'Pending', 'Status', 'Priority', 'Value', 'Created Date'].join(','),
+      ...filteredBackorders.map(backorder => [
+        `"${backorder.orderNumber}"`,
+        `"${backorder.product.name}"`,
+        `"${backorder.product.sku}"`,
+        `"${backorder.account.name}"`,
+        backorder.quantity,
+        backorder.quantityPending,
+        `"${getStatusInfo(backorder.status).label}"`,
+        `"${getPriorityInfo(backorder.priority).label}"`,
+        backorder.lineTotal,
+        new Date(backorder.createdAt).toLocaleDateString()
       ].join(','))
     ].join('\n');
 
@@ -294,7 +315,7 @@ export default function BackordersPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Backorders</h1>
-            <p className="text-gray-600">Manage out-of-stock and low-stock products</p>
+            <p className="text-gray-600">Customer orders that cannot be fulfilled due to insufficient stock</p>
           </div>
           <div className="flex items-center space-x-2">
             <Button 
@@ -330,7 +351,7 @@ export default function BackordersPage() {
           <div className="lg:col-span-2">
             <AIRecommendationCard
               title="Backorder Management AI"
-              subtitle="Your intelligent assistant for inventory optimization"
+              subtitle="Your intelligent assistant for order fulfillment optimization"
               recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
             />
@@ -341,8 +362,8 @@ export default function BackordersPage() {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Critical Items</p>
-                  <p className="text-xl font-bold text-red-600">{summary.criticalItems}</p>
+                  <p className="text-sm font-medium text-gray-600">Urgent Orders</p>
+                  <p className="text-xl font-bold text-red-600">{summary.urgent}</p>
                 </div>
                 <div className="p-2 rounded-full bg-red-100">
                   <AlertTriangle className="w-5 h-5 text-red-600" />
@@ -353,11 +374,11 @@ export default function BackordersPage() {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Out of Stock</p>
-                  <p className="text-xl font-bold text-red-600">{summary.outOfStock}</p>
+                  <p className="text-sm font-medium text-gray-600">Pending</p>
+                  <p className="text-xl font-bold text-red-600">{summary.pending}</p>
                 </div>
                 <div className="p-2 rounded-full bg-red-100">
-                  <XCircle className="w-5 h-5 text-red-600" />
+                  <Clock className="w-5 h-5 text-red-600" />
                 </div>
               </div>
             </Card>
@@ -365,8 +386,8 @@ export default function BackordersPage() {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Low Stock</p>
-                  <p className="text-xl font-bold text-yellow-600">{summary.lowStock}</p>
+                  <p className="text-sm font-medium text-gray-600">Partial</p>
+                  <p className="text-xl font-bold text-yellow-600">{summary.partiallyFulfilled}</p>
                 </div>
                 <div className="p-2 rounded-full bg-yellow-100">
                   <TrendingDown className="w-5 h-5 text-yellow-600" />
@@ -398,16 +419,16 @@ export default function BackordersPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Backorder Products ({filteredProducts.length})</CardTitle>
+                <CardTitle>Backorder Orders ({filteredBackorders.length})</CardTitle>
                 <p className="text-sm text-gray-600 mt-1">
-                  Products that are out of stock or below reorder point
+                  Customer orders that cannot be fulfilled due to insufficient stock
                 </p>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    placeholder="Search products..."
+                    placeholder="Search orders, products, customers..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 w-64"
@@ -416,7 +437,7 @@ export default function BackordersPage() {
                 {selectedItems.length > 0 && (
                   <Button 
                     onClick={() => setIsBulkActionOpen(true)}
-                    className={`${theme.buttonBackground} text-white`}
+                    className={`${theme.primaryBg} text-white`}
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" />
                     Bulk Actions ({selectedItems.length})
@@ -427,35 +448,67 @@ export default function BackordersPage() {
           </CardHeader>
           <CardContent>
             <DataTable
-              data={filteredProducts}
+              data={filteredBackorders}
               columns={[
                 {
-                  key: 'product',
-                  label: 'Product',
-                  render: (product) => (
+                  key: 'order',
+                  label: 'Order',
+                  render: (backorder) => (
                     <div className="flex items-center">
                       <div className="p-2 rounded-lg bg-purple-100 mr-3">
-                        <Package className="h-4 w-4 text-purple-600" />
+                        <FileText className="h-4 w-4 text-purple-600" />
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">{product.name}</div>
-                        <div className="text-sm text-gray-500">{product.sku}</div>
+                        <div className="font-medium text-gray-900">{backorder.orderNumber}</div>
+                        <div className="text-sm text-gray-500">{backorder.orderType}</div>
                       </div>
                     </div>
                   )
                 },
                 {
-                  key: 'category',
-                  label: 'Category',
-                  render: (product) => (
-                    <span className="text-sm text-gray-600">{product.category.name}</span>
+                  key: 'product',
+                  label: 'Product',
+                  render: (backorder) => (
+                    <div>
+                      <div className="font-medium text-gray-900">{backorder.product.name}</div>
+                      <div className="text-sm text-gray-500">{backorder.product.sku}</div>
+                    </div>
                   )
                 },
                 {
-                  key: 'stockStatus',
+                  key: 'customer',
+                  label: 'Customer',
+                  render: (backorder) => (
+                    <div className="flex items-center">
+                      <div className="p-1 rounded bg-blue-100 mr-2">
+                        <User className="h-3 w-3 text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">{backorder.account.name}</div>
+                        <div className="text-sm text-gray-500">{backorder.owner.name}</div>
+                      </div>
+                    </div>
+                  )
+                },
+                {
+                  key: 'quantity',
+                  label: 'Quantity',
+                  render: (backorder) => (
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {backorder.quantity} {backorder.product.stockItems[0]?.warehouse?.code || 'pcs'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Pending: {backorder.quantityPending}
+                      </div>
+                    </div>
+                  )
+                },
+                {
+                  key: 'status',
                   label: 'Status',
-                  render: (product) => {
-                    const statusInfo = getStockStatusInfo(product.stockStatus);
+                  render: (backorder) => {
+                    const statusInfo = getStatusInfo(backorder.status);
                     return (
                       <div className="flex items-center">
                         <div className={`p-1 rounded ${statusInfo.color}`}>
@@ -467,60 +520,45 @@ export default function BackordersPage() {
                   }
                 },
                 {
-                  key: 'stock',
-                  label: 'Stock',
-                  render: (product) => (
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {product.totalStock} {product.stockItems[0]?.warehouse?.code || 'pcs'}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Available: {product.totalAvailable}
-                      </div>
-                    </div>
-                  )
-                },
-                {
-                  key: 'reorderPoint',
-                  label: 'Reorder Point',
-                  render: (product) => (
-                    <div className="text-sm text-gray-900">
-                      {product.maxReorderPoint}
-                    </div>
-                  )
-                },
-                {
-                  key: 'warehouses',
-                  label: 'Warehouses',
-                  render: (product) => (
-                    <div className="space-y-1">
-                      {product.stockItems.map((item, index) => (
-                        <div key={index} className="flex items-center text-xs">
-                          <Building className="h-3 w-3 text-gray-400 mr-1" />
-                          <span className="text-gray-600">
-                            {item.warehouse?.name || 'No Warehouse'}: {item.available}
-                          </span>
+                  key: 'priority',
+                  label: 'Priority',
+                  render: (backorder) => {
+                    const priorityInfo = getPriorityInfo(backorder.priority);
+                    return (
+                      <div className="flex items-center">
+                        <div className={`p-1 rounded ${priorityInfo.color}`}>
+                          {priorityInfo.icon}
                         </div>
-                      ))}
-                    </div>
-                  )
+                        <span className="ml-2 font-medium">{priorityInfo.label}</span>
+                      </div>
+                    );
+                  }
                 },
                 {
                   key: 'value',
                   label: 'Value',
-                  render: (product) => (
+                  render: (backorder) => (
                     <div className="text-sm font-medium text-gray-900">
                       {new Intl.NumberFormat('en-US', {
                         style: 'currency',
                         currency: 'USD'
-                      }).format(product.totalValue)}
+                      }).format(backorder.lineTotal)}
+                    </div>
+                  )
+                },
+                {
+                  key: 'created',
+                  label: 'Created',
+                  render: (backorder) => (
+                    <div className="text-sm text-gray-600">
+                      {new Date(backorder.createdAt).toLocaleDateString()}
                     </div>
                   )
                 },
                 {
                   key: 'actions',
                   label: 'Actions',
-                  render: (product) => (
+                  render: (backorder) => (
                     <DropdownMenu
                       trigger={
                         <Button variant="ghost" className="h-8 w-8 p-0">
@@ -530,24 +568,24 @@ export default function BackordersPage() {
                       }
                       items={[
                         {
-                          label: "View Product",
+                          label: "View Order",
                           icon: <Eye className="h-4 w-4" />,
-                          onClick: () => window.open(`/products/${product.id}`, '_blank')
+                          onClick: () => window.open(`/${backorder.orderType.toLowerCase()}s/${backorder.orderId}`, '_blank')
                         },
                         {
-                          label: "Adjust Stock",
-                          icon: <Edit className="h-4 w-4" />,
+                          label: "Fulfill Order",
+                          icon: <CheckCircle className="h-4 w-4" />,
                           onClick: () => {
-                            // TODO: Implement stock adjustment
-                            console.log('Adjust stock for', product.id);
+                            // TODO: Implement order fulfillment
+                            console.log('Fulfill order', backorder.id);
                           }
                         },
                         {
-                          label: "Create Purchase Order",
-                          icon: <ShoppingCart className="h-4 w-4" />,
+                          label: "Update Priority",
+                          icon: <Edit className="h-4 w-4" />,
                           onClick: () => {
-                            // TODO: Implement purchase order creation
-                            console.log('Create PO for', product.id);
+                            // TODO: Implement priority update
+                            console.log('Update priority for', backorder.id);
                           }
                         }
                       ]}
@@ -559,11 +597,11 @@ export default function BackordersPage() {
               enableSelection={true}
               selectedItems={selectedItems}
               onSelectionChange={setSelectedItems}
-              getRowClassName={(product) => {
-                if (product.stockStatus === 'out-of-stock') {
+              getRowClassName={(backorder) => {
+                if (backorder.priority === 'URGENT') {
                   return 'bg-red-50 hover:bg-red-100';
-                } else if (product.stockStatus === 'low-stock') {
-                  return 'bg-yellow-50 hover:bg-yellow-100';
+                } else if (backorder.priority === 'HIGH') {
+                  return 'bg-orange-50 hover:bg-orange-100';
                 }
                 return '';
               }}
@@ -582,7 +620,7 @@ export default function BackordersPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-                    <p className="text-sm text-gray-600">Filter backorder products</p>
+                    <p className="text-sm text-gray-600">Filter backorder orders</p>
                   </div>
                 </div>
                 <Button
@@ -598,42 +636,43 @@ export default function BackordersPage() {
 
               <div className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Stock Status</label>
+                  <label className="block text-sm font-medium text-gray-700">Status</label>
                   <select
                     value={selectedStatus}
                     onChange={(e) => setSelectedStatus(e.target.value)}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="all">All Status</option>
-                    <option value="out-of-stock">Out of Stock</option>
-                    <option value="low-stock">Low Stock</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="PARTIALLY_FULFILLED">Partially Fulfilled</option>
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Category</label>
+                  <label className="block text-sm font-medium text-gray-700">Priority</label>
                   <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    value={selectedPriority}
+                    onChange={(e) => setSelectedPriority(e.target.value)}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="">All Categories</option>
-                    {categories.map(category => (
-                      <option key={category.id} value={category.id}>{category.name}</option>
-                    ))}
+                    <option value="all">All Priorities</option>
+                    <option value="URGENT">Urgent</option>
+                    <option value="HIGH">High</option>
+                    <option value="NORMAL">Normal</option>
+                    <option value="LOW">Low</option>
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Warehouse</label>
+                  <label className="block text-sm font-medium text-gray-700">Customer</label>
                   <select
-                    value={selectedWarehouse}
-                    onChange={(e) => setSelectedWarehouse(e.target.value)}
+                    value={selectedAccount}
+                    onChange={(e) => setSelectedAccount(e.target.value)}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="">All Warehouses</option>
-                    {warehouses.map(warehouse => (
-                      <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+                    <option value="">All Customers</option>
+                    {accounts.map(account => (
+                      <option key={account.id} value={account.id}>{account.name}</option>
                     ))}
                   </select>
                 </div>
@@ -644,8 +683,8 @@ export default function BackordersPage() {
                     variant="outline"
                     onClick={() => {
                       setSelectedStatus("all");
-                      setSelectedCategory("");
-                      setSelectedWarehouse("");
+                      setSelectedPriority("all");
+                      setSelectedAccount("");
                     }}
                   >
                     Clear Filters
@@ -653,7 +692,7 @@ export default function BackordersPage() {
                   <Button
                     type="button"
                     onClick={() => setIsFiltersOpen(false)}
-                    className={theme.buttonBackground}
+                    className={theme.primaryBg}
                   >
                     Apply Filters
                   </Button>
@@ -674,7 +713,7 @@ export default function BackordersPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">Bulk Actions</h2>
-                    <p className="text-sm text-gray-600">{selectedItems.length} items selected</p>
+                    <p className="text-sm text-gray-600">{selectedItems.length} orders selected</p>
                   </div>
                 </div>
                 <Button
@@ -697,8 +736,8 @@ export default function BackordersPage() {
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Select Action</option>
-                    <option value="adjust_reorder_point">Adjust Reorder Points</option>
-                    <option value="create_purchase_order">Create Purchase Orders</option>
+                    <option value="update_priority">Update Priority to High</option>
+                    <option value="cancel">Cancel Orders</option>
                   </select>
                 </div>
 
@@ -714,7 +753,7 @@ export default function BackordersPage() {
                     type="button"
                     onClick={handleBulkAction}
                     disabled={!bulkAction}
-                    className={theme.buttonBackground}
+                    className={theme.primaryBg}
                   >
                     Execute Action
                   </Button>

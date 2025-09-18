@@ -1,129 +1,112 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/backorders - Get products that are out of stock or below reorder point
+// GET /api/backorders - Get actual customer orders that cannot be fulfilled due to insufficient stock
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status'); // 'out-of-stock', 'low-stock', 'all'
-    const category = searchParams.get('category');
-    const warehouse = searchParams.get('warehouse');
+    const status = searchParams.get('status'); // 'PENDING', 'PARTIALLY_FULFILLED', 'all'
+    const priority = searchParams.get('priority'); // 'LOW', 'NORMAL', 'HIGH', 'URGENT', 'all'
+    const account = searchParams.get('account');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
     // Build where clause for filtering
     const where: any = {
-      active: true,
-      stockItems: {
-        some: {}
+      status: {
+        in: ['PENDING', 'PARTIALLY_FULFILLED']
       }
     };
 
-    if (category) {
-      where.categoryId = category;
+    if (status && status !== 'all') {
+      where.status = status;
     }
 
-    if (warehouse) {
-      where.stockItems = {
-        some: {
-          warehouseId: warehouse
-        }
-      };
+    if (priority && priority !== 'all') {
+      where.priority = priority;
     }
 
-    // Get products with their stock information
-    const products = await prisma.product.findMany({
+    if (account) {
+      where.accountId = account;
+    }
+
+    // Get backorders with related data
+    const backorders = await prisma.backorder.findMany({
       where,
       include: {
-        category: {
+        product: {
           select: {
             id: true,
-            name: true
-          }
-        },
-        stockItems: {
-          include: {
-            warehouse: {
+            sku: true,
+            name: true,
+            description: true,
+            category: {
               select: {
                 id: true,
-                name: true,
-                code: true
+                name: true
+              }
+            },
+            stockItems: {
+              include: {
+                warehouse: {
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true
+                  }
+                }
               }
             }
           }
+        },
+        account: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        },
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
         }
       },
-      orderBy: {
-        name: 'asc'
-      },
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'asc' }
+      ],
       take: limit,
       skip: offset,
     });
 
-    // Filter and categorize products based on stock status
-    const backorderProducts = products.map(product => {
-      const totalStock = product.stockItems.reduce((sum, item) => sum + item.available, 0);
-      const totalReserved = product.stockItems.reduce((sum, item) => sum + item.reserved, 0);
-      const maxReorderPoint = Math.max(...product.stockItems.map(item => item.reorderPoint));
-      const totalValue = product.stockItems.reduce((sum, item) => sum + item.totalValue, 0);
-      
-      // Determine status
-      let stockStatus: 'out-of-stock' | 'low-stock' | 'in-stock' = 'in-stock';
-      if (totalStock === 0) {
-        stockStatus = 'out-of-stock';
-      } else if (totalStock <= maxReorderPoint) {
-        stockStatus = 'low-stock';
+    // Calculate summary statistics
+    const allBackorders = await prisma.backorder.findMany({
+      where: {
+        status: {
+          in: ['PENDING', 'PARTIALLY_FULFILLED']
+        }
       }
-
-      return {
-        id: product.id,
-        sku: product.sku,
-        name: product.name,
-        description: product.description,
-        category: product.category,
-        price: product.price,
-        cost: product.cost,
-        baseCurrency: product.baseCurrency,
-        stockStatus,
-        totalStock,
-        totalReserved,
-        totalAvailable: totalStock - totalReserved,
-        maxReorderPoint,
-        totalValue,
-        stockItems: product.stockItems.map(item => ({
-          id: item.id,
-          warehouse: item.warehouse,
-          quantity: item.quantity,
-          available: item.available,
-          reserved: item.reserved,
-          reorderPoint: item.reorderPoint,
-          averageCost: item.averageCost,
-          totalValue: item.totalValue
-        })),
-        lastUpdated: product.updatedAt
-      };
     });
 
-    // Apply status filter
-    let filteredProducts = backorderProducts;
-    if (status && status !== 'all') {
-      filteredProducts = backorderProducts.filter(product => product.stockStatus === status);
-    }
-
-    // Calculate summary statistics
     const summary = {
-      total: backorderProducts.length,
-      outOfStock: backorderProducts.filter(p => p.stockStatus === 'out-of-stock').length,
-      lowStock: backorderProducts.filter(p => p.stockStatus === 'low-stock').length,
-      totalValue: backorderProducts.reduce((sum, p) => sum + p.totalValue, 0),
-      criticalItems: backorderProducts.filter(p => p.stockStatus === 'out-of-stock' || (p.stockStatus === 'low-stock' && p.totalAvailable <= 0)).length
+      total: allBackorders.length,
+      pending: allBackorders.filter(b => b.status === 'PENDING').length,
+      partiallyFulfilled: allBackorders.filter(b => b.status === 'PARTIALLY_FULFILLED').length,
+      urgent: allBackorders.filter(b => b.priority === 'URGENT').length,
+      high: allBackorders.filter(b => b.priority === 'HIGH').length,
+      totalValue: allBackorders.reduce((sum, b) => sum + b.lineTotal, 0),
+      totalQuantity: allBackorders.reduce((sum, b) => sum + b.quantityPending, 0)
     };
 
     return NextResponse.json({
-      products: filteredProducts,
+      backorders,
       summary,
-      total: filteredProducts.length,
-      hasMore: offset + filteredProducts.length < backorderProducts.length,
+      total: backorders.length,
+      hasMore: offset + backorders.length < allBackorders.length,
     });
   } catch (error) {
     console.error("Error fetching backorders:", error);
@@ -134,80 +117,141 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/backorders - Create bulk reorder or stock adjustment
+// POST /api/backorders - Handle backorder actions (fulfill, update priority, etc.)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, items, notes } = body;
+    const { action, backorderIds, quantity, notes } = body;
 
-    if (!action || !items || !Array.isArray(items)) {
+    if (!action || !backorderIds || !Array.isArray(backorderIds)) {
       return NextResponse.json(
-        { error: "Action and items are required" },
+        { error: "Action and backorderIds are required" },
         { status: 400 }
       );
     }
 
     const results = [];
 
-    for (const item of items) {
+    for (const backorderId of backorderIds) {
       try {
-        if (action === 'adjust_reorder_point') {
-          // Update reorder point for stock items
-          await prisma.stockItem.updateMany({
-            where: {
-              productId: item.productId,
-              warehouseId: item.warehouseId || null
-            },
-            data: {
-              reorderPoint: item.newReorderPoint
-            }
-          });
-          
-          results.push({
-            productId: item.productId,
-            warehouseId: item.warehouseId,
-            action: 'reorder_point_updated',
-            newReorderPoint: item.newReorderPoint
-          });
-        } else if (action === 'create_purchase_order') {
-          // Create a stock movement for purchase order
-          const stockItem = await prisma.stockItem.findFirst({
-            where: {
-              productId: item.productId,
-              warehouseId: item.warehouseId || null
-            }
-          });
-
-          if (stockItem) {
-            await prisma.stockMovement.create({
-              data: {
-                productId: item.productId,
-                stockItemId: stockItem.id,
-                type: 'RECEIPT',
-                quantity: item.quantity,
-                unitCost: item.unitCost,
-                totalCost: item.quantity * (item.unitCost || 0),
-                reference: `PO-${Date.now()}-${item.productId.slice(-6)}`,
-                reason: 'Purchase Order',
-                notes: notes || `Bulk reorder for ${item.productName}`,
-                warehouseId: item.warehouseId
+        const backorder = await prisma.backorder.findUnique({
+          where: { id: backorderId },
+          include: {
+            product: {
+              include: {
+                stockItems: true
               }
-            });
-
-            results.push({
-              productId: item.productId,
-              warehouseId: item.warehouseId,
-              action: 'purchase_order_created',
-              quantity: item.quantity,
-              reference: `PO-${Date.now()}-${item.productId.slice(-6)}`
-            });
+            }
           }
+        });
+
+        if (!backorder) {
+          results.push({
+            backorderId,
+            action: 'error',
+            error: 'Backorder not found'
+          });
+          continue;
+        }
+
+        if (action === 'fulfill') {
+          // Fulfill backorder (create stock movement and update backorder)
+          const fulfillQuantity = quantity || backorder.quantityPending;
+          
+          if (fulfillQuantity > backorder.quantityPending) {
+            results.push({
+              backorderId,
+              action: 'error',
+              error: 'Fulfill quantity exceeds pending quantity'
+            });
+            continue;
+          }
+
+          // Find the stock item to update
+          const stockItem = backorder.product.stockItems[0];
+          if (!stockItem) {
+            results.push({
+              backorderId,
+              action: 'error',
+              error: 'No stock item found for product'
+            });
+            continue;
+          }
+
+          // Create stock movement for the sale
+          await prisma.stockMovement.create({
+            data: {
+              productId: backorder.productId,
+              stockItemId: stockItem.id,
+              type: 'SALE',
+              quantity: -fulfillQuantity, // Negative for sale
+              unitCost: backorder.unitPrice,
+              totalCost: fulfillQuantity * backorder.unitPrice,
+              reference: backorder.orderNumber,
+              reason: 'Backorder Fulfillment',
+              notes: notes || `Fulfilled backorder ${backorder.orderNumber}`,
+              warehouseId: stockItem.warehouseId
+            }
+          });
+
+          // Update backorder
+          const newQuantityFulfilled = backorder.quantityFulfilled + fulfillQuantity;
+          const newQuantityPending = backorder.quantity - newQuantityFulfilled;
+          const newStatus = newQuantityPending <= 0 ? 'FULFILLED' : 'PARTIALLY_FULFILLED';
+
+          await prisma.backorder.update({
+            where: { id: backorderId },
+            data: {
+              quantityFulfilled: newQuantityFulfilled,
+              quantityPending: newQuantityPending,
+              status: newStatus,
+              fulfilledAt: newStatus === 'FULFILLED' ? new Date() : null,
+              notes: notes || backorder.notes
+            }
+          });
+
+          results.push({
+            backorderId,
+            action: 'fulfilled',
+            quantity: fulfillQuantity,
+            newStatus
+          });
+
+        } else if (action === 'update_priority') {
+          // Update backorder priority
+          await prisma.backorder.update({
+            where: { id: backorderId },
+            data: {
+              priority: body.priority || backorder.priority,
+              notes: notes || backorder.notes
+            }
+          });
+
+          results.push({
+            backorderId,
+            action: 'priority_updated',
+            newPriority: body.priority
+          });
+
+        } else if (action === 'cancel') {
+          // Cancel backorder
+          await prisma.backorder.update({
+            where: { id: backorderId },
+            data: {
+              status: 'CANCELLED',
+              notes: notes || backorder.notes
+            }
+          });
+
+          results.push({
+            backorderId,
+            action: 'cancelled'
+          });
         }
       } catch (itemError) {
-        console.error(`Error processing item ${item.productId}:`, itemError);
+        console.error(`Error processing backorder ${backorderId}:`, itemError);
         results.push({
-          productId: item.productId,
-          warehouseId: item.warehouseId,
+          backorderId,
           action: 'error',
           error: itemError instanceof Error ? itemError.message : 'Unknown error'
         });
@@ -217,7 +261,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       results,
-      message: `Successfully processed ${results.filter(r => r.action !== 'error').length} items`
+      message: `Successfully processed ${results.filter(r => r.action !== 'error').length} backorders`
     });
   } catch (error) {
     console.error("Error processing backorders action:", error);
