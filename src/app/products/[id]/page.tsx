@@ -40,7 +40,8 @@ import {
   CheckSquare,
   Square,
   FolderOpen,
-  Plus
+  Plus,
+  Building
 } from "lucide-react";
 
 interface Category {
@@ -58,6 +59,9 @@ interface StockItem {
   quantity: number;
   reserved: number;
   available: number;
+  averageCost: number;
+  totalValue: number;
+  reorderPoint: number;
   warehouseId: string;
   createdAt: string;
   updatedAt: string;
@@ -65,6 +69,9 @@ interface StockItem {
     id: string;
     name: string;
     code: string;
+    address?: string;
+    city?: string;
+    country?: string;
   };
 }
 
@@ -106,7 +113,7 @@ export default function ProductDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'pricing'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'pricing' | 'warehouses'>('overview');
   const [documents, setDocuments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
@@ -802,6 +809,17 @@ export default function ProductDetailsPage() {
               <DollarSign className="h-4 w-4 inline mr-2" />
               Pricing
             </button>
+            <button
+              onClick={() => setActiveTab('warehouses')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'warehouses'
+                  ? `border-${theme.primary} text-${theme.primaryText}`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Package className="h-4 w-4 inline mr-2" />
+              Warehouses
+            </button>
           </nav>
         </div>
 
@@ -1397,6 +1415,210 @@ export default function ProductDetailsPage() {
                 )}
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* Warehouses Tab */}
+        {activeTab === 'warehouses' && (
+          <div className="space-y-6">
+            {/* Warehouse Stock Overview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Package className="h-5 w-5 mr-2" />
+                  Stock Distribution Across Warehouses
+                </CardTitle>
+                <CardDescription>
+                  Current stock levels for {product?.name} across all warehouses
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!product || !product.stockItems || product.stockItems.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">No stock information available for this product.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Warehouse</th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-900">Code</th>
+                          <th className="text-right py-3 px-4 font-medium text-gray-900">Total Quantity</th>
+                          <th className="text-right py-3 px-4 font-medium text-gray-900">Available</th>
+                          <th className="text-right py-3 px-4 font-medium text-gray-900">Reserved</th>
+                          <th className="text-right py-3 px-4 font-medium text-gray-900">Reorder Point</th>
+                          <th className="text-right py-3 px-4 font-medium text-gray-900">Average Cost</th>
+                          <th className="text-right py-3 px-4 font-medium text-gray-900">Total Value</th>
+                          <th className="text-center py-3 px-4 font-medium text-gray-900">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {product.stockItems.map((stockItem) => {
+                          const isLowStock = stockItem.available <= stockItem.reorderPoint;
+                          const isOutOfStock = stockItem.available === 0;
+                          
+                          return (
+                            <tr 
+                              key={stockItem.id} 
+                              className={`border-b hover:bg-gray-50 ${
+                                isOutOfStock ? 'bg-red-50' : isLowStock ? 'bg-yellow-50' : ''
+                              }`}
+                            >
+                              <td className="py-3 px-4">
+                                <div className="flex items-center">
+                                  <div className="p-2 rounded-lg bg-blue-100 mr-3">
+                                    <Package className="h-4 w-4 text-blue-600" />
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-gray-900">
+                                      {stockItem.warehouse?.name || 'No Warehouse'}
+                                    </div>
+                                    {stockItem.warehouse?.address && (
+                                      <div className="text-sm text-gray-500">
+                                        {stockItem.warehouse.address}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                  {stockItem.warehouse?.code || 'N/A'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span className="font-medium text-gray-900">
+                                  {stockItem.quantity.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span className={`font-medium ${
+                                  isOutOfStock ? 'text-red-600' : isLowStock ? 'text-yellow-600' : 'text-green-600'
+                                }`}>
+                                  {stockItem.available.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span className="text-gray-600">
+                                  {stockItem.reserved.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span className="text-gray-600">
+                                  {stockItem.reorderPoint.toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span className="text-gray-600">
+                                  {formatCurrency(stockItem.averageCost, 'USD')}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span className="font-medium text-gray-900">
+                                  {formatCurrency(stockItem.totalValue, 'USD')}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                {isOutOfStock ? (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    <X className="h-3 w-3 mr-1" />
+                                    Out of Stock
+                                  </span>
+                                ) : isLowStock ? (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    <AlertTriangle className="h-3 w-3 mr-1" />
+                                    Low Stock
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <CheckSquare className="h-3 w-3 mr-1" />
+                                    In Stock
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Summary Statistics */}
+            {product && product.stockItems && product.stockItems.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Total Stock</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {product.stockItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="p-2 rounded-full bg-blue-100">
+                        <Package className="w-5 h-5 text-blue-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Available</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {product.stockItems.reduce((sum, item) => sum + item.available, 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="p-2 rounded-full bg-green-100">
+                        <CheckSquare className="w-5 h-5 text-green-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Reserved</p>
+                        <p className="text-2xl font-bold text-yellow-600">
+                          {product.stockItems.reduce((sum, item) => sum + item.reserved, 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="p-2 rounded-full bg-yellow-100">
+                        <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Total Value</p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {formatCurrency(
+                            product.stockItems.reduce((sum, item) => sum + item.totalValue, 0), 
+                            'USD'
+                          )}
+                        </p>
+                      </div>
+                      <div className="p-2 rounded-full bg-purple-100">
+                        <DollarSign className="w-5 h-5 text-purple-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         )}
       </div>
