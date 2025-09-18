@@ -201,10 +201,10 @@ async function processBatch(movements: BulkStockMovementRequest[]) {
         });
 
         if (!stockItem) {
-          // Get product to fetch costPrice for totalValue calculation
+          // Get product to fetch cost for totalValue calculation
           const product = await prisma.product.findUnique({
             where: { id: movement.productId },
-            select: { costPrice: true }
+            select: { cost: true }
           });
 
           // Create new stock item
@@ -217,7 +217,7 @@ async function processBatch(movements: BulkStockMovementRequest[]) {
               reserved: 0,
               reorderPoint: 0,
               averageCost: movement.unitCost || 0,
-              totalValue: 0 * (product?.costPrice || 0) // Will be updated after quantity changes
+              totalValue: 0 * (product?.cost || 0) // Will be updated after quantity changes
             }
           });
         }
@@ -294,10 +294,10 @@ async function processBatch(movements: BulkStockMovementRequest[]) {
         }
       });
 
-      // Get product to fetch costPrice for totalValue calculation
+      // Get product to fetch cost for totalValue calculation
       const product = await prisma.product.findUnique({
         where: { id: movement.productId },
-        select: { costPrice: true }
+        select: { cost: true }
       });
 
       // Update stock item quantities
@@ -306,7 +306,7 @@ async function processBatch(movements: BulkStockMovementRequest[]) {
         data: {
           quantity: newQuantity,
           available: newAvailable,
-          totalValue: newQuantity * (product?.costPrice || 0)
+          totalValue: newQuantity * (product?.cost || 0)
         }
       });
 

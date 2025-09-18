@@ -258,14 +258,14 @@ export async function POST(request: NextRequest) {
           newAverageCost = newQuantity > 0 ? combinedTotalCost / newQuantity : stockItem.averageCost;
         }
         
-        // Get product to fetch costPrice for totalValue calculation
+        // Get product to fetch cost for totalValue calculation
         const product = await prisma.product.findUnique({
           where: { id: productId },
-          select: { costPrice: true }
+          select: { cost: true }
         });
 
-        // Calculate new total value using costPrice (for inventory valuation)
-        const newTotalValue = newQuantity * (product?.costPrice || 0);
+        // Calculate new total value using cost (for inventory valuation)
+        const newTotalValue = newQuantity * (product?.cost || 0);
 
         await prisma.stockItem.update({
           where: { id: stockItem.id },
@@ -337,14 +337,14 @@ export async function POST(request: NextRequest) {
         newAverageCost = newQuantity > 0 ? combinedTotalCost / newQuantity : stockItem.averageCost;
       }
       
-      // Get product to fetch costPrice for totalValue calculation
+      // Get product to fetch cost for totalValue calculation
       const product = await prisma.product.findUnique({
         where: { id: productId },
-        select: { costPrice: true }
+        select: { cost: true }
       });
 
-      // Calculate new total value using costPrice (for inventory valuation)
-      const newTotalValue = newQuantity * (product?.costPrice || 0);
+      // Calculate new total value using cost (for inventory valuation)
+      const newTotalValue = newQuantity * (product?.cost || 0);
 
       await prisma.stockItem.update({
         where: { id: stockItem.id },
