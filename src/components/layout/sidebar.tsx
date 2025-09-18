@@ -86,16 +86,6 @@ const navigation = [
     ]
   },
   { 
-    name: "POS", 
-    href: "/pos", 
-    icon: CreditCard,
-    badge: null,
-    children: [
-      { name: "Register", href: "/pos/register", icon: CreditCard },
-      { name: "End of Day", href: "/pos/end-of-day", icon: BarChart3 },
-    ]
-  },
-  { 
     name: "Communication", 
     href: "/communication", 
     icon: MessageSquare,
