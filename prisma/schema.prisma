@@ -4,22 +4,32 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id         String      @id @default(cuid())
-  email      String      @unique
-  name       String?
-  image      String?
-  role       UserRole    @default(SALES_REP)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  accounts   Account[]
-  leads      Lead[]
-  proformas  Proforma[]
-  quotations Quotation[]
-  backorders Backorder[]
+  id            String               @id @default(cuid())
+  email         String               @unique
+  name          String?
+  phone         String?
+  image         String?
+  password      String?
+  role          UserRole             @default(SALES_REP)
+  isActive      Boolean              @default(true)
+  lastLoginAt   DateTime?
+  emailVerified DateTime?
+  phoneVerified DateTime?
+  preferences   Json?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  userRoles     UserRoleAssignment[]
+  accounts      Account[]
+  auditLogs     AuditLog[]
+  backorders    Backorder[]
+  leads         Lead[]
+  notifications Notification[]
+  proformas     Proforma[]
+  quotations    Quotation[]
 
   @@map("users")
 }
@@ -83,55 +93,55 @@ model Category {
 }
 
 model Product {
-  id                     String          @id @default(cuid())
-  sku                    String          @unique
+  id                     String            @id @default(cuid())
+  sku                    String            @unique
   name                   String
   description            String?
   images                 String?
   attributes             Json?
-  uomBase                String          @default("pcs")
-  uomSell                String          @default("pcs")
+  uomBase                String            @default("pcs")
+  uomSell                String            @default("pcs")
   price                  Float?
   cost                   Float?
-  costPrice              Float?
   originalPrice          Float?
   originalCost           Float?
   originalPriceCurrency  String?
   originalCostCurrency   String?
   exchangeRateAtImport   Float?
   lastExchangeRateUpdate DateTime?
-  baseCurrency           String          @default("GHS")
-  active                 Boolean         @default(true)
+  baseCurrency           String            @default("GHS")
+  active                 Boolean           @default(true)
   categoryId             String
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  costPrice              Float?
+  backorders             Backorder[]
   priceListItems         PriceListItem[]
-  category               Category        @relation(fields: [categoryId], references: [id])
+  documents              ProductDocument[]
+  category               Category          @relation(fields: [categoryId], references: [id])
   proformaLines          ProformaLine[]
   quotationLines         QuotationLine[]
   stockItems             StockItem[]
   movements              StockMovement[]
-  documents              ProductDocument[]
-  backorders             Backorder[]
 
   @@map("products")
 }
 
 model ProductDocument {
-  id          String   @id @default(cuid())
-  filename    String
+  id           String   @id @default(cuid())
+  filename     String
   originalName String
-  filePath    String
-  fileSize    Int
-  mimeType    String
-  description String?
-  tags        String?
-  isPublic    Boolean  @default(false)
-  productId   String
-  uploadedBy  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  description  String?
+  tags         String?
+  isPublic     Boolean  @default(false)
+  productId    String
+  uploadedBy   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_documents")
 }
@@ -160,8 +170,8 @@ model PriceListItem {
   overrides    Json?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  priceList    PriceList @relation(fields: [priceListId], references: [id])
   product      Product   @relation(fields: [productId], references: [id])
+  priceList    PriceList @relation(fields: [priceListId], references: [id])
 
   @@unique([productId, priceListId])
   @@map("price_list_items")
@@ -183,11 +193,11 @@ model Account {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   owner         User          @relation(fields: [ownerId], references: [id])
+  backorders    Backorder[]
   contacts      Contact[]
   opportunities Opportunity[]
   proformas     Proforma[]
   quotations    Quotation[]
-  backorders    Backorder[]
 
   @@map("accounts")
 }
@@ -257,8 +267,8 @@ model Quotation {
   updatedAt  DateTime        @updatedAt
   proformas  Proforma[]
   lines      QuotationLine[]
-  owner      User            @relation(fields: [ownerId], references: [id])
   account    Account         @relation(fields: [accountId], references: [id])
+  owner      User            @relation(fields: [ownerId], references: [id])
 
   @@map("quotations")
 }
@@ -273,8 +283,8 @@ model QuotationLine {
   lineTotal   Float
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  product     Product   @relation(fields: [productId], references: [id])
   quotation   Quotation @relation(fields: [quotationId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
 
   @@map("quotation_lines")
 }
@@ -295,9 +305,9 @@ model Proforma {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   lines       ProformaLine[]
-  owner       User           @relation(fields: [ownerId], references: [id])
-  account     Account        @relation(fields: [accountId], references: [id])
   quotation   Quotation?     @relation(fields: [quotationId], references: [id])
+  account     Account        @relation(fields: [accountId], references: [id])
+  owner       User           @relation(fields: [ownerId], references: [id])
 
   @@map("proformas")
 }
@@ -312,8 +322,8 @@ model ProformaLine {
   lineTotal  Float
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  product    Product  @relation(fields: [productId], references: [id])
   proforma   Proforma @relation(fields: [proformaId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id])
 
   @@map("proforma_lines")
 }
@@ -330,8 +340,8 @@ model StockItem {
   warehouseId  String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
-  warehouse    Warehouse?      @relation(fields: [warehouseId], references: [id])
   product      Product         @relation(fields: [productId], references: [id])
+  warehouse    Warehouse?      @relation(fields: [warehouseId], references: [id])
   movements    StockMovement[]
 
   @@unique([productId, warehouseId])
@@ -350,9 +360,9 @@ model Warehouse {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   stockItems       StockItem[]
-  currentMovements StockMovement[] @relation("CurrentWarehouse")
-  toMovements      StockMovement[] @relation("ToWarehouse")
   fromMovements    StockMovement[] @relation("FromWarehouse")
+  toMovements      StockMovement[] @relation("ToWarehouse")
+  currentMovements StockMovement[] @relation("CurrentWarehouse")
 
   @@map("warehouses")
 }
@@ -373,39 +383,38 @@ model StockMovement {
   notes           String?
   userId          String?
   createdAt       DateTime          @default(now())
-  warehouse       Warehouse?        @relation("CurrentWarehouse", fields: [warehouseId], references: [id])
-  toWarehouse     Warehouse?        @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
-  fromWarehouse   Warehouse?        @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
-  stockItem       StockItem         @relation(fields: [stockItemId], references: [id])
   product         Product           @relation(fields: [productId], references: [id])
+  stockItem       StockItem         @relation(fields: [stockItemId], references: [id])
+  fromWarehouse   Warehouse?        @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouse     Warehouse?        @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  warehouse       Warehouse?        @relation("CurrentWarehouse", fields: [warehouseId], references: [id])
 
   @@map("stock_movements")
 }
 
 model Backorder {
-  id          String        @id @default(cuid())
-  orderNumber String        // Reference to the original order (quotation/proforma number)
-  orderType   OrderType     // QUOTATION or PROFORMA
-  orderId     String        // ID of the original quotation or proforma
-  productId   String
-  quantity    Float         // Quantity ordered
-  quantityFulfilled Float   @default(0) // Quantity already fulfilled
-  quantityPending   Float   // Quantity still pending (quantity - quantityFulfilled)
-  unitPrice   Float
-  lineTotal   Float
-  status      BackorderStatus @default(PENDING)
-  priority    BackorderPriority @default(NORMAL)
-  expectedDate DateTime?    // Expected fulfillment date
-  notes       String?
-  accountId   String
-  ownerId     String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  fulfilledAt DateTime?
-  
-  product     Product       @relation(fields: [productId], references: [id])
-  account     Account       @relation(fields: [accountId], references: [id])
-  owner       User          @relation(fields: [ownerId], references: [id])
+  id                String            @id @default(cuid())
+  orderNumber       String
+  orderType         OrderType
+  orderId           String
+  productId         String
+  quantity          Float
+  quantityFulfilled Float             @default(0)
+  quantityPending   Float
+  unitPrice         Float
+  lineTotal         Float
+  status            BackorderStatus   @default(PENDING)
+  priority          BackorderPriority @default(NORMAL)
+  expectedDate      DateTime?
+  notes             String?
+  accountId         String
+  ownerId           String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  fulfilledAt       DateTime?
+  owner             User              @relation(fields: [ownerId], references: [id])
+  account           Account           @relation(fields: [accountId], references: [id])
+  product           Product           @relation(fields: [productId], references: [id])
 
   @@map("backorders")
 }
@@ -422,6 +431,101 @@ model Activity {
   @@map("activities")
 }
 
+model Role {
+  id            String               @id @default(cuid())
+  name          String               @unique
+  description   String?
+  isSystem      Boolean              @default(false)
+  isActive      Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  roleAbilities RoleAbility[]
+  userRoles     UserRoleAssignment[]
+}
+
+model Ability {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  resource      String
+  action        String
+  description   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  roleAbilities RoleAbility[]
+}
+
+model RoleAbility {
+  id        String  @id @default(cuid())
+  roleId    String
+  abilityId String
+  ability   Ability @relation(fields: [abilityId], references: [id], onDelete: Cascade)
+  role      Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, abilityId])
+}
+
+model UserRoleAssignment {
+  id         String    @id @default(cuid())
+  userId     String
+  roleId     String
+  assignedBy String?
+  assignedAt DateTime  @default(now())
+  expiresAt  DateTime?
+  isActive   Boolean   @default(true)
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  type        NotificationType
+  title       String
+  message     String
+  data        Json?
+  channels    Json
+  status      NotificationStatus @default(PENDING)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  readAt      DateTime?
+  userId      String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model NotificationTemplate {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  type      NotificationType
+  channels  Json
+  subject   String?
+  body      String
+  variables Json?
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  resource   String
+  resourceId String?
+  oldData    Json?
+  newData    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
 enum UserRole {
   ADMIN
   SALES_MANAGER
@@ -429,6 +533,32 @@ enum UserRole {
   INVENTORY_MANAGER
   FINANCE_OFFICER
   EXECUTIVE_VIEWER
+}
+
+enum NotificationType {
+  SYSTEM_ALERT
+  STOCK_LOW
+  ORDER_STATUS
+  PAYMENT_RECEIVED
+  USER_INVITED
+  PASSWORD_RESET
+  SECURITY_ALERT
+  CUSTOM
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  READ
 }
 
 enum AccountType {

@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { prisma } from "@/lib/prisma"
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -14,18 +15,40 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        // For demo purposes, we'll use hardcoded credentials
-        // In production, you'd check against the database
-        if (credentials.email === "admin@adpools.com" && credentials.password === "demo123") {
-          return {
-            id: "cmfi6s8um00008o6nh4kryxph",
-            email: "admin@adpools.com",
-            name: "Admin User",
-            role: "ADMIN",
-          }
-        }
+        try {
+          // Check against the database
+          const user = await prisma.user.findUnique({
+            where: {
+              email: credentials.email,
+            }
+          })
 
-        return null
+          if (!user) {
+            return null
+          }
+
+          // For now, we'll do simple password comparison
+          // In production, you should use bcrypt or similar
+          if (user.password === credentials.password) {
+            // Update last login
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { lastLoginAt: new Date() }
+            })
+
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name || "User",
+              role: user.role,
+            }
+          }
+
+          return null
+        } catch (error) {
+          console.error("Authentication error:", error)
+          return null
+        }
       }
     })
   ],
@@ -41,7 +64,7 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session, token }) {
-      if (token) {
+      if (token && session.user) {
         session.user.id = token.id as string
         session.user.role = token.role as string
       }

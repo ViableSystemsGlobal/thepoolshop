@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useTheme } from "@/contexts/theme-context";
 import { useNavigationLoading } from "@/hooks/use-navigation-loading";
+import { useAbilities } from "@/hooks/use-abilities";
 import {
   LayoutDashboard,
   Users,
@@ -25,6 +26,7 @@ import {
   Settings,
   FileText,
   Folder,
+  Shield,
 } from "lucide-react";
 
 const navigation = [
@@ -32,19 +34,21 @@ const navigation = [
     name: "Home", 
     href: "/dashboard", 
     icon: LayoutDashboard,
-    badge: null
+    badge: null,
+    module: "dashboard"
   },
   { 
     name: "CRM", 
     href: "/crm", 
     icon: Users,
     badge: null,
+    module: "crm",
     children: [
-      { name: "Leads", href: "/crm/leads", icon: UserCheck },
-      { name: "Opportunities", href: "/crm/opportunities", icon: BarChart3 },
-      { name: "Quotations", href: "/crm/quotations", icon: FileText },
-      { name: "Accounts", href: "/crm/accounts", icon: Building },
-      { name: "Contacts", href: "/crm/contacts", icon: Users },
+      { name: "Leads", href: "/crm/leads", icon: UserCheck, module: "leads" },
+      { name: "Opportunities", href: "/crm/opportunities", icon: BarChart3, module: "opportunities" },
+      { name: "Quotations", href: "/crm/quotations", icon: FileText, module: "quotations" },
+      { name: "Accounts", href: "/crm/accounts", icon: Building, module: "accounts" },
+      { name: "Contacts", href: "/crm/contacts", icon: Users, module: "contacts" },
     ]
   },
   { 
@@ -52,10 +56,11 @@ const navigation = [
     href: "/drm", 
     icon: Handshake,
     badge: null,
+    module: "drm",
     children: [
-      { name: "Distributors", href: "/distributors", icon: Building },
-      { name: "Agreements", href: "/agreements", icon: FileText },
-      { name: "Orders", href: "/drm-orders", icon: Package },
+      { name: "Distributors", href: "/distributors", icon: Building, module: "distributors" },
+      { name: "Agreements", href: "/agreements", icon: FileText, module: "agreements" },
+      { name: "Orders", href: "/drm-orders", icon: Package, module: "drm-orders" },
     ]
   },
   { 
@@ -63,12 +68,13 @@ const navigation = [
     href: "/sales", 
     icon: ShoppingCart,
     badge: null,
+    module: "sales",
     children: [
-      { name: "Orders", href: "/orders", icon: ShoppingCart },
-      { name: "Proformas", href: "/proformas", icon: FileText },
-      { name: "Invoices", href: "/invoices", icon: FileText },
-      { name: "Payments", href: "/payments", icon: CreditCard },
-      { name: "Returns", href: "/returns", icon: Package },
+      { name: "Orders", href: "/orders", icon: ShoppingCart, module: "orders" },
+      { name: "Proformas", href: "/proformas", icon: FileText, module: "proformas" },
+      { name: "Invoices", href: "/invoices", icon: FileText, module: "invoices" },
+      { name: "Payments", href: "/payments", icon: CreditCard, module: "payments" },
+      { name: "Returns", href: "/returns", icon: Package, module: "returns" },
     ]
   },
   { 
@@ -76,13 +82,14 @@ const navigation = [
     href: "/inventory", 
     icon: Warehouse,
     badge: null,
+    module: "inventory",
     children: [
-      { name: "All Products", href: "/products", icon: Package },
-      { name: "Price Lists", href: "/price-lists", icon: FileText },
-      { name: "Stock Overview", href: "/inventory/stock", icon: BarChart3 },
-      { name: "Stock Movements", href: "/inventory/stock-movements", icon: BarChart3 },
-      { name: "Warehouses", href: "/warehouses", icon: Building },
-      { name: "Backorders", href: "/backorders", icon: Package },
+      { name: "All Products", href: "/products", icon: Package, module: "products" },
+      { name: "Price Lists", href: "/price-lists", icon: FileText, module: "price-lists" },
+      { name: "Stock Overview", href: "/inventory/stock", icon: BarChart3, module: "inventory" },
+      { name: "Stock Movements", href: "/inventory/stock-movements", icon: BarChart3, module: "inventory" },
+      { name: "Warehouses", href: "/warehouses", icon: Building, module: "warehouses" },
+      { name: "Backorders", href: "/backorders", icon: Package, module: "backorders" },
     ]
   },
   { 
@@ -90,9 +97,10 @@ const navigation = [
     href: "/communication", 
     icon: MessageSquare,
     badge: null,
+    module: "communication",
     children: [
-      { name: "Templates", href: "/templates", icon: FileText },
-      { name: "Logs", href: "/communication-logs", icon: BarChart3 },
+      { name: "Templates", href: "/templates", icon: FileText, module: "templates" },
+      { name: "Logs", href: "/communication-logs", icon: BarChart3, module: "communication-logs" },
     ]
   },
   { 
@@ -100,27 +108,32 @@ const navigation = [
     href: "/agents", 
     icon: UserCheck,
     badge: null,
+    module: "agents",
     children: [
-      { name: "Agents", href: "/agents", icon: Users },
-      { name: "Commissions", href: "/commissions", icon: CreditCard },
+      { name: "Agents", href: "/agents", icon: Users, module: "agents" },
+      { name: "Commissions", href: "/commissions", icon: CreditCard, module: "commissions" },
     ]
   },
   { 
     name: "Reports", 
     href: "/reports", 
     icon: BarChart3,
-    badge: null
+    badge: null,
+    module: "reports"
   },
   { 
     name: "Settings", 
     href: "/settings", 
     icon: Settings,
     badge: null,
+    module: "settings",
     children: [
-      { name: "Product Settings", href: "/settings/products", icon: Package },
-      { name: "Currency Settings", href: "/settings/currency", icon: DollarSign },
-      { name: "Business Settings", href: "/settings/business", icon: Building },
-      { name: "System Settings", href: "/settings/system", icon: Settings },
+      { name: "User Management", href: "/settings/users", icon: Users, module: "users" },
+      { name: "Role Management", href: "/settings/roles", icon: Shield, module: "roles" },
+      { name: "Product Settings", href: "/settings/products", icon: Package, module: "product-settings" },
+      { name: "Currency Settings", href: "/settings/currency", icon: DollarSign, module: "currency-settings" },
+      { name: "Business Settings", href: "/settings/business", icon: Building, module: "business-settings" },
+      { name: "System Settings", href: "/settings/system", icon: Settings, module: "system-settings" },
     ]
   },
 ];
@@ -138,6 +151,7 @@ export default function Sidebar() {
   const { getThemeClasses, customLogo } = useTheme();
   const theme = getThemeClasses();
   const { navigateWithLoading } = useNavigationLoading();
+  const { canAccess } = useAbilities();
 
   // Helper function to get proper background classes
   const getBackgroundClasses = (isActive: boolean, isHover: boolean = false) => {
@@ -270,10 +284,12 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
-        {navigation.map((item) => {
-          const hasChildren = item.children && item.children.length > 0;
-          const isExpanded = expandedSections.includes(item.name);
-          const isActiveItem = isActive(item.href) || (hasChildren && item.children!.some(child => isActive(child.href)));
+        {navigation
+          .filter(item => canAccess(item.module))
+          .map((item) => {
+            const hasChildren = item.children && item.children.length > 0;
+            const isExpanded = expandedSections.includes(item.name);
+            const isActiveItem = isActive(item.href) || (hasChildren && item.children!.some(child => isActive(child.href)));
 
           return (
             <div key={item.name}>
@@ -318,7 +334,9 @@ export default function Sidebar() {
               {/* Children */}
               {hasChildren && isExpanded && !collapsed && (
                 <div className="ml-6 mt-1 space-y-1">
-                  {item.children!.map((child) => (
+                  {item.children!
+                    .filter(child => canAccess(child.module))
+                    .map((child) => (
                     <button
                       key={child.name}
                       onClick={() => navigateWithLoading(child.href)}
