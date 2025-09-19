@@ -28,6 +28,10 @@ import {
   Folder,
   Shield,
   Bell,
+  Smartphone,
+  History,
+  Send,
+  Mail,
 } from "lucide-react";
 
 const navigation = [
@@ -93,17 +97,21 @@ const navigation = [
       { name: "Backorders", href: "/backorders", icon: Package, module: "backorders" },
     ]
   },
-  { 
-    name: "Communication", 
-    href: "/communication", 
-    icon: MessageSquare,
-    badge: null,
-    module: "communication",
-    children: [
-      { name: "Templates", href: "/templates", icon: FileText, module: "templates" },
-      { name: "Logs", href: "/communication-logs", icon: BarChart3, module: "communication-logs" },
-    ]
-  },
+        { 
+          name: "Communication", 
+          href: "/communication", 
+          icon: MessageSquare,
+          badge: null,
+          module: "communication",
+          children: [
+            { name: "SMS Messages", href: "/communication/sms", icon: Smartphone, module: "sms" },
+            { name: "SMS History", href: "/communication/sms-history", icon: History, module: "sms-history" },
+            { name: "Email Messages", href: "/communication/email", icon: Mail, module: "email" },
+            { name: "Email History", href: "/communication/email-history", icon: History, module: "email-history" },
+            { name: "Templates", href: "/templates", icon: FileText, module: "templates" },
+            { name: "Logs", href: "/communication-logs", icon: BarChart3, module: "communication-logs" },
+          ]
+        },
   { 
     name: "Agents", 
     href: "/agents", 

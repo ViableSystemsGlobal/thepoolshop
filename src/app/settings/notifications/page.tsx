@@ -22,8 +22,125 @@ import {
   AlertTriangle,
   ShoppingCart,
   Users,
-  DollarSign
+  DollarSign,
+  FileText,
+  MessageCircle
 } from 'lucide-react';
+
+// Template interfaces
+interface NotificationTemplate {
+  id: string;
+  name: string;
+  subject?: string;
+  body: string;
+  variables: string[];
+}
+
+// Default email templates
+const DEFAULT_EMAIL_TEMPLATES: NotificationTemplate[] = [
+  {
+    id: 'stock_low',
+    name: 'Low Stock Alert',
+    subject: 'Low Stock Alert: {{productName}}',
+    body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #e67e22;">Low Stock Alert</h2>
+  <p>Hello {{recipientName}},</p>
+  
+  <p>The following product is running low on stock:</p>
+  
+  <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <strong>Product:</strong> {{productName}}<br>
+    <strong>SKU:</strong> {{productSku}}<br>
+    <strong>Current Stock:</strong> {{currentStock}} units<br>
+    <strong>Reorder Point:</strong> {{reorderPoint}} units<br>
+    <strong>Warehouse:</strong> {{warehouseName}}
+  </div>
+  
+  <p>Please consider placing a new order to avoid stockouts.</p>
+  
+  <p>Best regards,<br>
+  AdPools Group Inventory System</p>
+</div>
+    `.trim(),
+    variables: ['recipientName', 'productName', 'productSku', 'currentStock', 'reorderPoint', 'warehouseName']
+  },
+  {
+    id: 'stock_out',
+    name: 'Out of Stock Alert',
+    subject: 'Out of Stock: {{productName}}',
+    body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #e74c3c;">Out of Stock Alert</h2>
+  <p>Hello {{recipientName}},</p>
+  
+  <p><strong>URGENT:</strong> The following product is now out of stock:</p>
+  
+  <div style="background: #fdf2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #e74c3c;">
+    <strong>Product:</strong> {{productName}}<br>
+    <strong>SKU:</strong> {{productSku}}<br>
+    <strong>Current Stock:</strong> 0 units<br>
+    <strong>Warehouse:</strong> {{warehouseName}}
+  </div>
+  
+  <p>Please place an urgent order to restock this item.</p>
+  
+  <p>Best regards,<br>
+  AdPools Group Inventory System</p>
+</div>
+    `.trim(),
+    variables: ['recipientName', 'productName', 'productSku', 'warehouseName']
+  },
+  {
+    id: 'new_order',
+    name: 'New Order Notification',
+    subject: 'New Order Received: #{{orderNumber}}',
+    body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #27ae60;">New Order Received</h2>
+  <p>Hello {{recipientName}},</p>
+  
+  <p>A new order has been received:</p>
+  
+  <div style="background: #f0fff4; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <strong>Order Number:</strong> #{{orderNumber}}<br>
+    <strong>Customer:</strong> {{customerName}}<br>
+    <strong>Total Amount:</strong> {{currency}}{{totalAmount}}<br>
+    <strong>Items:</strong> {{itemCount}} items<br>
+    <strong>Date:</strong> {{orderDate}}
+  </div>
+  
+  <p>Please process this order as soon as possible.</p>
+  
+  <p>Best regards,<br>
+  AdPools Group Order System</p>
+</div>
+    `.trim(),
+    variables: ['recipientName', 'orderNumber', 'customerName', 'totalAmount', 'currency', 'itemCount', 'orderDate']
+  }
+];
+
+// Default SMS templates
+const DEFAULT_SMS_TEMPLATES: NotificationTemplate[] = [
+  {
+    id: 'stock_low',
+    name: 'Low Stock Alert',
+    body: 'ALERT: {{productName}} ({{productSku}}) is running low. Current stock: {{currentStock}} units. Reorder point: {{reorderPoint}} units.',
+    variables: ['productName', 'productSku', 'currentStock', 'reorderPoint']
+  },
+  {
+    id: 'stock_out',
+    name: 'Out of Stock Alert',
+    body: 'URGENT: {{productName}} ({{productSku}}) is OUT OF STOCK! Please place an urgent order.',
+    variables: ['productName', 'productSku']
+  },
+  {
+    id: 'new_order',
+    name: 'New Order Notification',
+    body: 'New Order #{{orderNumber}} received from {{customerName}} for {{currency}}{{totalAmount}}. {{itemCount}} items.',
+    variables: ['orderNumber', 'customerName', 'totalAmount', 'currency', 'itemCount']
+  }
+];
 
 // System notification types
 const NOTIFICATION_TYPES = [
@@ -140,10 +257,11 @@ const defaultSettings: NotificationSettings = {
 };
 
 export default function NotificationSettingsPage() {
-  const { themeColor } = useTheme();
+  const { themeColor, getThemeClasses } = useTheme();
+  const themeClasses = getThemeClasses();
   const { data: session } = useSession();
   const { success: showSuccess, error: showError } = useToast();
-  const [activeTab, setActiveTab] = useState<'email' | 'sms' | 'routing'>('email');
+  const [activeTab, setActiveTab] = useState<'email' | 'sms' | 'routing' | 'email-templates' | 'sms-templates'>('email');
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -152,6 +270,10 @@ export default function NotificationSettingsPage() {
   const [showEmailPopup, setShowEmailPopup] = useState(false);
   const [testPhone, setTestPhone] = useState('');
   const [showSMSPopup, setShowSMSPopup] = useState(false);
+  const [emailTemplates, setEmailTemplates] = useState<NotificationTemplate[]>(DEFAULT_EMAIL_TEMPLATES);
+  const [smsTemplates, setSmsTemplates] = useState<NotificationTemplate[]>(DEFAULT_SMS_TEMPLATES);
+  const [editingTemplate, setEditingTemplate] = useState<NotificationTemplate | null>(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -392,7 +514,7 @@ export default function NotificationSettingsPage() {
               onClick={() => setActiveTab('email')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'email'
-                  ? `border-${themeColor} text-${themeColor}`
+                  ? `border-${themeClasses.primary} text-${themeClasses.primary}`
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -403,7 +525,7 @@ export default function NotificationSettingsPage() {
               onClick={() => setActiveTab('sms')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'sms'
-                  ? `border-${themeColor} text-${themeColor}`
+                  ? `border-${themeClasses.primary} text-${themeClasses.primary}`
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -414,12 +536,34 @@ export default function NotificationSettingsPage() {
               onClick={() => setActiveTab('routing')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'routing'
-                  ? `border-${themeColor} text-${themeColor}`
+                  ? `border-${themeClasses.primary} text-${themeClasses.primary}`
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               <Bell className="h-4 w-4 inline mr-2" />
               Notification Routing
+            </button>
+            <button
+              onClick={() => setActiveTab('email-templates')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'email-templates'
+                  ? `border-${themeClasses.primary} text-${themeClasses.primary}`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <FileText className="h-4 w-4 inline mr-2" />
+              Email Templates
+            </button>
+            <button
+              onClick={() => setActiveTab('sms-templates')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'sms-templates'
+                  ? `border-${themeClasses.primary} text-${themeClasses.primary}`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <MessageCircle className="h-4 w-4 inline mr-2" />
+              SMS Templates
             </button>
           </nav>
         </div>
@@ -815,7 +959,431 @@ export default function NotificationSettingsPage() {
             </div>
           </Card>
         )}
+
+        {/* Email Templates Tab */}
+        {activeTab === 'email-templates' && (
+          <div className="space-y-6">
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-medium">Email Templates</h3>
+                  <p className="text-sm text-gray-500">Customize email message templates for different notification types</p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setIsCreatingNew(true);
+                    setEditingTemplate({
+                      id: '',
+                      name: '',
+                      subject: '',
+                      body: '',
+                      variables: []
+                    });
+                  }}
+                  className={`bg-${themeClasses.primary} text-white hover:bg-${themeClasses.primaryDark}`}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Add New Template
+                </Button>
+              </div>
+              
+              <div className="space-y-4">
+                {emailTemplates.map((template) => (
+                  <div key={template.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="font-medium">{template.name}</h4>
+                        <p className="text-sm text-gray-500">Template ID: {template.id}</p>
+                      </div>
+                      <Button
+                        onClick={() => setEditingTemplate(template)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Edit Template
+                      </Button>
+                    </div>
+                    
+                    {template.subject && (
+                      <div className="mb-3">
+                        <Label className="text-sm font-medium">Subject</Label>
+                        <div className="mt-1 p-2 bg-gray-50 rounded text-sm">
+                          {template.subject}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div>
+                      <Label className="text-sm font-medium">Body Preview</Label>
+                      <div className="mt-1 p-3 bg-gray-50 rounded text-sm max-h-32 overflow-y-auto">
+                        <div dangerouslySetInnerHTML={{ __html: template.body.substring(0, 200) + '...' }} />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-2">
+                      <Label className="text-sm font-medium">Available Variables</Label>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {template.variables.map((variable) => (
+                          <span key={variable} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                            {`{{${variable}}}`}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* SMS Templates Tab */}
+        {activeTab === 'sms-templates' && (
+          <div className="space-y-6">
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-medium">SMS Templates</h3>
+                  <p className="text-sm text-gray-500">Customize SMS message templates for different notification types</p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setIsCreatingNew(true);
+                    setEditingTemplate({
+                      id: '',
+                      name: '',
+                      body: '',
+                      variables: []
+                    });
+                  }}
+                  className={`bg-${themeClasses.primary} text-white hover:bg-${themeClasses.primaryDark}`}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Add New Template
+                </Button>
+              </div>
+              
+              <div className="space-y-4">
+                {smsTemplates.map((template) => (
+                  <div key={template.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="font-medium">{template.name}</h4>
+                        <p className="text-sm text-gray-500">Template ID: {template.id}</p>
+                      </div>
+                      <Button
+                        onClick={() => setEditingTemplate(template)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Edit Template
+                      </Button>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium">Message</Label>
+                      <div className="mt-1 p-3 bg-gray-50 rounded text-sm">
+                        {template.body}
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Characters: {template.body.length}/160
+                      </p>
+                    </div>
+                    
+                    <div className="mt-2">
+                      <Label className="text-sm font-medium">Available Variables</Label>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {template.variables.map((variable) => (
+                          <span key={variable} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                            {`{{${variable}}}`}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
+
+      {/* Template Editor Modal */}
+      {editingTemplate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">
+                {isCreatingNew ? 'Create New Template' : `Edit Template: ${editingTemplate.name}`}
+              </h3>
+              <Button
+                onClick={() => {
+                  setEditingTemplate(null);
+                  setIsCreatingNew(false);
+                }}
+                variant="outline"
+                size="sm"
+              >
+                Close
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Template ID and Name fields for new templates */}
+              {isCreatingNew && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="templateId">Template ID</Label>
+                      <Input
+                        id="templateId"
+                        value={editingTemplate.id}
+                        onChange={(e) => setEditingTemplate({
+                          ...editingTemplate,
+                          id: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_')
+                        })}
+                        placeholder="e.g., custom_alert"
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Use lowercase letters, numbers, and underscores only
+                      </p>
+                    </div>
+                    <div>
+                      <Label htmlFor="templateName">Template Name</Label>
+                      <Input
+                        id="templateName"
+                        value={editingTemplate.name}
+                        onChange={(e) => setEditingTemplate({
+                          ...editingTemplate,
+                          name: e.target.value
+                        })}
+                        placeholder="e.g., Custom Alert"
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+              
+              {editingTemplate.subject !== undefined && (
+                <div>
+                  <Label htmlFor="templateSubject">Subject</Label>
+                  <Input
+                    id="templateSubject"
+                    value={editingTemplate.subject}
+                    onChange={(e) => setEditingTemplate({
+                      ...editingTemplate,
+                      subject: e.target.value
+                    })}
+                    placeholder="Enter email subject"
+                    className="mt-1"
+                  />
+                </div>
+              )}
+              
+              <div>
+                <Label htmlFor="templateBody">Message Body</Label>
+                <textarea
+                  id="templateBody"
+                  value={editingTemplate.body}
+                  onChange={(e) => setEditingTemplate({
+                    ...editingTemplate,
+                    body: e.target.value
+                  })}
+                  placeholder="Enter message body"
+                  className="mt-1 w-full h-64 p-3 border border-gray-300 rounded-md resize-none"
+                  rows={10}
+                />
+                {activeTab === 'sms-templates' && (
+                  <p className="mt-1 text-sm text-gray-500">
+                    Characters: {editingTemplate.body.length}/160
+                  </p>
+                )}
+              </div>
+              
+              {/* Variables section */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Available Variables</Label>
+                  {isCreatingNew && (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Add variable (e.g., customerName)"
+                          className="text-sm w-48"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              const input = e.target as HTMLInputElement;
+                              const newVariable = input.value.trim();
+                              if (newVariable && !editingTemplate.variables.includes(newVariable)) {
+                                setEditingTemplate({
+                                  ...editingTemplate,
+                                  variables: [...editingTemplate.variables, newVariable]
+                                });
+                                input.value = '';
+                              }
+                            }
+                          }}
+                        />
+                        <Button
+                          onClick={() => {
+                            const input = document.querySelector('input[placeholder="Add variable (e.g., customerName)"]') as HTMLInputElement;
+                            const newVariable = input.value.trim();
+                            if (newVariable && !editingTemplate.variables.includes(newVariable)) {
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                variables: [...editingTemplate.variables, newVariable]
+                              });
+                              input.value = '';
+                            }
+                          }}
+                          size="sm"
+                          variant="outline"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-xs text-gray-500">Common variables:</span>
+                        {['recipientName', 'productName', 'productSku', 'currentStock', 'reorderPoint', 'warehouseName', 'orderNumber', 'customerName', 'totalAmount', 'currency', 'itemCount', 'orderDate'].map(variable => (
+                          <button
+                            key={variable}
+                            onClick={() => {
+                              if (!editingTemplate.variables.includes(variable)) {
+                                setEditingTemplate({
+                                  ...editingTemplate,
+                                  variables: [...editingTemplate.variables, variable]
+                                });
+                              }
+                            }}
+                            disabled={editingTemplate.variables.includes(variable)}
+                            className={`text-xs px-2 py-1 rounded ${
+                              editingTemplate.variables.includes(variable)
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-green-100 text-green-800 hover:bg-green-200 cursor-pointer'
+                            }`}
+                          >
+                            {variable}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {editingTemplate.variables.map((variable) => (
+                    <div key={variable} className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          const textarea = document.getElementById('templateBody') as HTMLTextAreaElement;
+                          const start = textarea.selectionStart;
+                          const end = textarea.selectionEnd;
+                          const text = textarea.value;
+                          const before = text.substring(0, start);
+                          const after = text.substring(end, text.length);
+                          const variableText = `{{${variable}}}`;
+                          
+                          setEditingTemplate({
+                            ...editingTemplate,
+                            body: before + variableText + after
+                          });
+                          
+                          setTimeout(() => {
+                            textarea.focus();
+                            textarea.setSelectionRange(start + variableText.length, start + variableText.length);
+                          }, 0);
+                        }}
+                        className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded hover:bg-blue-200 cursor-pointer"
+                      >
+                        {`{{${variable}}}`}
+                      </button>
+                      {isCreatingNew && (
+                        <button
+                          onClick={() => {
+                            setEditingTemplate({
+                              ...editingTemplate,
+                              variables: editingTemplate.variables.filter(v => v !== variable)
+                            });
+                          }}
+                          className="text-red-500 hover:text-red-700 text-xs"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                
+                <p className="mt-1 text-xs text-gray-500">
+                  Click on a variable to insert it into the message
+                  {isCreatingNew && ' • Click × to remove a variable'}
+                </p>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button
+                  onClick={() => {
+                    setEditingTemplate(null);
+                    setIsCreatingNew(false);
+                  }}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    // Validate required fields for new templates
+                    if (isCreatingNew) {
+                      if (!editingTemplate.id || !editingTemplate.name || !editingTemplate.body) {
+                        showError('Please fill in all required fields (ID, Name, and Body)');
+                        return;
+                      }
+                      
+                      // Check if ID already exists
+                      const existingTemplates = activeTab === 'email-templates' ? emailTemplates : smsTemplates;
+                      if (existingTemplates.some(t => t.id === editingTemplate.id)) {
+                        showError('Template ID already exists. Please choose a different ID.');
+                        return;
+                      }
+                    }
+                    
+                    // Update or create the template in the appropriate state
+                    if (activeTab === 'email-templates') {
+                      if (isCreatingNew) {
+                        setEmailTemplates(prev => [...prev, editingTemplate]);
+                        showSuccess('Email template created successfully');
+                      } else {
+                        setEmailTemplates(prev => 
+                          prev.map(t => t.id === editingTemplate.id ? editingTemplate : t)
+                        );
+                        showSuccess('Email template updated successfully');
+                      }
+                    } else {
+                      if (isCreatingNew) {
+                        setSmsTemplates(prev => [...prev, editingTemplate]);
+                        showSuccess('SMS template created successfully');
+                      } else {
+                        setSmsTemplates(prev => 
+                          prev.map(t => t.id === editingTemplate.id ? editingTemplate : t)
+                        );
+                        showSuccess('SMS template updated successfully');
+                      }
+                    }
+                    
+                    setEditingTemplate(null);
+                    setIsCreatingNew(false);
+                  }}
+                  className={`bg-${themeClasses.primary} text-white hover:bg-${themeClasses.primaryDark}`}
+                >
+                  {isCreatingNew ? 'Create Template' : 'Save Template'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Email Test Popup */}
       {showEmailPopup && (

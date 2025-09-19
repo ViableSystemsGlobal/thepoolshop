@@ -114,29 +114,74 @@ export class NotificationProcessor {
    */
   static async sendSMS(notification: any): Promise<void> {
     try {
-      // TODO: Implement actual SMS sending
-      // This would integrate with services like:
-      // - Twilio
-      // - AWS SNS
-      // - Deywuro (as mentioned by the user)
-      
       if (!notification.user.phone) {
         console.warn(`No phone number for user ${notification.user.id}`);
         return;
       }
-      
-      console.log(`SMS notification sent to ${notification.user.phone}:`);
-      console.log(`Message: ${notification.message}`);
-      
-      // Example implementation with Deywuro:
-      // await deywuroSMS.send({
-      //   to: notification.user.phone,
-      //   message: notification.message
-      // });
+
+      // Get SMS configuration from database
+      const username = await this.getSettingValue('SMS_USERNAME', '');
+      const password = await this.getSettingValue('SMS_PASSWORD', '');
+      const senderId = await this.getSettingValue('SMS_SENDER_ID', 'AdPools');
+
+      if (!username || !password) {
+        console.warn('SMS configuration not found, skipping SMS notification');
+        return;
+      }
+
+      console.log(`Sending SMS notification to ${notification.user.phone}: ${notification.message}`);
+
+      // Send SMS via Deywuro API
+      const response = await fetch('https://deywuro.com/api/sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          username: username,
+          password: password,
+          destination: notification.user.phone,
+          source: senderId,
+          message: notification.message
+        })
+      });
+
+      const responseText = await response.text();
+      console.log('SMS notification response:', responseText);
+
+      // Try to parse as JSON
+      try {
+        const result = JSON.parse(responseText);
+        if (result.code === 0) {
+          console.log(`SMS notification sent successfully to ${notification.user.phone}`);
+        } else {
+          console.error(`SMS notification failed: ${result.message}`);
+          throw new Error(`SMS failed: ${result.message}`);
+        }
+      } catch (parseError) {
+        console.error(`SMS provider returned non-JSON response: ${responseText}`);
+        throw new Error(`SMS provider error: ${responseText.substring(0, 100)}...`);
+      }
       
     } catch (error) {
       console.error('Error sending SMS notification:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Helper function to get setting value from database
+   */
+  static async getSettingValue(key: string, defaultValue: string = ''): Promise<string> {
+    try {
+      const setting = await prisma.systemSettings.findUnique({
+        where: { key },
+        select: { value: true }
+      });
+      return setting?.value || defaultValue;
+    } catch (error) {
+      console.error(`Error fetching setting ${key}:`, error);
+      return defaultValue;
     }
   }
 

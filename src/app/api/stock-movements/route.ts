@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NotificationService, SystemNotificationTriggers } from "@/lib/notification-service";
+import { NotificationProcessor } from "@/lib/notification-processor";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -451,13 +452,17 @@ export async function POST(request: NextRequest) {
           stockItem.available,
           10 // Default reorder point
         );
+        // Send to both Inventory Managers and Super Admins
         await NotificationService.sendToInventoryManagers(trigger);
+        await NotificationService.sendToSuperAdmins(trigger);
       }
       
       // Check for out of stock alerts
       if (stockItem.available === 0) {
         const trigger = SystemNotificationTriggers.stockOut(product.name);
+        // Send to both Inventory Managers and Super Admins
         await NotificationService.sendToInventoryManagers(trigger);
+        await NotificationService.sendToSuperAdmins(trigger);
       }
       
       // Notify for significant stock movements
@@ -476,7 +481,11 @@ export async function POST(request: NextRequest) {
           }
         };
         await NotificationService.sendToInventoryManagers(trigger);
+        await NotificationService.sendToSuperAdmins(trigger);
       }
+
+      // Process pending notifications to actually send them
+      await NotificationProcessor.processPendingNotifications();
     }
 
     return NextResponse.json(movementWithDetails, { status: 201 });

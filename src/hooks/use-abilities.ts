@@ -42,6 +42,10 @@ const MODULE_ACCESS = {
   'payments': ['payments.view'],
   'returns': ['returns.view'],
   'communication': ['communication.view'],
+  'sms': ['sms.view', 'sms.send', 'sms.bulk_send'],
+  'sms-history': ['sms.view', 'sms.history'],
+  'email': ['email.view', 'email.send', 'email.bulk_send'],
+  'email-history': ['email.view', 'email.history'],
   'templates': ['templates.view'],
   'communication-logs': ['communication-logs.view'],
   'agents': ['agents.view'],
@@ -82,7 +86,9 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     // Sales
     'sales.view', 'orders.view', 'proformas.view', 'invoices.view', 'payments.view', 'returns.view',
     // Communication
-    'communication.view', 'templates.view', 'communication-logs.view',
+        'communication.view', 'templates.view', 'communication-logs.view',
+        'sms.view', 'sms.send', 'sms.bulk_send', 'sms.history',
+        'email.view', 'email.send', 'email.bulk_send', 'email.history',
     // Agents
     'agents.view', 'commissions.view',
     // Reports

@@ -30,6 +30,10 @@ model User {
   notifications Notification[]
   proformas     Proforma[]
   quotations    Quotation[]
+  smsMessages   SmsMessage[]
+  smsCampaigns  SmsCampaign[]
+  emailMessages EmailMessage[]
+  emailCampaigns EmailCampaign[]
 
   @@map("users")
 }
@@ -526,7 +530,101 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model SmsMessage {
+  id            String        @id @default(cuid())
+  recipient     String
+  message       String
+  status        SmsStatus     @default(PENDING)
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  failedAt      DateTime?
+  errorMessage  String?
+  cost          Float?
+  provider      String?       // SMS provider used (e.g., "deywuro")
+  providerId    String?       // Provider's message ID
+  userId        String        // User who sent the message
+  campaignId    String?       // Optional campaign ID for bulk messages
+  isBulk        Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  user          User          @relation(fields: [userId], references: [id])
+  campaign      SmsCampaign?  @relation(fields: [campaignId], references: [id])
+
+  @@map("sms_messages")
+}
+
+model SmsCampaign {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  recipients  Json          // Array of phone numbers or contact IDs
+  message     String
+  status      CampaignStatus @default(DRAFT)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  completedAt DateTime?
+  totalSent   Int           @default(0)
+  totalFailed Int           @default(0)
+  userId      String        // User who created the campaign
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  user        User          @relation(fields: [userId], references: [id])
+  messages    SmsMessage[]
+
+  @@map("sms_campaigns")
+}
+
+model EmailMessage {
+  id            String        @id @default(cuid())
+  recipient     String
+  subject       String
+  message       String
+  status        EmailStatus   @default(PENDING)
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  failedAt      DateTime?
+  errorMessage  String?
+  provider      String?       // Email provider used (e.g., "smtp")
+  providerId    String?       // Provider's message ID
+  userId        String        // User who sent the message
+  campaignId    String?       // Optional campaign ID for bulk messages
+  isBulk        Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  user          User          @relation(fields: [userId], references: [id])
+  campaign      EmailCampaign? @relation(fields: [campaignId], references: [id])
+
+  @@map("email_messages")
+}
+
+model EmailCampaign {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  recipients  Json          // Array of email addresses or contact IDs
+  subject     String
+  message     String
+  status      CampaignStatus @default(DRAFT)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  completedAt DateTime?
+  totalSent   Int           @default(0)
+  totalFailed Int           @default(0)
+  userId      String        // User who created the campaign
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  user        User          @relation(fields: [userId], references: [id])
+  messages    EmailMessage[]
+
+  @@map("email_campaigns")
+}
+
 enum UserRole {
+  SUPER_ADMIN
   ADMIN
   SALES_MANAGER
   SALES_REP
@@ -631,4 +729,27 @@ enum BackorderPriority {
   NORMAL
   HIGH
   URGENT
+}
+
+enum SmsStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  COMPLETED
+  FAILED
+  CANCELLED
 }

@@ -118,7 +118,8 @@ export class NotificationService {
         select: {
           id: true,
           email: true,
-          name: true
+          name: true,
+          phone: true
         }
       });
 
@@ -157,6 +158,13 @@ export class NotificationService {
    */
   static async sendToAdmins(trigger: NotificationTrigger): Promise<void> {
     await this.sendToRole('ADMIN', trigger);
+  }
+
+  /**
+   * Send notification to all super admins
+   */
+  static async sendToSuperAdmins(trigger: NotificationTrigger): Promise<void> {
+    await this.sendToRole('SUPER_ADMIN', trigger);
   }
 
   /**
@@ -327,7 +335,7 @@ export const SystemNotificationTriggers = {
     type: 'STOCK_LOW',
     title: 'Low Stock Alert',
     message: `${productName} is running low. Current stock: ${currentStock}, Reorder point: ${reorderPoint}`,
-    channels: ['IN_APP', 'EMAIL'],
+    channels: ['IN_APP', 'EMAIL', 'SMS'],
     data: { productName, currentStock, reorderPoint }
   }),
 
