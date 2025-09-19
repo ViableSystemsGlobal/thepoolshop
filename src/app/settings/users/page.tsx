@@ -9,7 +9,6 @@ import { useToast } from "@/contexts/toast-context";
 import { useTheme } from "@/contexts/theme-context";
 import { 
   Users, 
-  Search,
   Plus,
   Edit,
   Trash2,
@@ -22,7 +21,6 @@ import {
   Shield,
   Eye,
   EyeOff,
-  Filter,
   Grid,
   List
 } from "lucide-react";
@@ -197,12 +195,28 @@ export default function UserManagementPage() {
   const handleUpdateUser = async (userId: string, userData: Partial<User>) => {
     try {
       setIsLoading(true);
+      
+      // Map role name back to enum value
+      const roleMapping: { [key: string]: string } = {
+        'Super Admin': 'ADMIN',
+        'Sales Manager': 'SALES_MANAGER',
+        'Sales Rep': 'SALES_REP',
+        'Inventory Manager': 'INVENTORY_MANAGER',
+        'Finance Officer': 'FINANCE_OFFICER',
+        'Executive Viewer': 'EXECUTIVE_VIEWER'
+      };
+      
+      const mappedUserData = {
+        ...userData,
+        role: userData.role ? roleMapping[userData.role] || userData.role : undefined
+      };
+      
       const response = await fetch(`/api/users/${userId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify(mappedUserData),
       });
 
       if (response.ok) {
@@ -291,28 +305,6 @@ export default function UserManagementPage() {
     }
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === "All" || getRoleDisplayName(user.role) === roleFilter;
-    const matchesName = !nameFilter || user.name.toLowerCase().includes(nameFilter.toLowerCase());
-    const matchesEmail = !emailFilter || user.email.toLowerCase().includes(emailFilter.toLowerCase());
-    
-    return matchesSearch && matchesRole && matchesName && matchesEmail;
-  });
-
-  const getRoleColor = (role: string) => {
-    if (role === "Super Admin") return `bg-red-100 text-red-800`;
-    if (role === "Administrator") return `bg-purple-100 text-purple-800`;
-    if (role === "Staff") return `bg-${theme.primary} text-white`;
-    if (role === "Client") return `bg-gray-100 text-gray-800`;
-    return `bg-gray-100 text-gray-800`;
-  };
-
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
   // Map enum roles to display names
   const getRoleDisplayName = (role: string) => {
     const roleMapping: { [key: string]: string } = {
@@ -326,6 +318,27 @@ export default function UserManagementPage() {
     return roleMapping[role] || role;
   };
 
+  const getRoleColor = (role: string) => {
+    if (role === "Super Admin") return `bg-red-100 text-red-800`;
+    if (role === "Administrator") return `bg-purple-100 text-purple-800`;
+    if (role === "Staff") return `bg-${theme.primary} text-white`;
+    return `bg-gray-100 text-gray-800`;
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = roleFilter === "All" || getRoleDisplayName(user.role) === roleFilter;
+    const matchesName = !nameFilter || user.name.toLowerCase().includes(nameFilter.toLowerCase());
+    const matchesEmail = !emailFilter || user.email.toLowerCase().includes(emailFilter.toLowerCase());
+    
+    return matchesSearch && matchesRole && matchesName && matchesEmail;
+  });
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -337,27 +350,6 @@ export default function UserManagementPage() {
           </div>
           <div className="flex items-center space-x-2">
             <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center space-x-2"
-            >
-              <User className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center space-x-2"
-            >
-              <Mail className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center space-x-2"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-            <Button
               onClick={() => setShowAddUserModal(true)}
               className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
               size="sm"
@@ -368,7 +360,7 @@ export default function UserManagementPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -389,15 +381,6 @@ export default function UserManagementPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Clients</CardTitle>
-              <User className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{users.filter(u => u.role === "Client").length}</div>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -449,40 +432,36 @@ export default function UserManagementPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-${theme.primary}`}
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+                  className="flex items-center space-x-2"
                 >
                   {viewMode === "grid" ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
+                  <span>{viewMode === "grid" ? "List View" : "Grid View"}</span>
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Users Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Add New User Card */}
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow border-dashed border-2 border-gray-300 hover:border-gray-400"
-            onClick={() => setShowAddUserModal(true)}
-          >
-            <CardContent className="flex flex-col items-center justify-center p-8 text-center">
-              <div className={`w-16 h-16 rounded-full bg-${theme.primary} flex items-center justify-center mb-4`}>
-                <Plus className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">New User</h3>
-              <p className="text-sm text-gray-600">Click here to Create New User</p>
-            </CardContent>
-          </Card>
+        {/* Users Display */}
+        {viewMode === "grid" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Add New User Card */}
+            <Card 
+              className="cursor-pointer hover:shadow-lg transition-shadow border-dashed border-2 border-gray-300 hover:border-gray-400"
+              onClick={() => setShowAddUserModal(true)}
+            >
+              <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+                <div className={`w-16 h-16 rounded-full bg-${theme.primary} flex items-center justify-center mb-4`}>
+                  <Plus className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">New User</h3>
+                <p className="text-sm text-gray-600">Click here to Create New User</p>
+              </CardContent>
+            </Card>
 
-          {/* User Cards */}
-          {filteredUsers.map((user) => (
+            {/* User Cards */}
+            {filteredUsers.map((user) => (
             <Card key={user.id} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
@@ -595,7 +574,121 @@ export default function UserManagementPage() {
               </CardContent>
             </Card>
           ))}
-        </div>
+          </div>
+        ) : (
+          /* List View */
+          <div className="space-y-4">
+            {/* Add New User Button */}
+            <Card 
+              className="cursor-pointer hover:shadow-lg transition-shadow border-dashed border-2 border-gray-300 hover:border-gray-400"
+              onClick={() => setShowAddUserModal(true)}
+            >
+              <CardContent className="flex items-center justify-center p-6">
+                <div className={`w-12 h-12 rounded-full bg-${theme.primary} flex items-center justify-center mr-4`}>
+                  <Plus className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Add New User</h3>
+                  <p className="text-sm text-gray-600">Click here to create a new user</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* User List */}
+            {filteredUsers.map((user) => (
+              <Card key={user.id} className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                        {user.avatar ? (
+                          <img 
+                            src={user.avatar} 
+                            alt={user.name}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-sm font-medium text-gray-600">
+                            {getInitials(user.name)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <h3 className="font-semibold text-gray-900">{user.name}</h3>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(getRoleDisplayName(user.role))}`}>
+                            {getRoleDisplayName(user.role)}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600">
+                          <div className="flex items-center">
+                            <Mail className="h-4 w-4 mr-1" />
+                            {user.email}
+                          </div>
+                          {user.phone && (
+                            <div className="flex items-center">
+                              <Phone className="h-4 w-4 mr-1" />
+                              {user.phone}
+                            </div>
+                          )}
+                          <div className="flex items-center">
+                            <User className="h-4 w-4 mr-1" />
+                            {user.isActive ? (
+                              <span className="text-green-600 flex items-center">
+                                <Check className="h-3 w-3 mr-1" />
+                                Active
+                              </span>
+                            ) : (
+                              <span className="text-red-600 flex items-center">
+                                <EyeOff className="h-3 w-3 mr-1" />
+                                Inactive
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <DropdownMenu
+                      trigger={
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      }
+                      items={[
+                        {
+                          label: "View Details",
+                          icon: <Eye className="h-4 w-4" />,
+                          onClick: () => handleViewUser(user)
+                        },
+                        {
+                          label: "Edit User",
+                          icon: <Edit className="h-4 w-4" />,
+                          onClick: () => handleEditUser(user)
+                        },
+                        {
+                          label: "Change Password",
+                          icon: <Key className="h-4 w-4" />,
+                          onClick: () => handleChangePassword(user)
+                        },
+                        {
+                          label: user.isActive ? "Deactivate" : "Activate",
+                          icon: user.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />,
+                          onClick: () => handleToggleUserStatus(user)
+                        },
+                        {
+                          label: "Delete User",
+                          icon: <Trash2 className="h-4 w-4" />,
+                          onClick: () => handleDeleteUser(user),
+                          className: "text-red-600 hover:text-red-700"
+                        }
+                      ]}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
         {/* Add User Modal */}
         <AddUserModal

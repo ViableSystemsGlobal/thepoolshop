@@ -50,11 +50,23 @@ export function EditUserModal({
 
   useEffect(() => {
     if (user) {
+      // Map enum role to display name
+      const roleMapping: { [key: string]: string } = {
+        'ADMIN': 'Super Admin',
+        'SALES_MANAGER': 'Sales Manager',
+        'SALES_REP': 'Sales Rep',
+        'INVENTORY_MANAGER': 'Inventory Manager',
+        'FINANCE_OFFICER': 'Finance Officer',
+        'EXECUTIVE_VIEWER': 'Executive Viewer'
+      };
+      
+      const displayRole = roleMapping[user.role] || user.role;
+      
       setFormData({
         name: user.name || '',
         email: user.email || '',
         phone: user.phone || '',
-        role: user.role || '',
+        role: displayRole,
         isActive: user.isActive ?? true,
       });
     }

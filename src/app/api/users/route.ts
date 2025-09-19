@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
           phoneVerified: true,
           createdAt: true,
           updatedAt: true
-        }
+        } as any
       }),
       prisma.user.count({ where })
     ]);
@@ -121,8 +121,7 @@ export async function POST(request: NextRequest) {
       'Staff': 'SALES_REP',
       'Inventory Manager': 'INVENTORY_MANAGER',
       'Finance Officer': 'FINANCE_OFFICER',
-      'Executive Viewer': 'EXECUTIVE_VIEWER',
-      'Client': 'SALES_REP' // Default clients to SALES_REP for now
+      'Executive Viewer': 'EXECUTIVE_VIEWER'
     };
 
     const mappedRole = roleMapping[role || ''] || 'SALES_REP';
@@ -136,18 +135,17 @@ export async function POST(request: NextRequest) {
         name,
         phone,
         password: password || null,
-        role: mappedRole,
+        role: mappedRole as any,
         isActive: true
-      },
+      } as any,
       select: {
         id: true,
         email: true,
         name: true,
-        phone: true,
         role: true,
         isActive: true,
         createdAt: true
-      }
+      } as any
     });
 
     // TODO: Send invitation email if requested

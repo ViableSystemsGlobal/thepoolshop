@@ -55,8 +55,7 @@ export async function PUT(
       'Staff': 'SALES_REP',
       'Inventory Manager': 'INVENTORY_MANAGER',
       'Finance Officer': 'FINANCE_OFFICER',
-      'Executive Viewer': 'EXECUTIVE_VIEWER',
-      'Client': 'SALES_REP'
+      'Executive Viewer': 'EXECUTIVE_VIEWER'
     };
 
     const mappedRole = role ? roleMapping[role] || role : undefined;

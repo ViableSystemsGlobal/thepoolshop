@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 // PUT /api/users/[id]/toggle-status - Toggle user active status
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,8 +14,9 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
     // Prevent deactivating yourself
-    if (params.id === session.user.id) {
+    if (id === session.user.id) {
       return NextResponse.json(
         { error: "Cannot deactivate your own account" },
         { status: 400 }
@@ -24,7 +25,7 @@ export async function PUT(
 
     // Get current user data
     const user = await prisma.user.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!user) {
@@ -33,7 +34,7 @@ export async function PUT(
 
     // Toggle status
     const updatedUser = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data: { isActive: !(user as any).isActive } as any
     });
 

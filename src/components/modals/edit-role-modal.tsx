@@ -23,10 +23,10 @@ interface Role {
   description?: string;
   isSystem: boolean;
   isActive: boolean;
-  roleAbilities: Array<{
+  roleAbilities?: Array<{
     ability: Ability;
   }>;
-  _count: {
+  _count?: {
     userRoles: number;
   };
 }
@@ -58,7 +58,7 @@ export function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModa
       setFormData({
         name: role.name,
         description: role.description || '',
-        abilities: role.roleAbilities.map(ra => ra.ability.id)
+        abilities: role.roleAbilities?.map(ra => ra.ability.id) || []
       });
       fetchAbilities();
     }
@@ -67,10 +67,18 @@ export function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModa
   const fetchAbilities = async () => {
     try {
       setIsLoadingAbilities(true);
-      const response = await fetch('/api/abilities');
+      const response = await fetch('/api/abilities/public');
       if (response.ok) {
         const data = await response.json();
         setAbilities(data.abilities || []);
+        console.log('Loaded abilities:', data.abilities?.length);
+        console.log('Abilities by resource:', Object.entries(
+          (data.abilities || []).reduce((acc: any, ability: any) => {
+            if (!acc[ability.resource]) acc[ability.resource] = 0;
+            acc[ability.resource]++;
+            return acc;
+          }, {})
+        ));
       } else {
         showError('Failed to load abilities');
       }
@@ -168,9 +176,9 @@ export function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModa
   if (!isOpen || !role) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[95vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
           <div className="flex items-center space-x-2">
             <div className="p-2 bg-blue-100 rounded-lg">
               <Shield className="h-5 w-5 text-blue-600" />
@@ -194,7 +202,7 @@ export function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModa
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col h-full">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
@@ -238,7 +246,7 @@ export function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModa
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm font-medium text-gray-700">Users with this role</div>
-                    <div className="text-2xl font-bold text-gray-900">{role._count.userRoles}</div>
+                    <div className="text-2xl font-bold text-gray-900">{role._count?.userRoles || 0}</div>
                   </div>
                   <div>
                     <div className="text-sm font-medium text-gray-700">Abilities assigned</div>
@@ -263,57 +271,62 @@ export function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModa
                   <span className="ml-2 text-gray-600">Loading abilities...</span>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {Object.entries(groupedAbilities).map(([resource, resourceAbilities]) => (
-                    <div key={resource} className="border border-gray-200 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-gray-900 mb-3 capitalize">
-                        {resource.replace(/([A-Z])/g, ' $1').trim()}
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {resourceAbilities.map((ability) => (
-                          <button
-                            key={ability.id}
-                            type="button"
-                            onClick={() => handleAbilityToggle(ability.id)}
-                            className={`flex items-center p-3 rounded-md border text-left transition-colors ${
-                              formData.abilities.includes(ability.id)
-                                ? 'bg-blue-50 border-blue-200 text-blue-900'
-                                : 'bg-white border-gray-200 hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className={`flex-shrink-0 w-5 h-5 rounded border-2 mr-3 flex items-center justify-center ${
-                              formData.abilities.includes(ability.id)
-                                ? 'bg-blue-600 border-blue-600'
-                                : 'border-gray-300'
-                            }`}>
-                              {formData.abilities.includes(ability.id) && (
-                                <Check className="h-3 w-3 text-white" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium">
-                                {ability.action.charAt(0).toUpperCase() + ability.action.slice(1)}
+                <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+                  <div className="space-y-4 p-4">
+                    {Object.entries(groupedAbilities).map(([resource, resourceAbilities]) => (
+                      <div key={resource} className="border border-gray-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-gray-900 mb-3 capitalize flex items-center">
+                          {resource.replace(/([A-Z])/g, ' $1').trim()}
+                          <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                            {resourceAbilities.length} abilities
+                          </span>
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {resourceAbilities.map((ability) => (
+                            <button
+                              key={ability.id}
+                              type="button"
+                              onClick={() => handleAbilityToggle(ability.id)}
+                              className={`flex items-center p-3 rounded-md border text-left transition-colors ${
+                                formData.abilities.includes(ability.id)
+                                  ? 'bg-blue-50 border-blue-200 text-blue-900'
+                                  : 'bg-white border-gray-200 hover:bg-gray-50'
+                              }`}
+                            >
+                              <div className={`flex-shrink-0 w-5 h-5 rounded border-2 mr-3 flex items-center justify-center ${
+                                formData.abilities.includes(ability.id)
+                                  ? 'bg-blue-600 border-blue-600'
+                                  : 'border-gray-300'
+                              }`}>
+                                {formData.abilities.includes(ability.id) && (
+                                  <Check className="h-3 w-3 text-white" />
+                                )}
                               </div>
-                              {ability.description && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {ability.description}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium">
+                                  {ability.action.charAt(0).toUpperCase() + ability.action.slice(1)}
                                 </div>
-                              )}
-                            </div>
-                          </button>
-                        ))}
+                                {ability.description && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {ability.description}
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
           {/* Footer */}
-          <div className="flex justify-between items-center p-6 border-t bg-gray-50">
+          <div className="flex justify-between items-center p-6 border-t bg-gray-50 flex-shrink-0">
             <div>
-              {!role.isSystem && role._count.userRoles === 0 && (
+              {!role.isSystem && (role._count?.userRoles || 0) === 0 && (
                 <Button
                   type="button"
                   variant="destructive"

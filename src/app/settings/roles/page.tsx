@@ -14,9 +14,13 @@ import {
   Plus,
   Edit,
   Trash2,
-  Users
+  Users,
+  Copy
 } from "lucide-react";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { ConfirmationModal } from "@/components/modals/confirmation-modal";
+import { useAsyncConfirmation } from "@/hooks/use-async-confirmation";
+import { EditRoleModal } from "@/components/modals/edit-role-modal";
 
 interface Role {
   id: string;
@@ -27,10 +31,13 @@ interface Role {
   memberCount?: number;
   abilities?: Ability[];
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
   roleAbilities?: {
     ability: Ability;
   }[];
+  _count?: {
+    userRoles: number;
+  };
 }
 
 interface Ability {
@@ -64,7 +71,8 @@ const MOCK_ROLES: Role[] = [
       { id: "11", name: "roles.manage", resource: "roles", action: "manage", description: "Role management" },
       { id: "12", name: "settings.manage", resource: "settings", action: "manage", description: "System settings" }
     ],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   },
   {
     id: "2",
@@ -84,7 +92,8 @@ const MOCK_ROLES: Role[] = [
       { id: "20", name: "quotations.manage", resource: "quotations", action: "manage", description: "Quotation management" },
       { id: "21", name: "accounts.manage", resource: "accounts", action: "manage", description: "Account management" }
     ],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   },
   {
     id: "3",
@@ -105,7 +114,8 @@ const MOCK_ROLES: Role[] = [
       { id: "30", name: "quotations.show", resource: "quotations", action: "show", description: "View quotations" },
       { id: "31", name: "accounts.manage", resource: "accounts", action: "manage", description: "Account management" }
     ],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   },
   {
     id: "4",
@@ -124,7 +134,8 @@ const MOCK_ROLES: Role[] = [
       { id: "38", name: "warehouses.manage", resource: "warehouses", action: "manage", description: "Warehouse management" },
       { id: "39", name: "stock-movements.manage", resource: "stock-movements", action: "manage", description: "Stock movement management" }
     ],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   },
   {
     id: "5",
@@ -144,7 +155,8 @@ const MOCK_ROLES: Role[] = [
       { id: "47", name: "invoices.manage", resource: "invoices", action: "manage", description: "Invoice management" },
       { id: "48", name: "payments.manage", resource: "payments", action: "manage", description: "Payment management" }
     ],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }
 ];
 
@@ -157,6 +169,9 @@ export default function RoleManagementPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const deleteConfirmation = useAsyncConfirmation();
 
   useEffect(() => {
     loadData();
@@ -192,17 +207,82 @@ export default function RoleManagementPage() {
   };
 
   const handleEditRole = (role: Role) => {
-    // Navigate to edit page (you can create this later)
-    router.push(`/settings/roles/${role.id}/edit`);
+    setSelectedRole(role);
+    setShowEditModal(true);
   };
 
-  const handleDeleteRole = async (roleId: string) => {
-    if (!confirm('Are you sure you want to delete this role? This action cannot be undone.')) {
-      return;
-    }
+  const handleEditSuccess = () => {
+    setShowEditModal(false);
+    setSelectedRole(null);
+    loadData(); // Reload roles to get updated data
+  };
 
-    setRoles(prev => prev.filter(r => r.id !== roleId));
-    success('Role deleted successfully');
+  const handleDeleteRole = (role: Role) => {
+    setSelectedRole(role);
+    deleteConfirmation.confirm(
+      {
+        title: 'Delete Role',
+        message: `Are you sure you want to delete the "${role.name}" role? This action cannot be undone and will permanently remove the role from the system.`,
+        confirmText: 'Delete Role',
+        cancelText: 'Cancel',
+        type: 'danger'
+      },
+      async () => {
+        if (!selectedRole) return;
+
+        const response = await fetch(`/api/roles/${selectedRole.id}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          setRoles(prev => prev.filter(r => r.id !== selectedRole.id));
+          success('Role deleted successfully');
+          setSelectedRole(null);
+        } else {
+          const error = await response.json();
+          showError(error.error || 'Failed to delete role');
+          throw new Error(error.error || 'Failed to delete role');
+        }
+      }
+    );
+  };
+
+  const handleDuplicateRole = async (role: Role) => {
+    try {
+      setIsLoading(true);
+      
+      // Get the role's abilities
+      const abilities = role.roleAbilities?.map(ra => ra.ability.id) || [];
+      
+      // Create duplicate role data
+      const duplicateRoleData = {
+        name: `${role.name} (Copy)`,
+        description: role.description || '',
+        abilities: abilities
+      };
+
+      const response = await fetch('/api/roles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(duplicateRoleData),
+      });
+
+      if (response.ok) {
+        const newRole = await response.json();
+        setRoles(prev => [newRole.role, ...prev]);
+        success(`Role "${role.name}" duplicated successfully`);
+      } else {
+        const error = await response.json();
+        showError(error.error || 'Failed to duplicate role');
+      }
+    } catch (error) {
+      console.error('Error duplicating role:', error);
+      showError('Failed to duplicate role');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filteredRoles = roles.filter(role => 
@@ -325,9 +405,14 @@ export default function RoleManagementPage() {
                             onClick: () => handleEditRole(role)
                           },
                           {
+                            label: "Duplicate Role",
+                            icon: <Copy className="h-4 w-4" />,
+                            onClick: () => handleDuplicateRole(role)
+                          },
+                          {
                             label: "Delete Role",
                             icon: <Trash2 className="h-4 w-4" />,
-                            onClick: () => role.isSystem ? null : handleDeleteRole(role.id),
+                            onClick: () => role.isSystem ? null : handleDeleteRole(role),
                             className: role.isSystem ? "text-gray-400 cursor-not-allowed" : "text-red-600 hover:text-red-700"
                           }
                         ]}
@@ -347,17 +432,17 @@ export default function RoleManagementPage() {
                       <div>
                         <p className="text-sm font-medium text-gray-700 mb-2">Abilities:</p>
                         <div className="flex flex-wrap gap-1">
-                          {(role.abilities || role.roleAbilities?.map(ra => ra.ability) || []).slice(0, 5).map((ability) => (
+                          {(role.roleAbilities || []).slice(0, 5).map((ra) => (
                             <span
-                              key={ability.id}
+                              key={ra.ability.id}
                               className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-${theme.primaryBg} text-${theme.primaryText}`}
                             >
-                              {ability.name}
+                              {ra.ability.name}
                             </span>
                           ))}
-                          {(role.abilities?.length || role.roleAbilities?.length || 0) > 5 && (
+                          {(role.roleAbilities?.length || 0) > 5 && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                              +{(role.abilities?.length || role.roleAbilities?.length || 0) - 5} more
+                              +{(role.roleAbilities?.length || 0) - 5} more
                             </span>
                           )}
                         </div>
@@ -379,6 +464,33 @@ export default function RoleManagementPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Edit Role Modal */}
+        <EditRoleModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedRole(null);
+          }}
+          onSuccess={handleEditSuccess}
+          role={selectedRole}
+        />
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={deleteConfirmation.isOpen}
+          onClose={() => {
+            deleteConfirmation.close();
+            setSelectedRole(null);
+          }}
+          onConfirm={deleteConfirmation.handleConfirm}
+          title={deleteConfirmation.options?.title || ''}
+          message={deleteConfirmation.options?.message || ''}
+          confirmText={deleteConfirmation.options?.confirmText}
+          cancelText={deleteConfirmation.options?.cancelText}
+          type={deleteConfirmation.options?.type}
+          isLoading={deleteConfirmation.isLoading}
+        />
       </div>
     </MainLayout>
   );
