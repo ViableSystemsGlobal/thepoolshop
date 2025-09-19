@@ -53,6 +53,7 @@ const MODULE_ACCESS = {
   'currency-settings': ['currency-settings.view'],
   'business-settings': ['business-settings.view'],
   'system-settings': ['system-settings.view'],
+  'notifications': ['notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config'],
 };
 
 // Role-based ability definitions
@@ -89,7 +90,8 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     // Settings
     'settings.view', 'users.view', 'users.create', 'users.edit', 'users.delete',
     'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
-    'product-settings.view', 'currency-settings.view', 'business-settings.view', 'system-settings.view',
+           'product-settings.view', 'currency-settings.view', 'business-settings.view', 'system-settings.view',
+           'notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config',
   ],
   'SALES_MANAGER': [
     'dashboard.view',

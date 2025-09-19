@@ -1,0 +1,297 @@
+import { prisma } from "@/lib/prisma";
+import { NotificationService } from "./notification-service";
+
+export class NotificationProcessor {
+  /**
+   * Process all pending notifications
+   */
+  static async processPendingNotifications(): Promise<void> {
+    try {
+      const pendingNotifications = await NotificationService.getPendingNotifications();
+      
+      console.log(`Processing ${pendingNotifications.length} pending notifications`);
+      
+      for (const notification of pendingNotifications) {
+        await this.processNotification(notification);
+      }
+    } catch (error) {
+      console.error('Error processing pending notifications:', error);
+    }
+  }
+
+  /**
+   * Process a single notification
+   */
+  static async processNotification(notification: any): Promise<void> {
+    try {
+      const channels = JSON.parse(notification.channels as string) as string[];
+      
+      // Process each channel
+      const channelPromises = channels.map(channel => 
+        this.sendToChannel(notification, channel)
+      );
+      
+      await Promise.all(channelPromises);
+      
+      // Mark as sent
+      await NotificationService.markAsSent(notification.id);
+      
+      console.log(`Notification ${notification.id} processed successfully`);
+    } catch (error) {
+      console.error(`Error processing notification ${notification.id}:`, error);
+      
+      // Mark as failed (you might want to implement retry logic)
+      await (prisma as any).notification.update({
+        where: { id: notification.id },
+        data: { 
+          status: 'FAILED',
+          // You could add an error field to store the error message
+        }
+      });
+    }
+  }
+
+  /**
+   * Send notification through a specific channel
+   */
+  static async sendToChannel(notification: any, channel: string): Promise<void> {
+    try {
+      switch (channel) {
+        case 'EMAIL':
+          await this.sendEmail(notification);
+          break;
+        case 'SMS':
+          await this.sendSMS(notification);
+          break;
+        case 'WHATSAPP':
+          await this.sendWhatsApp(notification);
+          break;
+        case 'IN_APP':
+          // In-app notifications are already stored in the database
+          // They will be fetched by the frontend
+          console.log(`In-app notification stored: ${notification.title}`);
+          break;
+        default:
+          console.warn(`Unknown notification channel: ${channel}`);
+      }
+    } catch (error) {
+      console.error(`Error sending notification via ${channel}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send email notification
+   */
+  static async sendEmail(notification: any): Promise<void> {
+    try {
+      // TODO: Implement actual email sending
+      // This would integrate with services like:
+      // - SendGrid
+      // - AWS SES
+      // - Nodemailer with SMTP
+      
+      console.log(`Email notification sent to ${notification.user.email}:`);
+      console.log(`Subject: ${notification.title}`);
+      console.log(`Body: ${notification.message}`);
+      
+      // Example implementation with a hypothetical email service:
+      // await emailService.send({
+      //   to: notification.user.email,
+      //   subject: notification.title,
+      //   html: this.formatEmailMessage(notification),
+      //   text: notification.message
+      // });
+      
+    } catch (error) {
+      console.error('Error sending email notification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send SMS notification
+   */
+  static async sendSMS(notification: any): Promise<void> {
+    try {
+      // TODO: Implement actual SMS sending
+      // This would integrate with services like:
+      // - Twilio
+      // - AWS SNS
+      // - Deywuro (as mentioned by the user)
+      
+      if (!notification.user.phone) {
+        console.warn(`No phone number for user ${notification.user.id}`);
+        return;
+      }
+      
+      console.log(`SMS notification sent to ${notification.user.phone}:`);
+      console.log(`Message: ${notification.message}`);
+      
+      // Example implementation with Deywuro:
+      // await deywuroSMS.send({
+      //   to: notification.user.phone,
+      //   message: notification.message
+      // });
+      
+    } catch (error) {
+      console.error('Error sending SMS notification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send WhatsApp notification
+   */
+  static async sendWhatsApp(notification: any): Promise<void> {
+    try {
+      // TODO: Implement actual WhatsApp sending
+      // This would integrate with services like:
+      // - WhatsApp Business API
+      // - Twilio WhatsApp
+      // - Deywuro WhatsApp
+      
+      if (!notification.user.phone) {
+        console.warn(`No phone number for user ${notification.user.id}`);
+        return;
+      }
+      
+      console.log(`WhatsApp notification sent to ${notification.user.phone}:`);
+      console.log(`Message: ${notification.message}`);
+      
+      // Example implementation:
+      // await whatsappService.send({
+      //   to: notification.user.phone,
+      //   message: notification.message
+      // });
+      
+    } catch (error) {
+      console.error('Error sending WhatsApp notification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Format email message with HTML
+   */
+  static formatEmailMessage(notification: any): string {
+    const data = notification.data ? JSON.parse(notification.data as string) : {};
+    
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px;">
+          <h2 style="color: #333; margin-bottom: 16px;">${notification.title}</h2>
+          <div style="background-color: white; padding: 20px; border-radius: 4px; margin-bottom: 16px;">
+            <p style="color: #666; line-height: 1.6;">${notification.message}</p>
+          </div>
+          <div style="text-align: center; padding-top: 16px; border-top: 1px solid #dee2e6;">
+            <p style="color: #999; font-size: 12px;">
+              This is an automated message from AD Pools Sales Management System.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Schedule notification processing (to be called by a cron job or background task)
+   */
+  static async startProcessing(): Promise<void> {
+    console.log('Starting notification processor...');
+    
+    // Process notifications every minute
+    setInterval(async () => {
+      try {
+        await this.processPendingNotifications();
+      } catch (error) {
+        console.error('Error in notification processing interval:', error);
+      }
+    }, 60000); // 60 seconds
+    
+    // Initial processing
+    await this.processPendingNotifications();
+  }
+}
+
+// Utility functions for common notification scenarios
+
+export const NotificationHelpers = {
+  /**
+   * Send low stock alerts for multiple products
+   */
+  async sendBulkLowStockAlerts(products: Array<{name: string, currentStock: number, reorderPoint: number}>): Promise<void> {
+    for (const product of products) {
+      const trigger = {
+        type: 'STOCK_LOW' as const,
+        title: 'Low Stock Alert',
+        message: `${product.name} is running low. Current stock: ${product.currentStock}, Reorder point: ${product.reorderPoint}`,
+        channels: ['IN_APP' as const, 'EMAIL' as const],
+        data: { productName: product.name, currentStock: product.currentStock, reorderPoint: product.reorderPoint }
+      };
+      
+      await NotificationService.sendToInventoryManagers(trigger);
+    }
+  },
+
+  /**
+   * Send daily inventory summary
+   */
+  async sendDailyInventorySummary(): Promise<void> {
+    try {
+      // Get inventory summary data
+      const lowStockCount = await (prisma as any).product.count({
+        where: {
+          stockItem: {
+            some: {
+              available: {
+                lte: 10
+              }
+            }
+          }
+        }
+      });
+
+      const outOfStockCount = await (prisma as any).product.count({
+        where: {
+          stockItem: {
+            some: {
+              available: 0
+            }
+          }
+        }
+      });
+
+      const trigger = {
+        type: 'SYSTEM_ALERT' as const,
+        title: 'Daily Inventory Summary',
+        message: `Inventory Status: ${lowStockCount} products with low stock, ${outOfStockCount} products out of stock.`,
+        channels: ['IN_APP' as const, 'EMAIL' as const],
+        data: { lowStockCount, outOfStockCount, date: new Date().toISOString().split('T')[0] }
+      };
+
+      await NotificationService.sendToInventoryManagers(trigger);
+    } catch (error) {
+      console.error('Error sending daily inventory summary:', error);
+    }
+  },
+
+  /**
+   * Send security alerts
+   */
+  async sendSecurityAlert(alertType: string, description: string, severity: 'low' | 'medium' | 'high' = 'medium'): Promise<void> {
+    const channels = severity === 'high' 
+      ? ['IN_APP' as const, 'EMAIL' as const, 'SMS' as const]
+      : ['IN_APP' as const, 'EMAIL' as const];
+
+    const trigger = {
+      type: 'SECURITY_ALERT' as const,
+      title: `Security Alert: ${alertType}`,
+      message: `${alertType}: ${description}`,
+      channels,
+      data: { alertType, description, severity }
+    };
+
+    await NotificationService.sendToAdmins(trigger);
+  }
+};

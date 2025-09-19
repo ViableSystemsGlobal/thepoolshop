@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { NotificationService, SystemNotificationTriggers } from "@/lib/notification-service";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // GET /api/stock-movements - Get all stock movements with filtering
 export async function GET(request: NextRequest) {
@@ -90,6 +93,7 @@ export async function GET(request: NextRequest) {
 // POST /api/stock-movements - Create a new stock movement
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
     const formData = await request.formData();
     const productId = formData.get('productId') as string;
     const type = formData.get('type') as string;
@@ -434,6 +438,46 @@ export async function POST(request: NextRequest) {
         }
       },
     });
+
+    // Send notifications based on stock movement type and quantity changes
+    if (session?.user && movementWithDetails) {
+      const product = movementWithDetails.product;
+      const stockItem = movementWithDetails.stockItem;
+      
+      // Check for low stock alerts
+      if (stockItem.available <= 10 && stockItem.available > 0) {
+        const trigger = SystemNotificationTriggers.stockLow(
+          product.name,
+          stockItem.available,
+          10 // Default reorder point
+        );
+        await NotificationService.sendToInventoryManagers(trigger);
+      }
+      
+      // Check for out of stock alerts
+      if (stockItem.available === 0) {
+        const trigger = SystemNotificationTriggers.stockOut(product.name);
+        await NotificationService.sendToInventoryManagers(trigger);
+      }
+      
+      // Notify for significant stock movements
+      if (Math.abs(quantity) >= 50) { // Large movements
+        const trigger = {
+          type: 'SYSTEM_ALERT' as const,
+          title: 'Large Stock Movement',
+          message: `Large ${finalType} movement of ${Math.abs(quantity)} units for ${product.name} (SKU: ${product.sku})`,
+          channels: ['IN_APP' as const, 'EMAIL' as const],
+          data: { 
+            productId: product.id, 
+            productName: product.name, 
+            sku: product.sku,
+            movementType: finalType,
+            quantity: Math.abs(quantity)
+          }
+        };
+        await NotificationService.sendToInventoryManagers(trigger);
+      }
+    }
 
     return NextResponse.json(movementWithDetails, { status: 201 });
   } catch (error) {

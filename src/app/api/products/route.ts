@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { NotificationService, SystemNotificationTriggers } from "@/lib/notification-service";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // GET /api/products - List all products
 export async function GET(request: NextRequest) {
@@ -116,6 +119,7 @@ export async function GET(request: NextRequest) {
 // POST /api/products - Create a new product
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
     const body = await request.json();
     const {
       sku,
@@ -208,6 +212,19 @@ export async function POST(request: NextRequest) {
         warehouseId: defaultWarehouse?.id, // Assign to default warehouse
       },
     });
+
+    // Send notification to inventory managers about new product
+    if (session?.user) {
+      const trigger = {
+        type: 'SYSTEM_ALERT' as const,
+        title: 'New Product Created',
+        message: `Product "${product.name}" (SKU: ${product.sku}) has been created and added to inventory.`,
+        channels: ['IN_APP' as const, 'EMAIL' as const],
+        data: { productId: product.id, productName: product.name, sku: product.sku }
+      };
+      
+      await NotificationService.sendToInventoryManagers(trigger);
+    }
 
     return NextResponse.json(product, { status: 201 });
   } catch (error) {

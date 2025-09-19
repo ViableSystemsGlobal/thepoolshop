@@ -27,6 +27,7 @@ import {
   FileText,
   Folder,
   Shield,
+  Bell,
 } from "lucide-react";
 
 const navigation = [
@@ -130,6 +131,8 @@ const navigation = [
     children: [
       { name: "User Management", href: "/settings/users", icon: Users, module: "users" },
       { name: "Role Management", href: "/settings/roles", icon: Shield, module: "roles" },
+      { name: "Notifications", href: "/settings/notifications", icon: Bell, module: "notifications" },
+      { name: "Notification Templates", href: "/settings/notification-templates", icon: FileText, module: "notification_templates" },
       { name: "Product Settings", href: "/settings/products", icon: Package, module: "product-settings" },
       { name: "Currency Settings", href: "/settings/currency", icon: DollarSign, module: "currency-settings" },
       { name: "Business Settings", href: "/settings/business", icon: Building, module: "business-settings" },

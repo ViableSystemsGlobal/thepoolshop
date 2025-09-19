@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { NotificationService, SystemNotificationTriggers } from "@/lib/notification-service";
 
 // GET /api/users - Get all users with pagination
 export async function GET(request: NextRequest) {
@@ -147,6 +148,30 @@ export async function POST(request: NextRequest) {
         createdAt: true
       } as any
     });
+
+    // Send notification to the new user
+    if (sendInvitation && user.name) {
+      const trigger = SystemNotificationTriggers.userInvited(
+        user.name,
+        session.user.name || session.user.email || 'System Administrator'
+      );
+      await NotificationService.sendToUser(user.id, trigger);
+    }
+
+    // Notify admins about new user creation
+    const adminTrigger = {
+      type: 'SYSTEM_ALERT' as const,
+      title: 'New User Created',
+      message: `A new user "${user.name || user.email}" has been created with role "${role || 'Sales Rep"}`,
+      channels: ['IN_APP' as const, 'EMAIL' as const],
+      data: { 
+        newUserId: user.id, 
+        newUserName: user.name, 
+        newUserEmail: user.email,
+        newUserRole: role
+      }
+    };
+    await NotificationService.sendToAdmins(adminTrigger);
 
     // TODO: Send invitation email if requested
     if (sendInvitation) {
