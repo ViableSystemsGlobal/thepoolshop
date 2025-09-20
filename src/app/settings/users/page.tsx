@@ -137,27 +137,57 @@ export default function UserManagementPage() {
     deleteConfirmation.confirm(
       {
         title: 'Delete User',
-        message: `Are you sure you want to delete "${user.name}"? This action cannot be undone and will permanently remove the user from the system.`,
-        confirmText: 'Delete User',
+        message: `Are you sure you want to delete "${user.name || 'this user'}"? This action cannot be undone and will permanently remove the user and ALL their associated data (tasks, accounts, leads, messages, etc.) from the system.\n\nTo confirm, type "DELETE PERMANENTLY" below:`,
+        confirmText: 'Delete User & All Data',
         cancelText: 'Cancel',
-        type: 'danger'
+        type: 'danger',
+        requireConfirmationText: 'DELETE PERMANENTLY'
       },
       async () => {
-        if (!userToDelete) return;
-
-        const response = await fetch(`/api/users/${userToDelete.id}`, {
+        // Use the user parameter directly instead of userToDelete state
+        const response = await fetch(`/api/users/${user.id}`, {
           method: 'DELETE',
         });
 
         if (response.ok) {
-          setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+          setUsers(prev => prev.filter(u => u.id !== user.id));
           success('User deleted successfully');
           await loadData(); // Reload to update metrics
           setUserToDelete(null);
         } else {
-          const error = await response.json();
-          showError(error.error || 'Failed to delete user');
-          throw new Error(error.error || 'Failed to delete user');
+          console.error('User deletion response status:', response.status);
+          console.error('User deletion response headers:', Object.fromEntries(response.headers.entries()));
+          
+          let error;
+          try {
+            const responseText = await response.text();
+            console.error('Raw response text:', responseText);
+            
+            if (responseText.trim()) {
+              error = JSON.parse(responseText);
+            } else {
+              error = { error: 'Empty response from server' };
+            }
+          } catch (parseError) {
+            console.error('Failed to parse response:', parseError);
+            error = { error: 'Invalid response from server' };
+          }
+          
+          console.error('Parsed error object:', error);
+          
+          // Show detailed error message
+          let errorMessage = error.error || 'Failed to delete user';
+          if (error.details) {
+            if (typeof error.details === 'string') {
+              errorMessage += `: ${error.details}`;
+            } else if (error.details.totalRelations > 0) {
+              errorMessage += `. User has ${error.details.totalRelations} associated records.`;
+            }
+          }
+          
+          showError(errorMessage);
+          // Close the modal even on error
+          setUserToDelete(null);
         }
       }
     );
@@ -286,8 +316,18 @@ export default function UserManagementPage() {
       if (response.ok) {
         const createdUser = await response.json();
         
+        // Ensure created user has all required fields
+        const safeUser = {
+          ...createdUser,
+          name: createdUser.name || '',
+          email: createdUser.email || '',
+          phone: createdUser.phone || '',
+          role: createdUser.role || 'SALES_REP',
+          isActive: createdUser.isActive ?? true
+        };
+        
         // Add to local state
-        setUsers(prev => [createdUser, ...prev]);
+        setUsers(prev => [safeUser, ...prev]);
         success('User created successfully');
         setShowAddUserModal(false);
         
@@ -326,15 +366,20 @@ export default function UserManagementPage() {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    // Safely handle undefined/null values
+    const userName = user.name || '';
+    const userEmail = user.email || '';
+    
+    const matchesSearch = userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         userEmail.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === "All" || getRoleDisplayName(user.role) === roleFilter;
-    const matchesName = !nameFilter || user.name.toLowerCase().includes(nameFilter.toLowerCase());
-    const matchesEmail = !emailFilter || user.email.toLowerCase().includes(emailFilter.toLowerCase());
+    const matchesName = !nameFilter || userName.toLowerCase().includes(nameFilter.toLowerCase());
+    const matchesEmail = !emailFilter || userEmail.toLowerCase().includes(emailFilter.toLowerCase());
     
     return matchesSearch && matchesRole && matchesName && matchesEmail;
   });
@@ -462,7 +507,7 @@ export default function UserManagementPage() {
 
             {/* User Cards */}
             {filteredUsers.map((user) => (
-            <Card key={user.id} className="hover:shadow-lg transition-shadow">
+              <Card key={user.id} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
@@ -470,18 +515,18 @@ export default function UserManagementPage() {
                       {user.avatar ? (
                         <img 
                           src={user.avatar} 
-                          alt={user.name}
+                          alt={user.name || 'User'}
                           className="w-12 h-12 rounded-full object-cover"
                         />
                       ) : (
                         <span className="text-sm font-medium text-gray-600">
-                          {getInitials(user.name)}
+                          {getInitials(user.name || '')}
                         </span>
                       )}
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900 text-sm leading-tight">
-                        {user.name}
+                        {user.name || 'Unnamed User'}
                       </h3>
                       <p className="text-xs text-gray-600">{user.email}</p>
                     </div>
@@ -604,18 +649,18 @@ export default function UserManagementPage() {
                         {user.avatar ? (
                           <img 
                             src={user.avatar} 
-                            alt={user.name}
+                            alt={user.name || 'User'}
                             className="w-12 h-12 rounded-full object-cover"
                           />
                         ) : (
                           <span className="text-sm font-medium text-gray-600">
-                            {getInitials(user.name)}
+                            {getInitials(user.name || '')}
                           </span>
                         )}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
-                          <h3 className="font-semibold text-gray-900">{user.name}</h3>
+                          <h3 className="font-semibold text-gray-900">{user.name || 'Unnamed User'}</h3>
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(getRoleDisplayName(user.role))}`}>
                             {getRoleDisplayName(user.role)}
                           </span>
@@ -736,6 +781,9 @@ export default function UserManagementPage() {
           cancelText={deleteConfirmation.options?.cancelText}
           type={deleteConfirmation.options?.type}
           isLoading={deleteConfirmation.isLoading}
+          requireConfirmationText={deleteConfirmation.options?.requireConfirmationText}
+          confirmationText={deleteConfirmation.confirmationText}
+          onConfirmationTextChange={deleteConfirmation.updateConfirmationText}
         />
       </div>
     </MainLayout>

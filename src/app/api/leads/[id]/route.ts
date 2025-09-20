@@ -34,7 +34,28 @@ export async function GET(
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
-    return NextResponse.json(lead);
+    // Parse JSON fields
+    const parsedLead = {
+      ...lead,
+      assignedTo: (lead as any).assignedTo ? (() => {
+        try {
+          return JSON.parse((lead as any).assignedTo);
+        } catch (e) {
+          console.error('Error parsing assignedTo:', e);
+          return null;
+        }
+      })() : null,
+      interestedProducts: (lead as any).interestedProducts ? (() => {
+        try {
+          return JSON.parse((lead as any).interestedProducts);
+        } catch (e) {
+          console.error('Error parsing interestedProducts:', e);
+          return null;
+        }
+      })() : null,
+    };
+
+    return NextResponse.json({ lead: parsedLead });
   } catch (error) {
     console.error('Error fetching lead:', error);
     return NextResponse.json(
@@ -49,17 +70,21 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log('PUT /api/leads/[id] - Starting request for ID:', params.id);
     const session = await getServerSession(authOptions);
     if (!session?.user) {
+      console.log('No session or user found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const userId = (session.user as any).id;
     if (!userId) {
+      console.log('No user ID found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
+    console.log('Request body:', body);
     const {
       firstName,
       lastName,
@@ -70,9 +95,15 @@ export async function PUT(
       status,
       score,
       notes,
+      subject,
+      leadType,
+      assignedTo,
+      interestedProducts,
+      followUpDate,
     } = body;
 
     // Check if lead exists and belongs to user
+    console.log('Checking if lead exists for ID:', params.id, 'and user:', userId);
     const existingLead = await prisma.lead.findFirst({
       where: {
         id: params.id,
@@ -81,8 +112,26 @@ export async function PUT(
     });
 
     if (!existingLead) {
+      console.log('Lead not found or does not belong to user');
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
+
+    console.log('Lead found, updating with data:', {
+      firstName,
+      lastName,
+      email,
+      phone,
+      company,
+      source,
+      status,
+      score,
+      notes,
+      subject,
+      leadType,
+      assignedTo: assignedTo ? 'JSON data' : null,
+      interestedProducts: interestedProducts ? 'JSON data' : null,
+      followUpDate,
+    });
 
     const lead = await prisma.lead.update({
       where: { id: params.id },
@@ -96,7 +145,12 @@ export async function PUT(
         status,
         score,
         notes,
-      },
+        subject: subject as any,
+        leadType: leadType as any,
+        assignedTo: assignedTo && Array.isArray(assignedTo) && assignedTo.length > 0 ? JSON.stringify(assignedTo) : null,
+        interestedProducts: interestedProducts && Array.isArray(interestedProducts) && interestedProducts.length > 0 ? JSON.stringify(interestedProducts) : null,
+        followUpDate: followUpDate ? new Date(followUpDate) : null,
+      } as any,
       include: {
         owner: {
           select: { id: true, name: true, email: true },
@@ -115,11 +169,36 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(lead);
+    // Parse JSON fields
+    const parsedLead = {
+      ...lead,
+      assignedTo: (lead as any).assignedTo ? (() => {
+        try {
+          return JSON.parse((lead as any).assignedTo);
+        } catch (e) {
+          console.error('Error parsing assignedTo:', e);
+          return null;
+        }
+      })() : null,
+      interestedProducts: (lead as any).interestedProducts ? (() => {
+        try {
+          return JSON.parse((lead as any).interestedProducts);
+        } catch (e) {
+          console.error('Error parsing interestedProducts:', e);
+          return null;
+        }
+      })() : null,
+    };
+
+    return NextResponse.json(parsedLead);
   } catch (error) {
     console.error('Error updating lead:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
-      { error: 'Failed to update lead' },
+      { error: 'Failed to update lead', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

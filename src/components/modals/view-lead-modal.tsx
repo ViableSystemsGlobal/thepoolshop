@@ -3,16 +3,33 @@
 import { X, Mail, Phone, Building, MapPin, Calendar, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  sku?: string;
+  description?: string;
+}
+
 interface Lead {
   id: string;
   firstName: string;
   lastName: string;
   email?: string;
   phone?: string;
+  leadType: 'INDIVIDUAL' | 'COMPANY';
   company?: string;
+  subject?: string;
   source?: string;
   status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
-  score: number;
+  assignedTo?: User[];
+  interestedProducts?: Product[];
+  followUpDate?: string;
   notes?: string;
   createdAt: string;
   owner: {
@@ -59,18 +76,14 @@ export function ViewLeadModal({ lead, onClose }: ViewLeadModalProps) {
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColors[lead.status]}`}>
                 {lead.status}
               </span>
-              <div className="mt-2">
-                <div className="text-sm text-gray-500">Lead Score</div>
-                <div className="flex items-center">
-                  <div className="w-20 bg-gray-200 rounded-full h-2 mr-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{ width: `${lead.score}%` }}
-                    ></div>
+              {lead.followUpDate && (
+                <div className="mt-2">
+                  <div className="text-sm text-gray-500">Follow-up Date</div>
+                  <div className="text-sm font-medium">
+                    {new Date(lead.followUpDate).toLocaleDateString()}
                   </div>
-                  <span className="text-sm font-medium">{lead.score}%</span>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -103,6 +116,22 @@ export function ViewLeadModal({ lead, onClose }: ViewLeadModalProps) {
                 </div>
               )}
 
+              <div className="flex items-center space-x-3">
+                <User className="w-4 h-4 text-gray-400" />
+                <div>
+                  <div className="text-sm text-gray-500">Lead Type</div>
+                  <div className="font-medium">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      lead.leadType === 'COMPANY' 
+                        ? 'bg-blue-100 text-blue-800' 
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {lead.leadType === 'COMPANY' ? 'Company' : 'Individual'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {lead.company && (
                 <div className="flex items-center space-x-3">
                   <Building className="w-4 h-4 text-gray-400" />
@@ -113,12 +142,60 @@ export function ViewLeadModal({ lead, onClose }: ViewLeadModalProps) {
                 </div>
               )}
 
+              {lead.subject && (
+                <div className="flex items-center space-x-3">
+                  <User className="w-4 h-4 text-gray-400" />
+                  <div>
+                    <div className="text-sm text-gray-500">Subject</div>
+                    <div className="font-medium">{lead.subject}</div>
+                  </div>
+                </div>
+              )}
+
               {lead.source && (
                 <div className="flex items-center space-x-3">
                   <User className="w-4 h-4 text-gray-400" />
                   <div>
                     <div className="text-sm text-gray-500">Source</div>
                     <div className="font-medium">{lead.source}</div>
+                  </div>
+                </div>
+              )}
+
+              {lead.assignedTo && lead.assignedTo.length > 0 && (
+                <div className="flex items-start space-x-3">
+                  <User className="w-4 h-4 text-gray-400 mt-1" />
+                  <div>
+                    <div className="text-sm text-gray-500">Assigned To</div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {lead.assignedTo.map((user) => (
+                        <span
+                          key={user.id}
+                          className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full"
+                        >
+                          {user.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {lead.interestedProducts && lead.interestedProducts.length > 0 && (
+                <div className="flex items-start space-x-3">
+                  <User className="w-4 h-4 text-gray-400 mt-1" />
+                  <div>
+                    <div className="text-sm text-gray-500">Interested Products</div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {lead.interestedProducts.map((product) => (
+                        <span
+                          key={product.id}
+                          className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+                        >
+                          {product.name}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

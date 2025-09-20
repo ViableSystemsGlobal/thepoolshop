@@ -78,10 +78,20 @@ export async function PUT(
 
     // Check if trying to update a system role
     if (currentRole.isSystem) {
-      return NextResponse.json(
-        { error: "Cannot modify system roles" },
-        { status: 400 }
-      );
+      // Allow ability updates for Super Admin role, but block other modifications
+      if (currentRole.name === 'Super Admin' && abilities && !name && description === undefined) {
+        // Allow ability updates for Super Admin
+      } else if (currentRole.name === 'Super Admin' && (name || description !== undefined)) {
+        return NextResponse.json(
+          { error: "Cannot modify Super Admin role name or description" },
+          { status: 400 }
+        );
+      } else {
+        return NextResponse.json(
+          { error: "Cannot modify system roles" },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if name already exists (if name is being changed)
@@ -99,20 +109,35 @@ export async function PUT(
     }
 
     // Update role
+    const updateData: any = {};
+    
+    // For Super Admin, only allow ability updates
+    if (currentRole.name === 'Super Admin') {
+      if (abilities) {
+        updateData.roleAbilities = {
+          deleteMany: {}, // Remove all existing abilities
+          create: abilities.map((abilityId: string) => ({
+            abilityId
+          }))
+        };
+      }
+    } else {
+      // For other roles, allow all updates
+      if (name) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (abilities) {
+        updateData.roleAbilities = {
+          deleteMany: {}, // Remove all existing abilities
+          create: abilities.map((abilityId: string) => ({
+            abilityId
+          }))
+        };
+      }
+    }
+
     const updatedRole = await prisma.role.update({
       where: { id },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(abilities && {
-          roleAbilities: {
-            deleteMany: {}, // Remove all existing abilities
-            create: abilities.map((abilityId: string) => ({
-              abilityId
-            }))
-          }
-        })
-      },
+      data: updateData,
       include: {
         roleAbilities: {
           include: {

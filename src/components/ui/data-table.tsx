@@ -18,6 +18,7 @@ interface DataTableProps<T = Record<string, unknown>> {
   onSelectionChange?: (selectedIds: string[]) => void;
   bulkActions?: React.ReactNode;
   getRowClassName?: (item: T) => string;
+  onRowClick?: (item: T) => void;
   // Server-side pagination props
   currentPage?: number;
   totalPages?: number;
@@ -35,6 +36,7 @@ export function DataTable<T extends { id?: string }>({
   onSelectionChange,
   bulkActions,
   getRowClassName,
+  onRowClick,
   // Server-side pagination props
   currentPage: serverCurrentPage,
   totalPages: serverTotalPages,
@@ -186,7 +188,11 @@ export function DataTable<T extends { id?: string }>({
               const finalClassName = rowClassName ? `${rowClassName} ${baseClassName}` : baseClassName;
               
               return (
-                <tr key={item.id || index} className={finalClassName}>
+                <tr 
+                  key={item.id || index} 
+                  className={`${finalClassName} ${onRowClick ? 'cursor-pointer' : ''}`}
+                  onClick={onRowClick ? () => onRowClick(item) : undefined}
+                >
                 {enableSelection && (
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input

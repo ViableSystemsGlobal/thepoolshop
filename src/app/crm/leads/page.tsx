@@ -18,16 +18,33 @@ import { ConfirmDeleteModal } from '@/components/modals/confirm-delete-modal';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { DataTable } from '@/components/ui/data-table';
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  sku?: string;
+  description?: string;
+}
+
 interface Lead {
   id: string;
   firstName: string;
   lastName: string;
   email?: string;
   phone?: string;
+  leadType: 'INDIVIDUAL' | 'COMPANY';
   company?: string;
+  subject?: string;
   source?: string;
   status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
-  score: number;
+  assignedTo?: User[];
+  interestedProducts?: Product[];
+  followUpDate?: string;
   notes?: string;
   createdAt: string;
   owner: {
@@ -51,6 +68,10 @@ export default function LeadsPage() {
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const { success, error } = useToast();
+  
+  const handleRowClick = (lead: Lead) => {
+    router.push(`/crm/leads/${lead.id}`);
+  };
 
   // All state hooks must be called before any conditional returns
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -162,10 +183,14 @@ export default function LeadsPage() {
     lastName: string;
     email?: string;
     phone?: string;
+    leadType: 'INDIVIDUAL' | 'COMPANY';
     company?: string;
+    subject?: string;
     source?: string;
     status: string;
-    score: number;
+    assignedTo?: User[];
+    interestedProducts?: Product[];
+    followUpDate?: string;
     notes?: string;
   }) => {
     if (status !== 'authenticated') {
@@ -184,6 +209,7 @@ export default function LeadsPage() {
       if (response.ok) {
         await fetchLeads();
         setShowAddModal(false);
+        success('Lead created successfully!');
       } else {
         let errorMessage = 'Unknown error';
         try {
@@ -207,10 +233,14 @@ export default function LeadsPage() {
     lastName: string;
     email?: string;
     phone?: string;
+    leadType: 'INDIVIDUAL' | 'COMPANY';
     company?: string;
+    subject?: string;
     source?: string;
     status: string;
-    score: number;
+    assignedTo?: User[];
+    interestedProducts?: Product[];
+    followUpDate?: string;
     notes?: string;
   }) => {
     if (!selectedLead) return;
@@ -227,9 +257,14 @@ export default function LeadsPage() {
         await fetchLeads();
         setShowEditModal(false);
         setSelectedLead(null);
+        success('Lead updated successfully!');
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to update lead');
       }
-    } catch (error) {
-      console.error('Error updating lead:', error);
+    } catch (err) {
+      console.error('Error updating lead:', err);
+      error('Failed to update lead');
     }
   };
 
@@ -246,9 +281,14 @@ export default function LeadsPage() {
         await fetchLeads();
         setShowDeleteModal(false);
         setSelectedLead(null);
+        success('Lead deleted successfully!');
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to delete lead');
       }
-    } catch (error) {
-      console.error('Error deleting lead:', error);
+    } catch (err) {
+      console.error('Error deleting lead:', err);
+      error('Failed to delete lead');
     }
   };
 
@@ -306,13 +346,13 @@ export default function LeadsPage() {
         // Update local state
         setLeads(prevLeads => 
           prevLeads.map(lead => 
-            lead.id === leadData.id ? { ...lead, status: newStatus } : lead
+            lead.id === leadData.id ? { ...lead, status: newStatus as any } : lead
           )
         );
         
         // Recalculate metrics
         const updatedLeads = leads.map(lead => 
-          lead.id === leadData.id ? { ...lead, status: newStatus } : lead
+          lead.id === leadData.id ? { ...lead, status: newStatus as any } : lead
         );
         calculateMetrics(updatedLeads);
         
@@ -589,6 +629,29 @@ export default function LeadsPage() {
             }
             columns={[
               {
+                key: 'subject',
+                label: 'Subject',
+                render: (lead) => (
+                  <div>
+                    <div className="font-medium text-gray-900">
+                      {lead.subject || 'No Subject'}
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[lead.status]}`}>
+                        {lead.status}
+                      </span>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                        lead.leadType === 'COMPANY' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {lead.leadType === 'COMPANY' ? 'Company' : 'Individual'}
+                      </span>
+                    </div>
+                  </div>
+                )
+              },
+              {
                 key: 'name',
                 label: 'Name',
                 render: (lead) => (
@@ -618,48 +681,36 @@ export default function LeadsPage() {
                 render: (lead) => <span>{lead.source || '-'}</span>
               },
               {
-                key: 'status',
-                label: 'Status',
+                key: 'assignedTo',
+                label: 'Assigned To',
                 render: (lead) => (
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[lead.status]}`}>
-                    {lead.status}
-                  </span>
-                )
-              },
-              {
-                key: 'score',
-                label: 'Score',
-                render: (lead) => (
-                  <div className="flex items-center">
-                    <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full"
-                        style={{ width: `${lead.score}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-sm">{lead.score}%</span>
+                  <div className="flex flex-wrap gap-1">
+                    {lead.assignedTo && lead.assignedTo.length > 0 ? (
+                      lead.assignedTo.map((user) => (
+                        <span
+                          key={user.id}
+                          className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full"
+                        >
+                          {user.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-500 text-sm">Unassigned</span>
+                    )}
                   </div>
-                )
-              },
-              {
-                key: 'created',
-                label: 'Created',
-                render: (lead) => (
-                  <span className="text-sm text-gray-500">
-                    {new Date(lead.createdAt).toLocaleDateString()}
-                  </span>
                 )
               },
               {
                 key: 'actions',
                 label: 'Actions',
                 render: (lead) => (
-                  <DropdownMenu
-                    trigger={
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    }
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu
+                      trigger={
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      }
                     items={[
                       {
                         label: 'View',
@@ -679,10 +730,12 @@ export default function LeadsPage() {
                       },
                     ]}
                     align="right"
-                  />
+                    />
+                  </div>
                 )
               }
             ]}
+            onRowClick={handleRowClick}
             itemsPerPage={10}
           />
         )}
@@ -765,12 +818,11 @@ export default function LeadsPage() {
                   <p className="text-sm text-gray-600 mb-2">{lead.company || 'No company'}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500">{lead.email}</span>
-                    <div className="w-12 bg-gray-200 rounded-full h-1">
-                      <div
-                        className="bg-blue-600 h-1 rounded-full"
-                        style={{ width: `${lead.score}%` }}
-                      ></div>
-                    </div>
+                    {lead.followUpDate && (
+                      <span className="text-xs text-gray-500">
+                        Follow-up: {new Date(lead.followUpDate).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 </Card>
               ))}
@@ -827,12 +879,11 @@ export default function LeadsPage() {
                   <p className="text-sm text-gray-600 mb-2">{lead.company || 'No company'}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500">{lead.email}</span>
-                    <div className="w-12 bg-gray-200 rounded-full h-1">
-                      <div
-                        className="bg-green-600 h-1 rounded-full"
-                        style={{ width: `${lead.score}%` }}
-                      ></div>
-                    </div>
+                    {lead.followUpDate && (
+                      <span className="text-xs text-gray-500">
+                        Follow-up: {new Date(lead.followUpDate).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 </Card>
               ))}
@@ -889,12 +940,11 @@ export default function LeadsPage() {
                   <p className="text-sm text-gray-600 mb-2">{lead.company || 'No company'}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500">{lead.email}</span>
-                    <div className="w-12 bg-gray-200 rounded-full h-1">
-                      <div
-                        className="bg-purple-600 h-1 rounded-full"
-                        style={{ width: `${lead.score}%` }}
-                      ></div>
-                    </div>
+                    {lead.followUpDate && (
+                      <span className="text-xs text-gray-500">
+                        Follow-up: {new Date(lead.followUpDate).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 </Card>
               ))}
@@ -951,12 +1001,11 @@ export default function LeadsPage() {
                   <p className="text-sm text-gray-600 mb-2">{lead.company || 'No company'}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500">{lead.email}</span>
-                    <div className="w-12 bg-gray-200 rounded-full h-1">
-                      <div
-                        className="bg-red-600 h-1 rounded-full"
-                        style={{ width: `${lead.score}%` }}
-                      ></div>
-                    </div>
+                    {lead.followUpDate && (
+                      <span className="text-xs text-gray-500">
+                        Follow-up: {new Date(lead.followUpDate).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 </Card>
               ))}

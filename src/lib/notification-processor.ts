@@ -85,26 +85,47 @@ export class NotificationProcessor {
    */
   static async sendEmail(notification: any): Promise<void> {
     try {
-      // TODO: Implement actual email sending
-      // This would integrate with services like:
-      // - SendGrid
-      // - AWS SES
-      // - Nodemailer with SMTP
-      
-      console.log(`Email notification sent to ${notification.user.email}:`);
+      console.log(`📧 Sending email notification to ${notification.user.email}:`);
       console.log(`Subject: ${notification.title}`);
       console.log(`Body: ${notification.message}`);
-      
-      // Example implementation with a hypothetical email service:
-      // await emailService.send({
-      //   to: notification.user.email,
-      //   subject: notification.title,
-      //   html: this.formatEmailMessage(notification),
-      //   text: notification.message
-      // });
-      
+
+      // Get SMTP configuration from database (following README standards)
+      const smtpHost = await this.getSettingValue('SMTP_HOST', '');
+      const smtpPort = await this.getSettingValue('SMTP_PORT', '587');
+      const smtpUsername = await this.getSettingValue('SMTP_USERNAME', '');
+      const smtpPassword = await this.getSettingValue('SMTP_PASSWORD', '');
+      const smtpFromAddress = await this.getSettingValue('SMTP_FROM_ADDRESS', '');
+      const smtpFromName = await this.getSettingValue('SMTP_FROM_NAME', 'AdPools Group');
+      const smtpEncryption = await this.getSettingValue('SMTP_ENCRYPTION', 'tls');
+
+      if (!smtpHost || !smtpUsername || !smtpPassword || !smtpFromAddress) {
+        console.warn('SMTP configuration not found, skipping email notification');
+        return;
+      }
+
+      // Use nodemailer with standard configuration (following README standards)
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: parseInt(smtpPort),
+        secure: smtpEncryption === 'ssl',
+        auth: {
+          user: smtpUsername,
+          pass: smtpPassword,
+        },
+      });
+
+      await transporter.sendMail({
+        from: `"${smtpFromName}" <${smtpFromAddress}>`,
+        to: notification.user.email,
+        subject: notification.title,
+        text: notification.message,
+        html: notification.message.replace(/\n/g, '<br>'),
+      });
+
+      console.log(`✅ Email notification sent successfully to ${notification.user.email}`);
     } catch (error) {
-      console.error('Error sending email notification:', error);
+      console.error('❌ Error sending email notification:', error);
       throw error;
     }
   }
@@ -119,48 +140,42 @@ export class NotificationProcessor {
         return;
       }
 
-      // Get SMS configuration from database
-      const username = await this.getSettingValue('SMS_USERNAME', '');
-      const password = await this.getSettingValue('SMS_PASSWORD', '');
-      const senderId = await this.getSettingValue('SMS_SENDER_ID', 'AdPools');
+      // Get SMS configuration from database (following README standards)
+      const smsUsername = await this.getSettingValue('SMS_USERNAME', '');
+      const smsPassword = await this.getSettingValue('SMS_PASSWORD', '');
+      const smsSenderId = await this.getSettingValue('SMS_SENDER_ID', 'AdPools');
 
-      if (!username || !password) {
+      if (!smsUsername || !smsPassword) {
         console.warn('SMS configuration not found, skipping SMS notification');
         return;
       }
 
-      console.log(`Sending SMS notification to ${notification.user.phone}: ${notification.message}`);
+      console.log(`📱 Sending SMS notification to ${notification.user.phone}: ${notification.message}`);
 
-      // Send SMS via Deywuro API
+      // Send SMS via Deywuro API (following README standards)
       const response = await fetch('https://deywuro.com/api/sms', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
-          username: username,
-          password: password,
+          username: smsUsername,
+          password: smsPassword,
           destination: notification.user.phone,
-          source: senderId,
+          source: smsSenderId,
           message: notification.message
         })
       });
 
       const responseText = await response.text();
-      console.log('SMS notification response:', responseText);
 
-      // Try to parse as JSON
-      try {
-        const result = JSON.parse(responseText);
-        if (result.code === 0) {
-          console.log(`SMS notification sent successfully to ${notification.user.phone}`);
-        } else {
-          console.error(`SMS notification failed: ${result.message}`);
-          throw new Error(`SMS failed: ${result.message}`);
-        }
-      } catch (parseError) {
-        console.error(`SMS provider returned non-JSON response: ${responseText}`);
-        throw new Error(`SMS provider error: ${responseText.substring(0, 100)}...`);
+      // Handle Deywuro response format (following README standards)
+      const result = JSON.parse(responseText);
+      if (result.code === 0) {
+        console.log(`✅ SMS notification sent successfully to ${notification.user.phone}`);
+      } else {
+        console.error(`❌ SMS notification failed: ${result.message}`);
+        throw new Error(`SMS failed: ${result.message}`);
       }
       
     } catch (error) {

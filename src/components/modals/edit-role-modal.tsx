@@ -223,7 +223,12 @@ export function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModa
                   disabled={role.isSystem}
                 />
                 {role.isSystem && (
-                  <p className="text-xs text-gray-500">System roles cannot be renamed</p>
+                  <p className="text-xs text-gray-500">
+                    {role.name === 'Super Admin' 
+                      ? 'Super Admin role name cannot be changed, but abilities can be modified'
+                      : 'System roles cannot be renamed'
+                    }
+                  </p>
                 )}
               </div>
 
@@ -238,7 +243,11 @@ export function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModa
                   placeholder="Describe the purpose and scope of this role..."
                   rows={3}
                   className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={role.name === 'Super Admin'}
                 />
+                {role.name === 'Super Admin' && (
+                  <p className="text-xs text-gray-500">Super Admin description cannot be changed</p>
+                )}
               </div>
 
               {/* Role Statistics */}
@@ -264,6 +273,38 @@ export function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModa
                   {formData.abilities.length} of {abilities.length} abilities selected
                 </div>
               </div>
+              
+              {role.name === 'Super Admin' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <Shield className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="ml-3">
+                        <h4 className="text-sm font-medium text-blue-800">Super Admin Role</h4>
+                        <p className="text-sm text-blue-700 mt-1">
+                          The Super Admin role should have all abilities enabled. You can modify the abilities below to ensure full system access.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          abilities: abilities.map(a => a.id)
+                        }));
+                      }}
+                      className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                    >
+                      Select All
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {isLoadingAbilities ? (
                 <div className="flex items-center justify-center py-8">

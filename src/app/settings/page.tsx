@@ -20,7 +20,10 @@ import {
   Bell,
   HelpCircle,
   Grid3X3,
-  Plus
+  Plus,
+  CheckSquare,
+  Tag,
+  ClipboardList
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -87,6 +90,23 @@ export default function SettingsPage() {
       description: "Legal compliance, document templates, and regulatory settings.",
       icon: Shield,
       href: "/settings/business/compliance"
+    }
+  ];
+
+  const taskSettings = [
+    {
+      id: "task-categories",
+      title: "Task Categories",
+      description: "Create and manage categories to organize your tasks effectively.",
+      icon: Tag,
+      href: "/settings/task-categories"
+    },
+    {
+      id: "task-templates",
+      title: "Task Templates",
+      description: "Create reusable task templates with checklists and predefined settings.",
+      icon: ClipboardList,
+      href: "/settings/task-templates"
     }
   ];
 
@@ -199,6 +219,38 @@ export default function SettingsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {businessSettings.map((setting) => (
+              <Card key={setting.id} className="border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer group">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-4">
+                      <div className={`p-2 bg-${theme.primaryBg} rounded-lg group-hover:bg-${theme.primaryHover} transition-colors`}>
+                        <setting.icon className={`h-5 w-5 text-${theme.primary}`} />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className={`font-medium text-gray-900 group-hover:text-${theme.primaryText} transition-colors`}>
+                          {setting.title}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {setting.description}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className={`h-5 w-5 text-gray-400 group-hover:text-${theme.primary} transition-colors`} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Task Management Settings */}
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <CheckSquare className={`h-5 w-5 text-${theme.primary}`} />
+            <h2 className="text-lg font-semibold text-gray-900">Task Management</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {taskSettings.map((setting) => (
               <Card key={setting.id} className="border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer group">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">

@@ -69,6 +69,14 @@ export async function GET(request: NextRequest) {
           user_login: (await getSettingValue('SMS_USER_LOGIN', 'false')) === 'true',
           system_backup: (await getSettingValue('SMS_SYSTEM_BACKUP', 'false')) === 'true'
         }
+      },
+      taskNotifications: {
+        enabled: (await getSettingValue('TASK_NOTIFICATIONS_ENABLED', 'true')) === 'true',
+        minutesBeforeDue: parseInt(await getSettingValue('TASK_NOTIFICATION_MINUTES_BEFORE_DUE', '10')),
+        sendDueSoon: (await getSettingValue('TASK_NOTIFICATION_SEND_DUE_SOON', 'true')) === 'true',
+        sendOverdue: (await getSettingValue('TASK_NOTIFICATION_SEND_OVERDUE', 'true')) === 'true',
+        sendEscalation: (await getSettingValue('TASK_NOTIFICATION_SEND_ESCALATION', 'true')) === 'true',
+        escalationInterval: parseInt(await getSettingValue('TASK_NOTIFICATION_ESCALATION_INTERVAL', '1'))
       }
     };
 
@@ -172,6 +180,16 @@ export async function PUT(request: NextRequest) {
           await saveSetting(`SMS_${key.toUpperCase()}`, value ? 'true' : 'false');
         }
       }
+    }
+
+    // Save task notification settings to database
+    if (settings.taskNotifications) {
+      await saveSetting('TASK_NOTIFICATIONS_ENABLED', settings.taskNotifications.enabled ? 'true' : 'false');
+      await saveSetting('TASK_NOTIFICATION_MINUTES_BEFORE_DUE', settings.taskNotifications.minutesBeforeDue?.toString() || '10');
+      await saveSetting('TASK_NOTIFICATION_SEND_DUE_SOON', settings.taskNotifications.sendDueSoon ? 'true' : 'false');
+      await saveSetting('TASK_NOTIFICATION_SEND_OVERDUE', settings.taskNotifications.sendOverdue ? 'true' : 'false');
+      await saveSetting('TASK_NOTIFICATION_SEND_ESCALATION', settings.taskNotifications.sendEscalation ? 'true' : 'false');
+      await saveSetting('TASK_NOTIFICATION_ESCALATION_INTERVAL', settings.taskNotifications.escalationInterval?.toString() || '1');
     }
 
     return NextResponse.json({

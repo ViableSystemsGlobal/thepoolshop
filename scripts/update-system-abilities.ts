@@ -138,6 +138,32 @@ const SYSTEM_ABILITIES = [
   { name: 'reports.sales', resource: 'reports', action: 'sales', description: 'Access sales reports' },
   { name: 'reports.inventory', resource: 'reports', action: 'inventory', description: 'Access inventory reports' },
 
+  // === TASK MANAGEMENT ===
+  { name: 'tasks.view', resource: 'tasks', action: 'view', description: 'View tasks and task details' },
+  { name: 'tasks.create', resource: 'tasks', action: 'create', description: 'Create new tasks' },
+  { name: 'tasks.edit', resource: 'tasks', action: 'edit', description: 'Edit existing tasks' },
+  { name: 'tasks.delete', resource: 'tasks', action: 'delete', description: 'Delete tasks' },
+  { name: 'tasks.assign', resource: 'tasks', action: 'assign', description: 'Assign tasks to users' },
+
+  // === TASK TEMPLATES ===
+  { name: 'task-templates.view', resource: 'task-templates', action: 'view', description: 'View task templates' },
+  { name: 'task-templates.create', resource: 'task-templates', action: 'create', description: 'Create new task templates' },
+  { name: 'task-templates.edit', resource: 'task-templates', action: 'edit', description: 'Edit task templates' },
+  { name: 'task-templates.delete', resource: 'task-templates', action: 'delete', description: 'Delete task templates' },
+
+  // === TASK CATEGORIES ===
+  { name: 'task-categories.view', resource: 'task-categories', action: 'view', description: 'View task categories' },
+  { name: 'task-categories.create', resource: 'task-categories', action: 'create', description: 'Create new task categories' },
+  { name: 'task-categories.edit', resource: 'task-categories', action: 'edit', description: 'Edit task categories' },
+  { name: 'task-categories.delete', resource: 'task-categories', action: 'delete', description: 'Delete task categories' },
+
+  // === RECURRING TASKS ===
+  { name: 'recurring-tasks.view', resource: 'recurring-tasks', action: 'view', description: 'View recurring tasks' },
+  { name: 'recurring-tasks.create', resource: 'recurring-tasks', action: 'create', description: 'Create new recurring tasks' },
+  { name: 'recurring-tasks.edit', resource: 'recurring-tasks', action: 'edit', description: 'Edit recurring tasks' },
+  { name: 'recurring-tasks.delete', resource: 'recurring-tasks', action: 'delete', description: 'Delete recurring tasks' },
+  { name: 'recurring-tasks.generate', resource: 'recurring-tasks', action: 'generate', description: 'Generate tasks from recurring patterns' },
+
   // === SYSTEM ADMINISTRATION ===
   { name: 'system.admin', resource: 'system', action: 'admin', description: 'Full system administration access' },
   { name: 'system.maintenance', resource: 'system', action: 'maintenance', description: 'Perform system maintenance' },
@@ -147,6 +173,10 @@ const SYSTEM_ABILITIES = [
 
 // Role definitions with updated abilities
 const ROLE_DEFINITIONS = {
+  'Super Admin': {
+    description: 'Full system access with all permissions',
+    abilities: SYSTEM_ABILITIES.map(ability => ability.name) // All abilities
+  },
   'Administrator': {
     description: 'Full system access with all permissions',
     abilities: SYSTEM_ABILITIES.map(ability => ability.name) // All abilities
@@ -207,6 +237,32 @@ const ROLE_DEFINITIONS = {
       'price-lists.items.add',
       'price-lists.items.remove',
       
+      // Task management (full)
+      'tasks.view',
+      'tasks.create',
+      'tasks.edit',
+      'tasks.delete',
+      'tasks.assign',
+      
+      // Task templates (full)
+      'task-templates.view',
+      'task-templates.create',
+      'task-templates.edit',
+      'task-templates.delete',
+      
+      // Task categories (full)
+      'task-categories.view',
+      'task-categories.create',
+      'task-categories.edit',
+      'task-categories.delete',
+      
+      // Recurring tasks (full)
+      'recurring-tasks.view',
+      'recurring-tasks.create',
+      'recurring-tasks.edit',
+      'recurring-tasks.delete',
+      'recurring-tasks.generate',
+      
       // Reports and dashboard
       'dashboard.read',
       'reports.read',
@@ -253,6 +309,20 @@ const ROLE_DEFINITIONS = {
       
       // Price lists (read only)
       'price-lists.read',
+      
+      // Task management (create, read, update)
+      'tasks.view',
+      'tasks.create',
+      'tasks.edit',
+      
+      // Task templates (view only)
+      'task-templates.view',
+      
+      // Task categories (view only)
+      'task-categories.view',
+      
+      // Recurring tasks (view only)
+      'recurring-tasks.view',
       
       // Dashboard and basic reports
       'dashboard.read',
@@ -319,6 +389,32 @@ const ROLE_DEFINITIONS = {
       'backorders.read',
       'backorders.update',
       
+      // Task management (full)
+      'tasks.view',
+      'tasks.create',
+      'tasks.edit',
+      'tasks.delete',
+      'tasks.assign',
+      
+      // Task templates (full)
+      'task-templates.view',
+      'task-templates.create',
+      'task-templates.edit',
+      'task-templates.delete',
+      
+      // Task categories (full)
+      'task-categories.view',
+      'task-categories.create',
+      'task-categories.edit',
+      'task-categories.delete',
+      
+      // Recurring tasks (full)
+      'recurring-tasks.view',
+      'recurring-tasks.create',
+      'recurring-tasks.edit',
+      'recurring-tasks.delete',
+      'recurring-tasks.generate',
+      
       // Dashboard and inventory reports
       'dashboard.read',
       'reports.read',
@@ -365,6 +461,19 @@ const ROLE_DEFINITIONS = {
       // Currency management (full)
       'currencies.read',
       'currencies.convert',
+      
+      // Task management (read and update)
+      'tasks.view',
+      'tasks.edit',
+      
+      // Task templates (view only)
+      'task-templates.view',
+      
+      // Task categories (view only)
+      'task-categories.view',
+      
+      // Recurring tasks (view only)
+      'recurring-tasks.view',
       
       // Settings (currency and business)
       'settings.read',
@@ -417,6 +526,18 @@ const ROLE_DEFINITIONS = {
       
       // Currency management (read only)
       'currencies.read',
+      
+      // Task management (read only)
+      'tasks.view',
+      
+      // Task templates (read only)
+      'task-templates.view',
+      
+      // Task categories (read only)
+      'task-categories.view',
+      
+      // Recurring tasks (read only)
+      'recurring-tasks.view',
       
       // Settings (read only)
       'settings.read',

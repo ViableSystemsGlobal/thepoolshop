@@ -67,12 +67,12 @@ export async function POST(request: NextRequest) {
       type, 
       channels, 
       subject, 
-      body, 
+      body: templateBody, 
       variables, 
       isActive = true 
     } = body;
 
-    if (!name || !type || !channels || !body) {
+    if (!name || !type || !channels || !templateBody) {
       return NextResponse.json(
         { error: "Missing required fields: name, type, channels, body" },
         { status: 400 }
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         type,
         channels: JSON.stringify(channels),
         subject,
-        body,
+        body: templateBody,
         variables: variables ? JSON.stringify(variables) : null,
         isActive
       },

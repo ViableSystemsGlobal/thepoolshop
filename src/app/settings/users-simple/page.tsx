@@ -23,7 +23,7 @@ import {
   Settings
 } from "lucide-react";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
-import { AddUserModal } from "@/components/modals/add-user-modal";
+import AddUserModal from "@/components/modals/add-user-modal";
 import { EditUserModal } from "@/components/modals/edit-user-modal";
 
 interface User {

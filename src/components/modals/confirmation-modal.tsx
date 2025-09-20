@@ -14,6 +14,9 @@ interface ConfirmationModalProps {
   cancelText?: string;
   type?: 'danger' | 'warning' | 'info';
   isLoading?: boolean;
+  requireConfirmationText?: string;
+  confirmationText?: string;
+  onConfirmationTextChange?: (text: string) => void;
 }
 
 export function ConfirmationModal({
@@ -25,11 +28,17 @@ export function ConfirmationModal({
   confirmText = "Confirm",
   cancelText = "Cancel",
   type = 'danger',
-  isLoading = false
+  isLoading = false,
+  requireConfirmationText,
+  confirmationText = '',
+  onConfirmationTextChange
 }: ConfirmationModalProps) {
   const handleConfirm = () => {
     onConfirm();
   };
+
+  const isConfirmDisabled = isLoading || 
+    (requireConfirmationText && confirmationText !== requireConfirmationText);
 
   const getTypeStyles = () => {
     switch (type) {
@@ -93,9 +102,26 @@ export function ConfirmationModal({
               <Icon className={`h-5 w-5 ${styles.iconColor}`} />
             </div>
             <div className="flex-1">
-              <p className="text-sm text-gray-600 leading-relaxed">
+              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
                 {message}
               </p>
+              
+              {requireConfirmationText && (
+                <div className="mt-4">
+                  <label htmlFor="confirmation-text" className="block text-sm font-medium text-gray-700 mb-2">
+                    Type <span className="font-mono bg-gray-100 px-2 py-1 rounded">{requireConfirmationText}</span> to confirm:
+                  </label>
+                  <input
+                    id="confirmation-text"
+                    type="text"
+                    value={confirmationText}
+                    onChange={(e) => onConfirmationTextChange?.(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder={requireConfirmationText}
+                    disabled={isLoading}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -113,8 +139,8 @@ export function ConfirmationModal({
           <Button
             type="button"
             onClick={handleConfirm}
-            disabled={isLoading}
-            className={`px-4 py-2 ${isLoading ? styles.confirmButtonLoading : styles.confirmButton} transition-colors`}
+            disabled={isConfirmDisabled}
+            className={`px-4 py-2 ${isConfirmDisabled ? styles.confirmButtonLoading : styles.confirmButton} transition-colors`}
           >
             {isLoading ? (
               <div className="flex items-center space-x-2">

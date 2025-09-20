@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     const adminTrigger = {
       type: 'SYSTEM_ALERT' as const,
       title: 'New User Created',
-      message: `A new user "${user.name || user.email}" has been created with role "${role || 'Sales Rep"}`,
+      message: `A new user "${user.name || user.email}" has been created with role "${role || 'Sales Rep'}"`,
       channels: ['IN_APP' as const, 'EMAIL' as const],
       data: { 
         newUserId: user.id, 

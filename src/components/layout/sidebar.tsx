@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useTheme } from "@/contexts/theme-context";
 import { useNavigationLoading } from "@/hooks/use-navigation-loading";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useSession } from "next-auth/react";
 import {
   LayoutDashboard,
   Users,
@@ -32,6 +33,8 @@ import {
   History,
   Send,
   Mail,
+  CheckSquare,
+  Calendar,
 } from "lucide-react";
 
 const navigation = [
@@ -51,7 +54,6 @@ const navigation = [
     children: [
       { name: "Leads", href: "/crm/leads", icon: UserCheck, module: "leads" },
       { name: "Opportunities", href: "/crm/opportunities", icon: BarChart3, module: "opportunities" },
-      { name: "Quotations", href: "/crm/quotations", icon: FileText, module: "quotations" },
       { name: "Accounts", href: "/crm/accounts", icon: Building, module: "accounts" },
       { name: "Contacts", href: "/crm/contacts", icon: Users, module: "contacts" },
     ]
@@ -76,7 +78,7 @@ const navigation = [
     module: "sales",
     children: [
       { name: "Orders", href: "/orders", icon: ShoppingCart, module: "orders" },
-      { name: "Proformas", href: "/proformas", icon: FileText, module: "proformas" },
+      { name: "Quotations", href: "/quotations", icon: FileText, module: "quotations" },
       { name: "Invoices", href: "/invoices", icon: FileText, module: "invoices" },
       { name: "Payments", href: "/payments", icon: CreditCard, module: "payments" },
       { name: "Returns", href: "/returns", icon: Package, module: "returns" },
@@ -124,6 +126,17 @@ const navigation = [
     ]
   },
   { 
+    name: "Tasks", 
+    href: "/tasks", 
+    icon: CheckSquare,
+    badge: null,
+    module: "tasks",
+    children: [
+      { name: "All Tasks", href: "/tasks", icon: CheckSquare, module: "tasks" },
+      { name: "My Tasks", href: "/tasks/my", icon: Calendar, module: "my-tasks" },
+    ]
+  },
+  { 
     name: "Reports", 
     href: "/reports", 
     icon: BarChart3,
@@ -141,6 +154,8 @@ const navigation = [
       { name: "Role Management", href: "/settings/roles", icon: Shield, module: "roles" },
       { name: "Notifications", href: "/settings/notifications", icon: Bell, module: "notifications" },
       { name: "Notification Templates", href: "/settings/notification-templates", icon: FileText, module: "notification_templates" },
+      { name: "Task Templates", href: "/settings/task-templates", icon: CheckSquare, module: "task_templates" },
+      { name: "Lead Sources", href: "/settings/lead-sources", icon: UserCheck, module: "lead_sources" },
       { name: "Product Settings", href: "/settings/products", icon: Package, module: "product-settings" },
       { name: "Currency Settings", href: "/settings/currency", icon: DollarSign, module: "currency-settings" },
       { name: "Business Settings", href: "/settings/business", icon: Building, module: "business-settings" },
@@ -163,6 +178,7 @@ export default function Sidebar() {
   const theme = getThemeClasses();
   const { navigateWithLoading } = useNavigationLoading();
   const { canAccess } = useAbilities();
+  const { data: session } = useSession();
 
   // Helper function to get proper background classes
   const getBackgroundClasses = (isActive: boolean, isHover: boolean = false) => {
@@ -249,7 +265,24 @@ export default function Sidebar() {
     );
   };
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const isActive = (href: string) => {
+    if (pathname === href) return true;
+    
+    // Special case for /tasks routes
+    if (href === "/tasks") {
+      // Only match if we're exactly on /tasks, not on /tasks/my or other sub-routes
+      return pathname === "/tasks";
+    }
+    
+    // For other child routes, only match if it's a direct child (not a grandchild)
+    if (pathname.startsWith(href + "/")) {
+      const remainingPath = pathname.slice(href.length + 1);
+      // Only match if there's no additional path segments (direct child)
+      return !remainingPath.includes("/");
+    }
+    
+    return false;
+  };
 
   // Auto-expand sections when on child pages
   useEffect(() => {
@@ -346,7 +379,22 @@ export default function Sidebar() {
               {hasChildren && isExpanded && !collapsed && (
                 <div className="ml-6 mt-1 space-y-1">
                   {item.children!
-                    .filter(child => canAccess(child.module))
+                    .filter(child => {
+                      // Special handling for Tasks module
+                      if (child.module === "tasks" || child.module === "my-tasks") {
+                        // All roles can access My Tasks
+                        if (child.module === "my-tasks") {
+                          return true;
+                        }
+                        // Only Super Admin and Admin can access All Tasks
+                        if (child.module === "tasks") {
+                          const userRole = session?.user?.role;
+                          return userRole === "SUPER_ADMIN" || userRole === "ADMIN";
+                        }
+                      }
+                      // Default access control for other modules
+                      return canAccess(child.module);
+                    })
                     .map((child) => (
                     <button
                       key={child.name}

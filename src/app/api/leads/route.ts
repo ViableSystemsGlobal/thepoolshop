@@ -46,7 +46,28 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(leads);
+    // Parse JSON fields for each lead
+    const parsedLeads = leads.map(lead => ({
+      ...lead,
+      assignedTo: (lead as any).assignedTo ? (() => {
+        try {
+          return JSON.parse((lead as any).assignedTo);
+        } catch (e) {
+          console.error('Error parsing assignedTo for lead', lead.id, ':', e);
+          return null;
+        }
+      })() : null,
+      interestedProducts: (lead as any).interestedProducts ? (() => {
+        try {
+          return JSON.parse((lead as any).interestedProducts);
+        } catch (e) {
+          console.error('Error parsing interestedProducts for lead', lead.id, ':', e);
+          return null;
+        }
+      })() : null,
+    }));
+
+    return NextResponse.json(parsedLeads);
   } catch (error) {
     console.error('Error fetching leads:', error);
     return NextResponse.json(
@@ -88,6 +109,11 @@ export async function POST(request: NextRequest) {
       status = 'NEW',
       score = 0,
       notes,
+      subject,
+      leadType = 'INDIVIDUAL',
+      assignedTo,
+      interestedProducts,
+      followUpDate,
     } = body;
 
     if (!firstName || !lastName) {
@@ -122,8 +148,13 @@ export async function POST(request: NextRequest) {
         status,
         score,
         notes,
+        subject: subject as any,
+        leadType: leadType as any,
+        assignedTo: assignedTo && Array.isArray(assignedTo) && assignedTo.length > 0 ? JSON.stringify(assignedTo) : null,
+        interestedProducts: interestedProducts && Array.isArray(interestedProducts) && interestedProducts.length > 0 ? JSON.stringify(interestedProducts) : null,
+        followUpDate: followUpDate ? new Date(followUpDate) : null,
         ownerId: userId,
-      },
+      } as any,
       include: {
         owner: {
           select: { id: true, name: true, email: true },
@@ -150,7 +181,28 @@ export async function POST(request: NextRequest) {
       // Don't fail the request if activity logging fails
     }
 
-    return NextResponse.json(lead, { status: 201 });
+    // Parse JSON fields
+    const parsedLead = {
+      ...lead,
+      assignedTo: (lead as any).assignedTo ? (() => {
+        try {
+          return JSON.parse((lead as any).assignedTo);
+        } catch (e) {
+          console.error('Error parsing assignedTo:', e);
+          return null;
+        }
+      })() : null,
+      interestedProducts: (lead as any).interestedProducts ? (() => {
+        try {
+          return JSON.parse((lead as any).interestedProducts);
+        } catch (e) {
+          console.error('Error parsing interestedProducts:', e);
+          return null;
+        }
+      })() : null,
+    };
+
+    return NextResponse.json(parsedLead, { status: 201 });
   } catch (error) {
     console.error('Error creating lead:', error);
     console.error('Error details:', {

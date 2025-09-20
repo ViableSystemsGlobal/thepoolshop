@@ -47,7 +47,7 @@ export function DropdownMenu({ trigger, items, align = "right", className = "" }
           <div className="py-1">
             {items.map((item, index) => (
               <button
-                key={index}
+                key={`${item.label}-${index}`}
                 onClick={() => {
                   item.onClick();
                   setIsOpen(false);

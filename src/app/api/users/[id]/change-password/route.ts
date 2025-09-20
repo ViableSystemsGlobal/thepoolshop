@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 // PUT /api/users/[id]/change-password - Change user password
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,6 +14,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const resolvedParams = await params;
     const body = await request.json();
     const { newPassword } = body;
 
@@ -26,7 +27,7 @@ export async function PUT(
 
     // Check if user exists
     const user = await prisma.user.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       select: { id: true, email: true, name: true }
     });
 
@@ -36,7 +37,7 @@ export async function PUT(
 
     // Update password
     await prisma.user.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: { password: newPassword } as any
     });
 

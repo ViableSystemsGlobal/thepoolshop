@@ -8,32 +8,45 @@ datasource db {
 }
 
 model User {
-  id            String               @id @default(cuid())
-  email         String               @unique
-  name          String?
-  phone         String?
-  image         String?
-  password      String?
-  role          UserRole             @default(SALES_REP)
-  isActive      Boolean              @default(true)
-  lastLoginAt   DateTime?
-  emailVerified DateTime?
-  phoneVerified DateTime?
-  preferences   Json?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  userRoles     UserRoleAssignment[]
-  accounts      Account[]
-  auditLogs     AuditLog[]
-  backorders    Backorder[]
-  leads         Lead[]
-  notifications Notification[]
-  proformas     Proforma[]
-  quotations    Quotation[]
-  smsMessages   SmsMessage[]
-  smsCampaigns  SmsCampaign[]
-  emailMessages EmailMessage[]
-  emailCampaigns EmailCampaign[]
+  id                      String               @id @default(cuid())
+  email                   String               @unique
+  name                    String?
+  phone                   String?
+  image                   String?
+  role                    UserRole             @default(SALES_REP)
+  isActive                Boolean              @default(true)
+  lastLoginAt             DateTime?
+  emailVerified           DateTime?
+  phoneVerified           DateTime?
+  preferences             Json?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  password                String?
+  userRoles               UserRoleAssignment[]
+  accounts                Account[]
+  auditLogs               AuditLog[]
+  backorders              Backorder[]
+  emailCampaigns          EmailCampaign[]
+  emailMessages           EmailMessage[]
+  leads                   Lead[]
+  notifications           Notification[]
+  proformas               Proforma[]
+  quotations              Quotation[]
+  createdRecurringTasks   RecurringTask[]      @relation("CreatedRecurringTasks")
+  assignedRecurringTasks  RecurringTask[]      @relation("AssignedRecurringTasks")
+  smsCampaigns            SmsCampaign[]
+  smsMessages             SmsMessage[]
+  taskAssignments         TaskAssignee[]       @relation("TaskAssignments")
+  taskAttachments         TaskAttachment[]     @relation("TaskAttachments")
+  completedChecklistItems TaskChecklistItem[]  @relation("CompletedChecklistItems")
+  taskComments            TaskComment[]        @relation("TaskComments")
+  createdTaskTemplates    TaskTemplate[]       @relation("CreatedTaskTemplates")
+  createdTasks            Task[]               @relation("CreatedTasks")
+  assignedTasks           Task[]               @relation("AssignedTasks")
+  leadComments            LeadComment[]
+  leadFiles               LeadFile[]
+  leadEmails              LeadEmail[]
+  leadSms                 LeadSMS[]
 
   @@map("users")
 }
@@ -202,6 +215,7 @@ model Account {
   opportunities Opportunity[]
   proformas     Proforma[]
   quotations    Quotation[]
+  tasks         Task[]
 
   @@map("accounts")
 }
@@ -222,20 +236,30 @@ model Contact {
 }
 
 model Lead {
-  id        String     @id @default(cuid())
-  firstName String
-  lastName  String
-  email     String?
-  phone     String?
-  company   String?
-  source    String?
-  status    LeadStatus @default(NEW)
-  score     Int        @default(0)
-  notes     String?
-  ownerId   String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  owner     User       @relation(fields: [ownerId], references: [id])
+  id                String     @id @default(cuid())
+  firstName         String
+  lastName          String
+  email             String?
+  phone             String?
+  company           String?
+  source            String?
+  status            LeadStatus @default(NEW)
+  score             Int        @default(0)
+  notes             String?
+  subject           String?
+  leadType          String     @default("INDIVIDUAL")
+  assignedTo        String?    // JSON string of User array
+  interestedProducts String?   // JSON string of Product array
+  followUpDate      DateTime?
+  ownerId           String
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  owner             User       @relation(fields: [ownerId], references: [id])
+  tasks             Task[]
+  comments          LeadComment[]
+  files             LeadFile[]
+  emails            LeadEmail[]
+  sms               LeadSMS[]
 
   @@map("leads")
 }
@@ -531,96 +555,273 @@ model AuditLog {
 }
 
 model SmsMessage {
-  id            String        @id @default(cuid())
-  recipient     String
-  message       String
-  status        SmsStatus     @default(PENDING)
-  sentAt        DateTime?
-  deliveredAt   DateTime?
-  failedAt      DateTime?
-  errorMessage  String?
-  cost          Float?
-  provider      String?       // SMS provider used (e.g., "deywuro")
-  providerId    String?       // Provider's message ID
-  userId        String        // User who sent the message
-  campaignId    String?       // Optional campaign ID for bulk messages
-  isBulk        Boolean       @default(false)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
-  user          User          @relation(fields: [userId], references: [id])
-  campaign      SmsCampaign?  @relation(fields: [campaignId], references: [id])
+  id           String       @id @default(cuid())
+  recipient    String
+  message      String
+  status       SmsStatus    @default(PENDING)
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  failedAt     DateTime?
+  errorMessage String?
+  cost         Float?
+  provider     String?
+  providerId   String?
+  userId       String
+  campaignId   String?
+  isBulk       Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  campaign     SmsCampaign? @relation(fields: [campaignId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
 
   @@map("sms_messages")
 }
 
 model SmsCampaign {
-  id          String        @id @default(cuid())
+  id          String         @id @default(cuid())
   name        String
   description String?
-  recipients  Json          // Array of phone numbers or contact IDs
+  recipients  Json
   message     String
   status      CampaignStatus @default(DRAFT)
   scheduledAt DateTime?
   sentAt      DateTime?
   completedAt DateTime?
-  totalSent   Int           @default(0)
-  totalFailed Int           @default(0)
-  userId      String        // User who created the campaign
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  
-  user        User          @relation(fields: [userId], references: [id])
+  totalSent   Int            @default(0)
+  totalFailed Int            @default(0)
+  userId      String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  user        User           @relation(fields: [userId], references: [id])
   messages    SmsMessage[]
 
   @@map("sms_campaigns")
 }
 
 model EmailMessage {
-  id            String        @id @default(cuid())
-  recipient     String
-  subject       String
-  message       String
-  status        EmailStatus   @default(PENDING)
-  sentAt        DateTime?
-  deliveredAt   DateTime?
-  failedAt      DateTime?
-  errorMessage  String?
-  provider      String?       // Email provider used (e.g., "smtp")
-  providerId    String?       // Provider's message ID
-  userId        String        // User who sent the message
-  campaignId    String?       // Optional campaign ID for bulk messages
-  isBulk        Boolean       @default(false)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
-  user          User          @relation(fields: [userId], references: [id])
-  campaign      EmailCampaign? @relation(fields: [campaignId], references: [id])
+  id           String         @id @default(cuid())
+  recipient    String
+  subject      String
+  message      String
+  status       EmailStatus    @default(PENDING)
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  failedAt     DateTime?
+  errorMessage String?
+  provider     String?
+  providerId   String?
+  userId       String
+  campaignId   String?
+  isBulk       Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  campaign     EmailCampaign? @relation(fields: [campaignId], references: [id])
+  user         User           @relation(fields: [userId], references: [id])
 
   @@map("email_messages")
 }
 
 model EmailCampaign {
-  id          String        @id @default(cuid())
+  id          String         @id @default(cuid())
   name        String
   description String?
-  recipients  Json          // Array of email addresses or contact IDs
+  recipients  Json
   subject     String
   message     String
   status      CampaignStatus @default(DRAFT)
   scheduledAt DateTime?
   sentAt      DateTime?
   completedAt DateTime?
-  totalSent   Int           @default(0)
-  totalFailed Int           @default(0)
-  userId      String        // User who created the campaign
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  
-  user        User          @relation(fields: [userId], references: [id])
+  totalSent   Int            @default(0)
+  totalFailed Int            @default(0)
+  userId      String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  user        User           @relation(fields: [userId], references: [id])
   messages    EmailMessage[]
 
   @@map("email_campaigns")
+}
+
+model Task {
+  id                String              @id @default(cuid())
+  title             String
+  description       String?
+  status            TaskStatus          @default(PENDING)
+  priority          TaskPriority        @default(MEDIUM)
+  dueDate           DateTime?
+  completedAt       DateTime?
+  assignedTo        String?
+  assignmentType    AssignmentType      @default(INDIVIDUAL)
+  createdBy         String
+  estimatedDuration Int?
+  actualDuration    Int?
+  categoryId        String?
+  leadId            String?
+  accountId         String?
+  templateId        String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  recurringTaskId   String?
+  assignees         TaskAssignee[]
+  attachments       TaskAttachment[]
+  checklistItems    TaskChecklistItem[]
+  comments          TaskComment[]
+  dependentTasks    TaskDependency[]    @relation("DependentTasks")
+  dependencies      TaskDependency[]    @relation("TaskDependencies")
+  recurringTask     RecurringTask?      @relation(fields: [recurringTaskId], references: [id])
+  template          TaskTemplate?       @relation(fields: [templateId], references: [id])
+  account           Account?            @relation(fields: [accountId], references: [id])
+  lead              Lead?               @relation(fields: [leadId], references: [id])
+  category          TaskCategory?       @relation(fields: [categoryId], references: [id])
+  creator           User                @relation("CreatedTasks", fields: [createdBy], references: [id])
+  assignee          User?               @relation("AssignedTasks", fields: [assignedTo], references: [id])
+
+  @@map("tasks")
+}
+
+model TaskAssignee {
+  id          String     @id @default(cuid())
+  taskId      String
+  userId      String
+  status      TaskStatus @default(PENDING)
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  user        User       @relation("TaskAssignments", fields: [userId], references: [id])
+  task        Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@map("task_assignees")
+}
+
+model RecurringTask {
+  id            String            @id @default(cuid())
+  title         String
+  description   String?
+  priority      TaskPriority      @default(MEDIUM)
+  pattern       RecurrencePattern
+  interval      Int               @default(1)
+  daysOfWeek    Json?
+  dayOfMonth    Int?
+  assignedTo    String
+  createdBy     String
+  isActive      Boolean           @default(true)
+  lastGenerated DateTime?
+  nextDue       DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  creator       User              @relation("CreatedRecurringTasks", fields: [createdBy], references: [id])
+  assignee      User              @relation("AssignedRecurringTasks", fields: [assignedTo], references: [id])
+  tasks         Task[]
+
+  @@map("recurring_tasks")
+}
+
+model TaskCategory {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?
+  color       String         @default("#3B82F6")
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  templates   TaskTemplate[]
+  tasks       Task[]
+
+  @@map("task_categories")
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation("TaskComments", fields: [userId], references: [id])
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_comments")
+}
+
+model TaskAttachment {
+  id           String   @id @default(cuid())
+  taskId       String
+  fileName     String
+  originalName String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  uploadedBy   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  uploader     User     @relation("TaskAttachments", fields: [uploadedBy], references: [id])
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_attachments")
+}
+
+model TaskDependency {
+  id              String   @id @default(cuid())
+  taskId          String
+  dependsOnTaskId String
+  createdAt       DateTime @default(now())
+  dependsOnTask   Task     @relation("DependentTasks", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+  task            Task     @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnTaskId])
+  @@map("task_dependencies")
+}
+
+model TaskTemplate {
+  id                String             @id @default(cuid())
+  name              String
+  description       String?
+  priority          TaskPriority       @default(MEDIUM)
+  estimatedDuration Int?
+  categoryId        String?
+  isActive          Boolean            @default(true)
+  createdBy         String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  items             TaskTemplateItem[]
+  creator           User               @relation("CreatedTaskTemplates", fields: [createdBy], references: [id])
+  category          TaskCategory?      @relation(fields: [categoryId], references: [id])
+  tasks             Task[]
+
+  @@map("task_templates")
+}
+
+model TaskTemplateItem {
+  id          String       @id @default(cuid())
+  templateId  String
+  title       String
+  description String?
+  order       Int          @default(0)
+  isRequired  Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  template    TaskTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("task_template_items")
+}
+
+model TaskChecklistItem {
+  id          String    @id @default(cuid())
+  taskId      String
+  title       String
+  description String?
+  isCompleted Boolean   @default(false)
+  completedBy String?
+  completedAt DateTime?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completer   User?     @relation("CompletedChecklistItems", fields: [completedBy], references: [id])
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_checklist_items")
 }
 
 enum UserRole {
@@ -699,6 +900,76 @@ enum ProformaStatus {
   CANCELLED
 }
 
+model LeadComment {
+  id        String   @id @default(cuid())
+  leadId    String
+  content   String
+  isInternal Boolean @default(false)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lead          Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdByUser User @relation(fields: [createdBy], references: [id])
+
+  @@map("lead_comments")
+}
+
+model LeadFile {
+  id          String   @id @default(cuid())
+  leadId      String
+  fileName    String
+  filePath    String
+  fileSize    Int
+  mimeType    String
+  description String?
+  category    String   @default("DOCUMENT")
+  uploadedBy  String
+  uploadedAt  DateTime @default(now())
+
+  lead           Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  uploadedByUser User @relation(fields: [uploadedBy], references: [id])
+
+  @@map("lead_files")
+}
+
+model LeadEmail {
+  id          String      @id @default(cuid())
+  leadId      String
+  to          String
+  subject     String
+  content     String
+  type        String      @default("OUTBOUND")
+  status      EmailStatus @default(PENDING)
+  sentBy      String
+  sentAt      DateTime?
+  scheduledAt DateTime?
+
+  lead        Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sentByUser  User @relation(fields: [sentBy], references: [id])
+
+  @@map("lead_emails")
+}
+
+model LeadSMS {
+  id            String   @id @default(cuid())
+  leadId        String
+  to            String
+  message       String
+  type          String   @default("OUTBOUND")
+  status        String   @default("PENDING")
+  sentBy        String
+  sentAt        DateTime?
+  scheduledAt   DateTime?
+  externalId    String?
+  errorMessage  String?
+
+  lead          Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sentByUser    User @relation(fields: [sentBy], references: [id])
+
+  @@map("lead_sms")
+}
+
 enum StockMovementType {
   RECEIPT
   ADJUSTMENT
@@ -743,6 +1014,33 @@ enum EmailStatus {
   SENT
   DELIVERED
   FAILED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum AssignmentType {
+  INDIVIDUAL
+  COLLABORATIVE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RecurrencePattern {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
 }
 
 enum CampaignStatus {

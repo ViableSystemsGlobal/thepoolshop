@@ -6,7 +6,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { SourceSelect } from '@/components/ui/source-select';
 import { useTheme } from '@/contexts/theme-context';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  sku?: string;
+  description?: string;
+}
 
 interface Lead {
   id: string;
@@ -14,10 +29,14 @@ interface Lead {
   lastName: string;
   email?: string;
   phone?: string;
+  leadType: 'INDIVIDUAL' | 'COMPANY';
   company?: string;
+  subject?: string;
   source?: string;
   status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
-  score: number;
+  assignedTo?: User[];
+  interestedProducts?: Product[];
+  followUpDate?: string;
   notes?: string;
 }
 
@@ -29,10 +48,14 @@ interface EditLeadModalProps {
     lastName: string;
     email?: string;
     phone?: string;
+    leadType: 'INDIVIDUAL' | 'COMPANY';
     company?: string;
+    subject?: string;
     source?: string;
     status: string;
-    score: number;
+    assignedTo?: User[];
+    interestedProducts?: Product[];
+    followUpDate?: string;
     notes?: string;
   }) => void;
 }
@@ -45,14 +68,64 @@ export function EditLeadModal({ lead, onClose, onSave }: EditLeadModalProps) {
     lastName: '',
     email: '',
     phone: '',
+    leadType: 'INDIVIDUAL' as 'INDIVIDUAL' | 'COMPANY',
     company: '',
+    subject: '',
     source: '',
     status: 'NEW',
-    score: 0,
+    assignedTo: [] as User[],
+    interestedProducts: [] as Product[],
+    followUpDate: '',
     notes: '',
   });
 
   const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  // Fetch users for assignment dropdown
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch('/api/users?limit=100', {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUsers(data.users || []);
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  // Fetch products for products dropdown
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch('/api/products?limit=100', {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setProducts(data.products || []);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   useEffect(() => {
     setFormData({
@@ -60,10 +133,14 @@ export function EditLeadModal({ lead, onClose, onSave }: EditLeadModalProps) {
       lastName: lead.lastName,
       email: lead.email || '',
       phone: lead.phone || '',
+      leadType: lead.leadType || 'INDIVIDUAL',
       company: lead.company || '',
+      subject: lead.subject || '',
       source: lead.source || '',
       status: lead.status,
-      score: lead.score,
+      assignedTo: lead.assignedTo || [],
+      interestedProducts: lead.interestedProducts || [],
+      followUpDate: lead.followUpDate || '',
       notes: lead.notes || '',
     });
   }, [lead]);
@@ -117,6 +194,41 @@ export function EditLeadModal({ lead, onClose, onSave }: EditLeadModalProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
+              <Label htmlFor="leadType">Lead Type *</Label>
+              <select
+                id="leadType"
+                value={formData.leadType}
+                onChange={(e) => {
+                  const newType = e.target.value as 'INDIVIDUAL' | 'COMPANY';
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    leadType: newType,
+                    company: newType === 'INDIVIDUAL' ? '' : prev.company
+                  }));
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="INDIVIDUAL">Individual</option>
+                <option value="COMPANY">Company</option>
+              </select>
+            </div>
+            {formData.leadType === 'COMPANY' && (
+              <div>
+                <Label htmlFor="company">Company Name *</Label>
+                <Input
+                  id="company"
+                  value={formData.company}
+                  onChange={(e) => handleChange('company', e.target.value)}
+                  placeholder="Enter company name"
+                  required={formData.leadType === 'COMPANY'}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
@@ -137,25 +249,28 @@ export function EditLeadModal({ lead, onClose, onSave }: EditLeadModalProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="company">Company</Label>
+              <Label htmlFor="subject">Subject</Label>
               <Input
-                id="company"
-                value={formData.company}
-                onChange={(e) => handleChange('company', e.target.value)}
+                id="subject"
+                value={formData.subject}
+                onChange={(e) => handleChange('subject', e.target.value)}
+                placeholder="e.g., Product Inquiry, Service Request"
               />
             </div>
             <div>
-              <Label htmlFor="source">Source</Label>
-              <Input
-                id="source"
-                value={formData.source}
-                onChange={(e) => handleChange('source', e.target.value)}
-                placeholder="e.g., Website, Referral, Cold Call"
-              />
+              {/* Empty div to maintain grid layout */}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            <div>
+              <SourceSelect
+                label="Source"
+                value={formData.source}
+                onChange={(value) => handleChange('source', value)}
+                placeholder="Select or create source"
+              />
+            </div>
             <div>
               <Label htmlFor="status">Status</Label>
               <select
@@ -171,17 +286,39 @@ export function EditLeadModal({ lead, onClose, onSave }: EditLeadModalProps) {
                 <option value="LOST">Lost</option>
               </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="score">Lead Score (0-100)</Label>
-              <Input
-                id="score"
-                type="number"
-                min="0"
-                max="100"
-                value={formData.score}
-                onChange={(e) => handleChange('score', parseInt(e.target.value) || 0)}
+              <MultiSelect
+                label="Assigned To"
+                options={users as any}
+                selected={formData.assignedTo as any}
+                onChange={(selected) => setFormData(prev => ({ ...prev, assignedTo: selected as any }))}
+                placeholder="Select Users"
+                disabled={loadingUsers}
               />
             </div>
+            <div>
+              <MultiSelect
+                label="Interested Products"
+                options={products as any}
+                selected={formData.interestedProducts as any}
+                onChange={(selected) => setFormData(prev => ({ ...prev, interestedProducts: selected as any }))}
+                placeholder="Select Products"
+                disabled={loadingProducts}
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="followUpDate">Follow-up Date</Label>
+            <Input
+              id="followUpDate"
+              type="datetime-local"
+              value={formData.followUpDate}
+              onChange={(e) => handleChange('followUpDate', e.target.value)}
+            />
           </div>
 
           <div>

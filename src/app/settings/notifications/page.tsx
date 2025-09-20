@@ -227,6 +227,14 @@ interface NotificationSettings {
     };
     notifications: { [key: string]: boolean };
   };
+  taskNotifications: {
+    enabled: boolean;
+    minutesBeforeDue: number;
+    sendDueSoon: boolean;
+    sendOverdue: boolean;
+    sendEscalation: boolean;
+    escalationInterval: number; // hours
+  };
 }
 
 const defaultSettings: NotificationSettings = {
@@ -253,6 +261,14 @@ const defaultSettings: NotificationSettings = {
       baseUrl: 'https://deywuro.com/api'
     },
     notifications: {}
+  },
+  taskNotifications: {
+    enabled: true,
+    minutesBeforeDue: 10,
+    sendDueSoon: true,
+    sendOverdue: true,
+    sendEscalation: true,
+    escalationInterval: 1 // hours
   }
 };
 
@@ -261,7 +277,7 @@ export default function NotificationSettingsPage() {
   const themeClasses = getThemeClasses();
   const { data: session } = useSession();
   const { success: showSuccess, error: showError } = useToast();
-  const [activeTab, setActiveTab] = useState<'email' | 'sms' | 'routing' | 'email-templates' | 'sms-templates'>('email');
+  const [activeTab, setActiveTab] = useState<'email' | 'sms' | 'routing' | 'email-templates' | 'sms-templates' | 'task-notifications'>('email');
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -272,11 +288,13 @@ export default function NotificationSettingsPage() {
   const [showSMSPopup, setShowSMSPopup] = useState(false);
   const [emailTemplates, setEmailTemplates] = useState<NotificationTemplate[]>(DEFAULT_EMAIL_TEMPLATES);
   const [smsTemplates, setSmsTemplates] = useState<NotificationTemplate[]>(DEFAULT_SMS_TEMPLATES);
+  const [runnerStatus, setRunnerStatus] = useState<'running' | 'stopped' | 'loading'>('loading');
   const [editingTemplate, setEditingTemplate] = useState<NotificationTemplate | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   useEffect(() => {
     loadSettings();
+    checkRunnerStatus();
   }, []);
 
   const loadSettings = async () => {
@@ -295,6 +313,42 @@ export default function NotificationSettingsPage() {
       setSettings(defaultSettings);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const checkRunnerStatus = async () => {
+    try {
+      const response = await fetch('/api/tasks/notification-runner');
+      if (response.ok) {
+        const data = await response.json();
+        setRunnerStatus(data.isActive ? 'running' : 'stopped');
+      } else {
+        setRunnerStatus('stopped');
+      }
+    } catch (error) {
+      console.error('Error checking runner status:', error);
+      setRunnerStatus('stopped');
+    }
+  };
+
+  const toggleRunner = async (action: 'start' | 'stop') => {
+    try {
+      const response = await fetch('/api/tasks/notification-runner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRunnerStatus(data.status);
+        showSuccess(`Task notification runner ${action}ed successfully`);
+      } else {
+        showError(`Failed to ${action} notification runner`);
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing runner:`, error);
+      showError(`Error ${action}ing notification runner`);
     }
   };
 
@@ -564,6 +618,17 @@ export default function NotificationSettingsPage() {
             >
               <MessageCircle className="h-4 w-4 inline mr-2" />
               SMS Templates
+            </button>
+            <button
+              onClick={() => setActiveTab('task-notifications')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'task-notifications'
+                  ? `border-${themeClasses.primary} text-${themeClasses.primary}`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <AlertTriangle className="h-4 w-4 inline mr-2" />
+              Task Notifications
             </button>
           </nav>
         </div>
@@ -1491,6 +1556,351 @@ export default function NotificationSettingsPage() {
           </div>
         </div>
       )}
+
+        {/* Task Notifications Tab */}
+        {activeTab === 'task-notifications' && (
+          <div className="space-y-6">
+            {/* Automatic Runner Status */}
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium">Automatic Notification Runner</h3>
+                  <p className="text-sm text-gray-500">
+                    Automatically processes task notifications every minute
+                  </p>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full ${
+                      runnerStatus === 'running' ? 'bg-green-500' : 
+                      runnerStatus === 'stopped' ? 'bg-red-500' : 'bg-yellow-500'
+                    }`} />
+                    <span className="text-sm font-medium">
+                      {runnerStatus === 'loading' ? 'Checking...' : 
+                       runnerStatus === 'running' ? 'Running' : 'Stopped'}
+                    </span>
+                  </div>
+                  {runnerStatus !== 'loading' && (
+                    <Button
+                      onClick={() => toggleRunner(runnerStatus === 'running' ? 'stop' : 'start')}
+                      size="sm"
+                      className={runnerStatus === 'running' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
+                    >
+                      {runnerStatus === 'running' ? 'Stop' : 'Start'} Runner
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Task Notifications Enable/Disable */}
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium">Task Due Date Notifications</h3>
+                  <p className="text-sm text-gray-500">
+                    Configure automatic notifications for task due dates and overdue tasks
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="task-notifications-enabled"
+                    checked={settings.taskNotifications.enabled}
+                    onCheckedChange={(checked) =>
+                      setSettings(prev => ({
+                        ...prev,
+                        taskNotifications: {
+                          ...prev.taskNotifications,
+                          enabled: !!checked
+                        }
+                      }))
+                    }
+                  />
+                  <Label htmlFor="task-notifications-enabled">
+                    {settings.taskNotifications.enabled ? 'Enabled' : 'Disabled'}
+                  </Label>
+                </div>
+              </div>
+            </Card>
+
+            {/* Task Notification Settings */}
+            <Card className="p-6">
+              <h3 className="text-lg font-medium mb-6">Notification Settings</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Minutes Before Due */}
+                <div>
+                  <Label htmlFor="minutes-before-due">Minutes Before Due Date</Label>
+                  <Input
+                    id="minutes-before-due"
+                    type="number"
+                    min="1"
+                    max="1440"
+                    value={settings.taskNotifications.minutesBeforeDue}
+                    onChange={(e) =>
+                      setSettings(prev => ({
+                        ...prev,
+                        taskNotifications: {
+                          ...prev.taskNotifications,
+                          minutesBeforeDue: parseInt(e.target.value) || 10
+                        }
+                      }))
+                    }
+                    className="mt-1"
+                    disabled={!settings.taskNotifications.enabled}
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Send reminder notification this many minutes before task is due (1-1440 minutes)
+                  </p>
+                </div>
+
+                {/* Escalation Interval */}
+                <div>
+                  <Label htmlFor="escalation-interval">Escalation Interval (Hours)</Label>
+                  <Input
+                    id="escalation-interval"
+                    type="number"
+                    min="1"
+                    max="24"
+                    value={settings.taskNotifications.escalationInterval}
+                    onChange={(e) =>
+                      setSettings(prev => ({
+                        ...prev,
+                        taskNotifications: {
+                          ...prev.taskNotifications,
+                          escalationInterval: parseInt(e.target.value) || 1
+                        }
+                      }))
+                    }
+                    className="mt-1"
+                    disabled={!settings.taskNotifications.enabled}
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Send escalation notification every X hours for overdue tasks (1-24 hours)
+                  </p>
+                </div>
+              </div>
+
+              {/* Notification Types */}
+              <div className="mt-6">
+                <h4 className="text-md font-medium mb-4">Notification Types</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="send-due-soon"
+                      checked={settings.taskNotifications.sendDueSoon}
+                      onCheckedChange={(checked) =>
+                        setSettings(prev => ({
+                          ...prev,
+                          taskNotifications: {
+                            ...prev.taskNotifications,
+                            sendDueSoon: !!checked
+                          }
+                        }))
+                      }
+                      disabled={!settings.taskNotifications.enabled}
+                    />
+                    <Label htmlFor="send-due-soon">
+                      Send "Due Soon" notifications
+                    </Label>
+                    <span className="text-sm text-gray-500">
+                      (X minutes before due date)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="send-overdue"
+                      checked={settings.taskNotifications.sendOverdue}
+                      onCheckedChange={(checked) =>
+                        setSettings(prev => ({
+                          ...prev,
+                          taskNotifications: {
+                            ...prev.taskNotifications,
+                            sendOverdue: !!checked
+                          }
+                        }))
+                      }
+                      disabled={!settings.taskNotifications.enabled}
+                    />
+                    <Label htmlFor="send-overdue">
+                      Send "Overdue" notifications
+                    </Label>
+                    <span className="text-sm text-gray-500">
+                      (When task becomes overdue)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="send-escalation"
+                      checked={settings.taskNotifications.sendEscalation}
+                      onCheckedChange={(checked) =>
+                        setSettings(prev => ({
+                          ...prev,
+                          taskNotifications: {
+                            ...prev.taskNotifications,
+                            sendEscalation: !!checked
+                          }
+                        }))
+                      }
+                      disabled={!settings.taskNotifications.enabled}
+                    />
+                    <Label htmlFor="send-escalation">
+                      Send "Escalation" notifications
+                    </Label>
+                    <span className="text-sm text-gray-500">
+                      (Every X hours for overdue tasks)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="mt-6 flex justify-end">
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className={`${themeClasses.primary} ${themeClasses.primaryDark}`}
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Task Notification Settings
+                    </>
+                  )}
+                </Button>
+              </div>
+            </Card>
+
+            {/* Test Task Notifications */}
+            <Card className="p-6">
+              <h3 className="text-lg font-medium mb-6">Test Task Notifications</h3>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div className="flex items-start">
+                  <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5 mr-3" />
+                  <div>
+                    <h4 className="text-sm font-medium text-blue-800">How Task Notifications Work</h4>
+                    <ul className="text-sm text-blue-700 mt-2 space-y-1">
+                      <li>• <strong>Due Soon:</strong> Sent X minutes before task is due</li>
+                      <li>• <strong>Overdue:</strong> Sent immediately when task becomes overdue</li>
+                      <li>• <strong>Escalation:</strong> Sent every X hours for tasks that remain overdue</li>
+                      <li>• Notifications are sent to both email and SMS (if configured)</li>
+                      <li>• Only active tasks with assigned users receive notifications</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex space-x-4">
+                <Button
+                  onClick={async () => {
+                    setIsTesting('task-notifications');
+                    try {
+                      const response = await fetch('/api/tasks/process-notifications', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                      });
+                      
+                      if (response.ok) {
+                        const result = await response.json();
+                        showSuccess(`Task notifications processed successfully! Found ${result.stats.tasksDueSoon} tasks due soon and ${result.stats.overdueTasks} overdue tasks.`);
+                      } else {
+                        showError('Failed to process task notifications');
+                      }
+                    } catch (error) {
+                      showError('Error testing task notifications');
+                    } finally {
+                      setIsTesting(null);
+                    }
+                  }}
+                  disabled={isTesting === 'task-notifications'}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isTesting === 'task-notifications' ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Process Task Notifications Now
+                    </>
+                  )}
+                </Button>
+                
+                <Button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/tasks/stats-simple');
+                      if (response.ok) {
+                        const result = await response.json();
+                        showSuccess(`SIMPLE STATS: ${result.stats.tasksDueSoon} tasks due soon, ${result.stats.overdueTasks} overdue tasks`);
+                      } else {
+                        const errorData = await response.json();
+                        showError(`Failed: ${errorData.error}`);
+                      }
+                    } catch (error) {
+                      showError(`Error: ${error.message}`);
+                    }
+                  }}
+                  variant="outline"
+                >
+                  <Bell className="h-4 w-4 mr-2" />
+                  Check Notification Stats
+                </Button>
+                
+                <Button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/debug/task-notifications');
+                      if (response.ok) {
+                        const result = await response.json();
+                        console.log('Debug info:', result);
+                        const analysis = result.analysis;
+                        showSuccess(`Debug complete - Found ${analysis.totalTasksWithDueDates} tasks with due dates. Due soon: ${analysis.tasksDueSoon}, Overdue: ${analysis.overdueTasks}. Check console for full details.`);
+                      } else {
+                        showError('Failed to get debug info');
+                      }
+                    } catch (error) {
+                      showError('Error getting debug info');
+                    }
+                  }}
+                  variant="outline"
+                  className="bg-yellow-100 hover:bg-yellow-200"
+                >
+                  🔍 Debug Tasks
+                </Button>
+                
+                <Button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/debug/tasks-direct');
+                      if (response.ok) {
+                        const result = await response.json();
+                        console.log('Direct debug info:', result);
+                        showSuccess(`Direct debug - Found ${result.totalTasks} total tasks. Check console for query results.`);
+                      } else {
+                        showError('Failed to get direct debug info');
+                      }
+                    } catch (error) {
+                      showError('Error getting direct debug info');
+                    }
+                  }}
+                  variant="outline"
+                  className="bg-red-100 hover:bg-red-200"
+                >
+                  🔬 Direct DB Query
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
     </MainLayout>
   );
 }

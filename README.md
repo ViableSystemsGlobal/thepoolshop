@@ -271,3 +271,152 @@ Content-Type: application/json
 - **Audit Trail**: All movements tracked with references
 - **Cost Management**: Automatic average cost updates
 - **Flexibility**: Supports all movement types and scenarios
+
+## SMS & Email Notification Standards
+
+### Overview
+All SMS and Email notifications in the system follow a unified configuration and implementation standard. This ensures consistency, reliability, and maintainability across all notification features.
+
+### Configuration Standard
+All notification systems (Task Notifications, Communication System, etc.) use **individual database settings** stored in the `SystemSettings` table:
+
+#### SMS Configuration Keys
+```
+SMS_USERNAME     - Deywuro API username
+SMS_PASSWORD     - Deywuro API password  
+SMS_SENDER_ID    - SMS sender ID (default: 'AdPools')
+```
+
+#### Email Configuration Keys
+```
+SMTP_HOST        - SMTP server host
+SMTP_PORT        - SMTP server port (default: 587)
+SMTP_USERNAME    - SMTP username
+SMTP_PASSWORD    - SMTP password
+SMTP_FROM_ADDRESS - From email address
+SMTP_FROM_NAME   - From display name (default: 'AdPools Group')
+SMTP_ENCRYPTION  - Encryption type: 'tls' or 'ssl' (default: 'tls')
+```
+
+### Implementation Standard
+
+#### SMS Implementation
+```typescript
+// ✅ CORRECT: Use individual settings
+const smsUsername = await getSettingValue('SMS_USERNAME', '');
+const smsPassword = await getSettingValue('SMS_PASSWORD', '');
+const smsSenderId = await getSettingValue('SMS_SENDER_ID', 'AdPools');
+
+// ✅ CORRECT: Use Deywuro endpoint and format
+const response = await fetch('https://deywuro.com/api/sms', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  },
+  body: new URLSearchParams({
+    username: smsUsername,
+    password: smsPassword,
+    destination: phoneNumber,
+    source: smsSenderId,
+    message: message
+  })
+});
+
+// ✅ CORRECT: Handle Deywuro response format
+const responseText = await response.text();
+const result = JSON.parse(responseText);
+if (result.code === 0) {
+  // Success
+} else {
+  // Error: result.message
+}
+```
+
+#### Email Implementation
+```typescript
+// ✅ CORRECT: Use individual settings
+const smtpHost = await getSettingValue('SMTP_HOST', '');
+const smtpPort = await getSettingValue('SMTP_PORT', '587');
+const smtpUsername = await getSettingValue('SMTP_USERNAME', '');
+const smtpPassword = await getSettingValue('SMTP_PASSWORD', '');
+const smtpFromAddress = await getSettingValue('SMTP_FROM_ADDRESS', '');
+const smtpFromName = await getSettingValue('SMTP_FROM_NAME', 'AdPools Group');
+const smtpEncryption = await getSettingValue('SMTP_ENCRYPTION', 'tls');
+
+// ✅ CORRECT: Use nodemailer with standard configuration
+const transporter = nodemailer.createTransport({
+  host: smtpHost,
+  port: parseInt(smtpPort),
+  secure: smtpEncryption === 'ssl',
+  auth: {
+    user: smtpUsername,
+    pass: smtpPassword,
+  },
+});
+
+await transporter.sendMail({
+  from: `"${smtpFromName}" <${smtpFromAddress}>`,
+  to: recipient,
+  subject: subject,
+  text: message,
+  html: message.replace(/\n/g, '<br>'),
+});
+```
+
+### Helper Function Standard
+All notification systems must use this standard helper function:
+
+```typescript
+private static async getSettingValue(key: string, defaultValue: string = ''): Promise<string> {
+  try {
+    const setting = await prisma.systemSettings.findUnique({
+      where: { key },
+      select: { value: true }
+    });
+    return setting?.value || defaultValue;
+  } catch (error) {
+    console.error(`Error fetching setting ${key}:`, error);
+    return defaultValue;
+  }
+}
+```
+
+### ❌ DEPRECATED: Do NOT Use
+```typescript
+// ❌ WRONG: JSON config approach
+const smsSettings = await prisma.systemSettings.findFirst({
+  where: { key: 'sms_config' }
+});
+const config = JSON.parse(smsSettings.value);
+
+// ❌ WRONG: Wrong API endpoint
+fetch('https://api.deywuro.com/api/v1/sms/send', ...)
+
+// ❌ WRONG: Wrong format (JSON with Bearer token)
+headers: {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${config.apiKey}`,
+}
+```
+
+### Features Using This Standard
+- ✅ **Task Assignment Notifications**: Sends SMS/Email when tasks are assigned
+- ✅ **Communication System**: Bulk SMS/Email sending with history
+- ✅ **System Notifications**: Low stock, out of stock alerts
+- ✅ **User Management**: Account creation, password reset notifications
+
+### Configuration Management
+All SMS and Email settings are managed through:
+- **Settings Page**: `/settings/notifications`
+- **Test Functionality**: Built-in test buttons for SMS and Email
+- **Real-time Validation**: Settings are validated before saving
+- **Secure Storage**: Passwords are masked in UI but stored securely
+
+### Benefits
+- **Consistency**: All notifications work the same way
+- **Reliability**: Uses proven endpoints and configurations
+- **Maintainability**: Single standard to update across all features
+- **Testing**: Easy to test with working communication system
+- **Scalability**: Individual settings allow fine-grained control
+
+**Last Updated**: January 2025

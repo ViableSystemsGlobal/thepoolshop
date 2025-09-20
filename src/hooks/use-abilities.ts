@@ -10,7 +10,7 @@ export interface Ability {
 }
 
 export interface UserAbilities {
-  abilities: Ability[];
+  abilities: string[];
   hasAbility: (resource: string, action: string) => boolean;
   canAccess: (module: string) => boolean;
 }
@@ -22,10 +22,10 @@ const MODULE_ACCESS = {
   'inventory': ['inventory.view', 'stock.view', 'stock.create', 'stock.edit', 'stock.delete'],
   'warehouses': ['warehouses.view', 'warehouses.create', 'warehouses.edit', 'warehouses.delete'],
   'price-lists': ['price-lists.view', 'price-lists.create', 'price-lists.edit', 'price-lists.delete'],
-  'crm': ['leads.view', 'accounts.view', 'opportunities.view'],
-  'leads': ['leads.view', 'leads.create', 'leads.edit', 'leads.delete'],
-  'accounts': ['accounts.view', 'accounts.create', 'accounts.edit', 'accounts.delete'],
-  'opportunities': ['opportunities.view', 'opportunities.create', 'opportunities.edit', 'opportunities.delete'],
+  'crm': ['leads.read', 'accounts.read', 'opportunities.read'],
+  'leads': ['leads.read', 'leads.create', 'leads.update', 'leads.delete', 'leads.bulk-delete', 'leads.bulk-export', 'leads.bulk-update'],
+  'accounts': ['accounts.read', 'accounts.create', 'accounts.update', 'accounts.delete', 'accounts.bulk-delete', 'accounts.bulk-export'],
+  'opportunities': ['opportunities.read', 'opportunities.create', 'opportunities.update', 'opportunities.delete'],
   'backorders': ['backorders.view', 'backorders.create', 'backorders.edit', 'backorders.delete'],
   'settings': ['settings.view', 'users.view', 'roles.view'],
   'users': ['users.view', 'users.create', 'users.edit', 'users.delete'],
@@ -46,6 +46,10 @@ const MODULE_ACCESS = {
   'sms-history': ['sms.view', 'sms.history'],
   'email': ['email.view', 'email.send', 'email.bulk_send'],
   'email-history': ['email.view', 'email.history'],
+  'tasks': ['tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign'],
+  'my-tasks': ['tasks.view', 'tasks.edit'],
+  'task_templates': ['tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete'],
+  'recurring-tasks': ['tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign'],
   'templates': ['templates.view'],
   'communication-logs': ['communication-logs.view'],
   'agents': ['agents.view'],
@@ -62,6 +66,51 @@ const MODULE_ACCESS = {
 
 // Role-based ability definitions
 const ROLE_ABILITIES: { [key: string]: string[] } = {
+  'SUPER_ADMIN': [
+    // Dashboard
+    'dashboard.view',
+    // Products
+    'products.view', 'products.create', 'products.edit', 'products.delete',
+    // Inventory
+    'inventory.view', 'stock.view', 'stock.create', 'stock.edit', 'stock.delete',
+    // Warehouses
+    'warehouses.view', 'warehouses.create', 'warehouses.edit', 'warehouses.delete',
+    // Price Lists
+    'price-lists.view', 'price-lists.create', 'price-lists.edit', 'price-lists.delete',
+    // CRM
+    'leads.read', 'leads.create', 'leads.update', 'leads.delete', 'leads.bulk-delete', 'leads.bulk-export', 'leads.bulk-update',
+    'accounts.view', 'accounts.create', 'accounts.edit', 'accounts.delete',
+    'opportunities.view', 'opportunities.create', 'opportunities.edit', 'opportunities.delete',
+    'quotations.view', 'quotations.create', 'quotations.edit', 'quotations.delete',
+    'contacts.view', 'contacts.create', 'contacts.edit', 'contacts.delete',
+    // Backorders
+    'backorders.view', 'backorders.create', 'backorders.edit', 'backorders.delete',
+    // DRM
+    'drm.view', 'distributors.view', 'agreements.view', 'drm-orders.view',
+    // Sales
+    'sales.view', 'orders.view', 'proformas.view', 'invoices.view', 'payments.view', 'returns.view',
+    // Communication
+    'communication.view', 'templates.view', 'communication-logs.view',
+    'sms.view', 'sms.send', 'sms.bulk_send', 'sms.history',
+    'email.view', 'email.send', 'email.bulk_send', 'email.history',
+    // Tasks - Full access
+    'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign',
+    // Task Templates - Full access
+    'task-templates.view', 'task-templates.create', 'task-templates.edit', 'task-templates.delete',
+    // Task Categories - Full access
+    'task-categories.view', 'task-categories.create', 'task-categories.edit', 'task-categories.delete',
+    // Recurring Tasks - Full access
+    'recurring-tasks.view', 'recurring-tasks.create', 'recurring-tasks.edit', 'recurring-tasks.delete', 'recurring-tasks.generate',
+    // Agents
+    'agents.view', 'commissions.view',
+    // Reports
+    'reports.view',
+    // Settings - Full access
+    'settings.view', 'users.view', 'users.create', 'users.edit', 'users.delete',
+    'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
+    'product-settings.view', 'currency-settings.view', 'business-settings.view', 'system-settings.view',
+    'notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config',
+  ],
   'ADMIN': [
     // Dashboard
     'dashboard.view',
@@ -74,7 +123,7 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     // Price Lists
     'price-lists.view', 'price-lists.create', 'price-lists.edit', 'price-lists.delete',
     // CRM
-    'leads.view', 'leads.create', 'leads.edit', 'leads.delete',
+    'leads.read', 'leads.create', 'leads.update', 'leads.delete', 'leads.bulk-delete', 'leads.bulk-export', 'leads.bulk-update',
     'accounts.view', 'accounts.create', 'accounts.edit', 'accounts.delete',
     'opportunities.view', 'opportunities.create', 'opportunities.edit', 'opportunities.delete',
     'quotations.view', 'quotations.create', 'quotations.edit', 'quotations.delete',
@@ -86,9 +135,16 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     // Sales
     'sales.view', 'orders.view', 'proformas.view', 'invoices.view', 'payments.view', 'returns.view',
     // Communication
-        'communication.view', 'templates.view', 'communication-logs.view',
-        'sms.view', 'sms.send', 'sms.bulk_send', 'sms.history',
-        'email.view', 'email.send', 'email.bulk_send', 'email.history',
+    'communication.view', 'templates.view', 'communication-logs.view',
+    'sms.view', 'sms.send', 'sms.bulk_send', 'sms.history',
+    'email.view', 'email.send', 'email.bulk_send', 'email.history',
+    'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign',
+    // Task Templates - Full access
+    'task-templates.view', 'task-templates.create', 'task-templates.edit', 'task-templates.delete',
+    // Task Categories - Full access
+    'task-categories.view', 'task-categories.create', 'task-categories.edit', 'task-categories.delete',
+    // Recurring Tasks - Full access
+    'recurring-tasks.view', 'recurring-tasks.create', 'recurring-tasks.edit', 'recurring-tasks.delete', 'recurring-tasks.generate',
     // Agents
     'agents.view', 'commissions.view',
     // Reports
@@ -105,10 +161,18 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'inventory.view', 'stock.view',
     'warehouses.view',
     'price-lists.view', 'price-lists.create', 'price-lists.edit',
-    'leads.view', 'leads.create', 'leads.edit', 'leads.delete',
+    'leads.read', 'leads.create', 'leads.update', 'leads.delete', 'leads.bulk-delete', 'leads.bulk-export', 'leads.bulk-update',
     'accounts.view', 'accounts.create', 'accounts.edit', 'accounts.delete',
     'opportunities.view', 'opportunities.create', 'opportunities.edit', 'opportunities.delete',
     'backorders.view', 'backorders.create', 'backorders.edit',
+    // Tasks
+    'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign',
+    // Task Templates
+    'task-templates.view', 'task-templates.create', 'task-templates.edit', 'task-templates.delete',
+    // Task Categories
+    'task-categories.view', 'task-categories.create', 'task-categories.edit', 'task-categories.delete',
+    // Recurring Tasks
+    'recurring-tasks.view', 'recurring-tasks.create', 'recurring-tasks.edit', 'recurring-tasks.delete', 'recurring-tasks.generate',
   ],
   'SALES_REP': [
     'dashboard.view',
@@ -120,6 +184,14 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'accounts.view', 'accounts.create', 'accounts.edit',
     'opportunities.view', 'opportunities.create', 'opportunities.edit',
     'backorders.view', 'backorders.create',
+    // Tasks
+    'tasks.view', 'tasks.create', 'tasks.edit',
+    // Task Templates
+    'task-templates.view', 'task-templates.create', 'task-templates.edit',
+    // Task Categories
+    'task-categories.view', 'task-categories.create', 'task-categories.edit',
+    // Recurring Tasks
+    'recurring-tasks.view', 'recurring-tasks.create', 'recurring-tasks.edit',
   ],
   'INVENTORY_MANAGER': [
     'dashboard.view',
@@ -128,6 +200,14 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'warehouses.view', 'warehouses.create', 'warehouses.edit', 'warehouses.delete',
     'price-lists.view',
     'backorders.view', 'backorders.create', 'backorders.edit',
+    // Tasks
+    'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign',
+    // Task Templates
+    'task-templates.view', 'task-templates.create', 'task-templates.edit', 'task-templates.delete',
+    // Task Categories
+    'task-categories.view', 'task-categories.create', 'task-categories.edit', 'task-categories.delete',
+    // Recurring Tasks
+    'recurring-tasks.view', 'recurring-tasks.create', 'recurring-tasks.edit', 'recurring-tasks.delete', 'recurring-tasks.generate',
   ],
   'FINANCE_OFFICER': [
     'dashboard.view',
@@ -137,6 +217,14 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'price-lists.view', 'price-lists.create', 'price-lists.edit',
     'accounts.view', 'accounts.create', 'accounts.edit',
     'opportunities.view',
+    // Tasks
+    'tasks.view', 'tasks.edit',
+    // Task Templates
+    'task-templates.view', 'task-templates.edit',
+    // Task Categories
+    'task-categories.view', 'task-categories.edit',
+    // Recurring Tasks
+    'recurring-tasks.view', 'recurring-tasks.edit',
   ],
   'EXECUTIVE_VIEWER': [
     'dashboard.view',
@@ -148,6 +236,14 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'accounts.view',
     'opportunities.view',
     'backorders.view',
+    // Tasks
+    'tasks.view',
+    // Task Templates
+    'task-templates.view',
+    // Task Categories
+    'task-categories.view',
+    // Recurring Tasks
+    'recurring-tasks.view',
   ],
 };
 
