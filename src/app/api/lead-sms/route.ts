@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create LeadSMS record
-    const leadSMS = await (prisma as any).leadSms.create({
+    const leadSMS = await (prisma as any).leadSMS.create({
       data: {
         leadId,
         to,
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get SMS history for the lead
-    const smsHistory = await (prisma as any).leadSms.findMany({
+    const smsHistory = await (prisma as any).leadSMS.findMany({
       where: { leadId },
       orderBy: { sentAt: 'desc' },
       include: {
