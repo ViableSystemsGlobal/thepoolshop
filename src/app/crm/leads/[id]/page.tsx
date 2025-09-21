@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Edit, Trash2, Mail, Phone, Building, Calendar, User, Clock, CheckCircle, AlertCircle, XCircle, Play, Link, Tag, TrendingUp, Users, MessageSquare, FileText, Video, PhoneCall, Star, Target, Plus, Activity, History, DollarSign, UserPlus, FileCheck } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Mail, Phone, Building, Calendar, User, Clock, CheckCircle, AlertCircle, XCircle, Play, Link, Tag, TrendingUp, Users, MessageSquare, FileText, Video, PhoneCall, Star, Target, Plus, Activity, History, DollarSign, UserPlus, FileCheck, FileBarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useTheme } from '@/contexts/theme-context';
@@ -883,6 +883,35 @@ export default function LeadDetailsPage() {
     }
   };
 
+  const handleCreateQuote = async () => {
+    if (!lead) return;
+
+    try {
+      // First, update the lead status to OPPORTUNITY
+      const response = await fetch(`/api/leads/${lead.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...lead,
+          status: 'NEW_OPPORTUNITY'
+        }),
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        success('Lead converted to opportunity! Redirecting to quotations...');
+        // Navigate to quotations page with lead ID as parameter
+        router.push(`/quotations?leadId=${lead.id}`);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to convert lead to opportunity');
+      }
+    } catch (err) {
+      console.error('Error creating quote:', err);
+      error('Failed to create quote');
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'NEW':
@@ -1009,6 +1038,13 @@ export default function LeadDetailsPage() {
               >
                 <Tag className="w-4 h-4" />
                 Label
+              </Button>
+              <Button
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white border-0"
+                onClick={handleCreateQuote}
+              >
+                <FileBarChart className="w-4 h-4" />
+                Create Quote
               </Button>
               <Button
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white border-0"

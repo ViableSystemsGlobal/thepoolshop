@@ -5,13 +5,21 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 Leads API: GET request received');
     const session = await getServerSession(authOptions);
+    console.log('🔍 Leads API: Session exists:', !!session);
+    console.log('🔍 Leads API: User exists:', !!session?.user);
+    
     if (!session?.user) {
+      console.log('❌ Leads API: No session or user');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const userId = (session.user as any).id;
+    console.log('🔍 Leads API: User ID:', userId);
+    
     if (!userId) {
+      console.log('❌ Leads API: No user ID');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -36,6 +44,8 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    console.log('🔍 Leads API: Where clause:', JSON.stringify(where, null, 2));
+    
     const leads = await prisma.lead.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -45,6 +55,8 @@ export async function GET(request: NextRequest) {
         },
       },
     });
+
+    console.log('🔍 Leads API: Found leads:', leads.length);
 
     // Parse JSON fields for each lead
     const parsedLeads = leads.map(lead => ({

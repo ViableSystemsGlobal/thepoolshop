@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, Eye, Users, TrendingUp, Clock, CheckCircle, Grid, List, Upload } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, Eye, Users, TrendingUp, Clock, CheckCircle, Grid, List, Upload, FileBarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -289,6 +289,33 @@ export default function LeadsPage() {
     } catch (err) {
       console.error('Error deleting lead:', err);
       error('Failed to delete lead');
+    }
+  };
+
+  const handleCreateQuote = async (lead: Lead) => {
+    try {
+      // First, update the lead status to OPPORTUNITY
+      const response = await fetch(`/api/leads/${lead.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...lead,
+          status: 'NEW_OPPORTUNITY'
+        }),
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        success('Lead converted to opportunity! Redirecting to quotations...');
+        // Navigate to quotations page with lead ID as parameter
+        router.push(`/quotations?leadId=${lead.id}`);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to convert lead to opportunity');
+      }
+    } catch (err) {
+      console.error('Error creating quote:', err);
+      error('Failed to create quote');
     }
   };
 
@@ -723,6 +750,12 @@ export default function LeadsPage() {
                         onClick: () => openEditModal(lead),
                       },
                       {
+                        label: 'Create Quote',
+                        icon: <FileBarChart className="w-4 h-4" />,
+                        onClick: () => handleCreateQuote(lead),
+                        className: 'text-green-600',
+                      },
+                      {
                         label: 'Delete',
                         icon: <Trash2 className="w-4 h-4" />,
                         onClick: () => openDeleteModal(lead),
@@ -806,6 +839,12 @@ export default function LeadsPage() {
                           onClick: () => openEditModal(lead),
                         },
                         {
+                          label: 'Create Quote',
+                          icon: <FileBarChart className="w-4 h-4" />,
+                          onClick: () => handleCreateQuote(lead),
+                          className: 'text-green-600',
+                        },
+                        {
                           label: 'Delete',
                           icon: <Trash2 className="w-4 h-4" />,
                           onClick: () => openDeleteModal(lead),
@@ -865,6 +904,12 @@ export default function LeadsPage() {
                           label: 'Edit',
                           icon: <Edit className="w-4 h-4" />,
                           onClick: () => openEditModal(lead),
+                        },
+                        {
+                          label: 'Create Quote',
+                          icon: <FileBarChart className="w-4 h-4" />,
+                          onClick: () => handleCreateQuote(lead),
+                          className: 'text-green-600',
                         },
                         {
                           label: 'Delete',
@@ -928,6 +973,12 @@ export default function LeadsPage() {
                           onClick: () => openEditModal(lead),
                         },
                         {
+                          label: 'Create Quote',
+                          icon: <FileBarChart className="w-4 h-4" />,
+                          onClick: () => handleCreateQuote(lead),
+                          className: 'text-green-600',
+                        },
+                        {
                           label: 'Delete',
                           icon: <Trash2 className="w-4 h-4" />,
                           onClick: () => openDeleteModal(lead),
@@ -987,6 +1038,12 @@ export default function LeadsPage() {
                           label: 'Edit',
                           icon: <Edit className="w-4 h-4" />,
                           onClick: () => openEditModal(lead),
+                        },
+                        {
+                          label: 'Create Quote',
+                          icon: <FileBarChart className="w-4 h-4" />,
+                          onClick: () => handleCreateQuote(lead),
+                          className: 'text-green-600',
                         },
                         {
                           label: 'Delete',

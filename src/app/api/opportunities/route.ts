@@ -5,52 +5,94 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 Opportunities API: GET request received');
     const session = await getServerSession(authOptions);
+    console.log('🔍 Opportunities API: Session exists:', !!session);
+    console.log('🔍 Opportunities API: User exists:', !!session?.user);
+    
     if (!session?.user) {
+      console.log('❌ Opportunities API: No session or user');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const userId = (session.user as any).id;
+    console.log('🔍 Opportunities API: User ID:', userId);
+    
     if (!userId) {
+      console.log('❌ Opportunities API: No user ID');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
-    const stage = searchParams.get('stage');
     const search = searchParams.get('search');
+    const status = searchParams.get('status');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = parseInt(searchParams.get('offset') || '0');
 
+    // Build where clause - use simple approach that works
     const where: any = {
-      account: {
-        ownerId: userId,
-      },
+      ownerId: userId,
     };
 
-    if (stage) {
-      where.stage = stage;
+    // Add status filter if provided
+    if (status) {
+      where.status = status;
+    } else {
+      // Use all status values that exist in the database for testing
+      where.status = {
+        in: ['NEW_OPPORTUNITY', 'QUALIFIED', 'NEW']
+      };
     }
 
+    // Add search filter if provided
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { account: { name: { contains: search, mode: 'insensitive' } } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { company: { contains: search, mode: 'insensitive' } },
+        { subject: { contains: search, mode: 'insensitive' } },
       ];
     }
 
-    const opportunities = await prisma.opportunity.findMany({
+    console.log('🔍 Opportunities API: Where clause:', JSON.stringify(where, null, 2));
+    
+    const opportunities = await prisma.lead.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
       include: {
-        account: {
-          select: { id: true, name: true, type: true, email: true },
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
         },
       },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
     });
 
-    return NextResponse.json(opportunities);
+    console.log('🔍 Opportunities API: Found opportunities:', opportunities.length);
+
+    // Get total count for pagination
+    const total = await prisma.lead.count({ where });
+    console.log('🔍 Opportunities API: Total count:', total);
+
+    return NextResponse.json({
+      opportunities,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+    });
+    
   } catch (error) {
-    console.error('Error fetching opportunities:', error);
+    console.error('Error in opportunities API:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch opportunities' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -70,68 +112,71 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      name,
-      stage = 'NEW',
-      value,
-      probability = 0,
-      closeDate,
-      accountId,
+      firstName,
+      lastName,
+      email,
+      phone,
+      leadType,
+      company,
+      subject,
+      source,
+      status = 'NEW_OPPORTUNITY',
+      assignedTo,
+      interestedProducts,
+      followUpDate,
+      notes,
+      dealValue,
+      probability,
+      expectedCloseDate,
     } = body;
 
-    if (!name || !accountId) {
+    // Validate required fields
+    if (!firstName || !lastName) {
       return NextResponse.json(
-        { error: 'Opportunity name and account are required' },
+        { error: 'First name and last name are required' },
         { status: 400 }
       );
     }
 
-    // Verify account belongs to user
-    const account = await prisma.account.findFirst({
-      where: {
-        id: accountId,
-        ownerId: userId,
-      },
-    });
-
-    if (!account) {
-      return NextResponse.json(
-        { error: 'Account not found or access denied' },
-        { status: 404 }
-      );
-    }
-
-    const opportunity = await prisma.opportunity.create({
+    const opportunity = await prisma.lead.create({
       data: {
-        name,
-        stage,
-        value,
+        firstName,
+        lastName,
+        email,
+        phone,
+        leadType: leadType || 'INDIVIDUAL',
+        company,
+        subject,
+        source,
+        status: 'NEW_OPPORTUNITY' as any, // Always set as NEW_OPPORTUNITY for new opportunities
+        assignedTo: assignedTo ? JSON.stringify(assignedTo) : null,
+        interestedProducts: interestedProducts ? JSON.stringify(interestedProducts) : null,
+        followUpDate: followUpDate ? new Date(followUpDate) : null,
+        notes,
+        dealValue,
         probability,
-        closeDate: closeDate ? new Date(closeDate) : null,
-        accountId,
-      },
+        expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null,
+        ownerId: userId,
+      } as any,
       include: {
-        account: {
-          select: { id: true, name: true, type: true, email: true },
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
         },
       },
     });
 
-    // Log activity
-    await prisma.activity.create({
-      data: {
-        entityType: 'Opportunity',
-        entityId: opportunity.id,
-        action: 'created',
-        details: { opportunity: { name, stage, value, accountId } },
-        userId: userId,
-      },
+    return NextResponse.json({
+      success: true,
+      opportunity,
     });
-
-    return NextResponse.json(opportunity, { status: 201 });
   } catch (error) {
     console.error('Error creating opportunity:', error);
     return NextResponse.json(
-      { error: 'Failed to create opportunity' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

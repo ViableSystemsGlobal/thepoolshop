@@ -254,6 +254,10 @@ model Lead {
   assignedTo        String?    // JSON string of User array
   interestedProducts String?   // JSON string of Product array
   followUpDate      DateTime?
+  // Opportunity-specific fields
+  dealValue         Float?
+  probability       Int?       // Win probability percentage
+  expectedCloseDate DateTime?
   ownerId           String
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
@@ -877,6 +881,15 @@ enum LeadStatus {
   QUALIFIED
   CONVERTED
   LOST
+  OPPORTUNITY
+  NEW_OPPORTUNITY
+  QUOTE_SENT
+  QUOTE_REVIEWED
+  NEGOTIATION
+  APPROVED
+  CONTRACT_SENT
+  CONTRACT_SIGNED
+  WON
 }
 
 enum OpportunityStage {
