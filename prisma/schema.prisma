@@ -47,6 +47,8 @@ model User {
   leadFiles               LeadFile[]
   leadEmails              LeadEmail[]
   leadSms                 LeadSMS[]
+  leadProducts            LeadProduct[]
+  leadMeetings            LeadMeeting[]
 
   @@map("users")
 }
@@ -140,6 +142,7 @@ model Product {
   quotationLines         QuotationLine[]
   stockItems             StockItem[]
   movements              StockMovement[]
+  leadProducts           LeadProduct[]
 
   @@map("products")
 }
@@ -260,6 +263,8 @@ model Lead {
   files             LeadFile[]
   emails            LeadEmail[]
   sms               LeadSMS[]
+  products          LeadProduct[]
+  meetings          LeadMeeting[]
 
   @@map("leads")
 }
@@ -1000,6 +1005,43 @@ enum BackorderPriority {
   NORMAL
   HIGH
   URGENT
+}
+
+model LeadProduct {
+  id            String   @id @default(cuid())
+  leadId        String
+  productId     String
+  quantity      Int      @default(1)
+  notes         String?
+  interestLevel String   @default("MEDIUM")
+  addedBy       String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  product       Product  @relation(fields: [productId], references: [id])
+  addedByUser   User     @relation(fields: [addedBy], references: [id])
+
+  @@map("lead_products")
+}
+
+model LeadMeeting {
+  id            String   @id @default(cuid())
+  leadId        String
+  type          String   // CALL, MEETING, VIDEO, DEMO
+  title         String
+  description   String?
+  scheduledAt   DateTime
+  duration      Int      @default(30) // in minutes
+  status        String   @default("SCHEDULED") // SCHEDULED, CONFIRMED, COMPLETED, CANCELLED
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdByUser User     @relation(fields: [createdBy], references: [id])
+
+  @@map("lead_meetings")
 }
 
 enum SmsStatus {

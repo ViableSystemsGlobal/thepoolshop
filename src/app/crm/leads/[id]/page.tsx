@@ -17,6 +17,9 @@ import { AddLeadCommentModal } from '@/components/modals/add-lead-comment-modal'
 import { AddLeadFileModal } from '@/components/modals/add-lead-file-modal';
 import { AddLeadEmailModal } from '@/components/modals/add-lead-email-modal';
 import { AddLeadSMSModal } from '@/components/modals/add-lead-sms-modal';
+import AddLeadProductModal from '@/components/modals/add-lead-product-modal';
+import AddLeadUserModal from '@/components/modals/add-lead-user-modal';
+import AddLeadMeetingModal from '@/components/modals/add-lead-meeting-modal';
 import TaskSlideout from '@/components/task-slideout';
 
 interface User {
@@ -73,14 +76,21 @@ export default function LeadDetailsPage() {
   const [showAddFileModal, setShowAddFileModal] = useState(false);
   const [showAddEmailModal, setShowAddEmailModal] = useState(false);
   const [showAddSMSModal, setShowAddSMSModal] = useState(false);
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [showAddMeetingModal, setShowAddMeetingModal] = useState(false);
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [smsHistory, setSmsHistory] = useState<any[]>([]);
   const [emailHistory, setEmailHistory] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
+  const [files, setFiles] = useState<any[]>([]);
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [assignedUsers, setAssignedUsers] = useState<any[]>([]);
+  const [showAllActivities, setShowAllActivities] = useState(false);
   const [metrics, setMetrics] = useState({
     totalInteractions: 0,
-    responseRate: 0,
     conversionProbability: 0,
     lastActivity: 'Never'
   });
@@ -179,8 +189,19 @@ export default function LeadDetailsPage() {
       fetchSmsHistory();
       fetchEmailHistory();
       fetchComments();
+      fetchFiles();
+      fetchMeetings();
+      fetchProducts();
+      fetchAssignedUsers();
     }
   }, [lead?.id]);
+
+  // Update metrics and activities when data changes
+  useEffect(() => {
+    updateMetrics();
+    updateActivities();
+  }, [comments, emailHistory, smsHistory, tasks, files, meetings, products, lead]);
+
 
   const fetchSources = async () => {
     try {
@@ -266,6 +287,290 @@ export default function LeadDetailsPage() {
     }
   };
 
+  const fetchFiles = async () => {
+    if (!lead?.id) return;
+    
+    try {
+      const response = await fetch(`/api/lead-files?leadId=${lead.id}`, {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setFiles(Array.isArray(data.files) ? data.files : []);
+      }
+    } catch (error) {
+      console.error('Error fetching files:', error);
+      setFiles([]);
+    }
+  };
+
+  const fetchMeetings = async () => {
+    if (!lead?.id) return;
+    
+    try {
+      const response = await fetch(`/api/lead-meetings?leadId=${lead.id}`, {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setMeetings(Array.isArray(data.meetings) ? data.meetings : []);
+      }
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
+      setMeetings([]);
+    }
+  };
+
+  const fetchProducts = async () => {
+    if (!lead?.id) return;
+    
+    try {
+      const response = await fetch(`/api/lead-products?leadId=${lead.id}`, {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Products API response:', data);
+        
+        // Get products from LeadProduct model (added via + button)
+        const leadProducts = Array.isArray(data.products) ? data.products : [];
+        
+        // Get products from interestedProducts field (added during lead creation)
+        const interestedProducts = lead?.interestedProducts ? 
+          (typeof lead.interestedProducts === 'string' ? JSON.parse(lead.interestedProducts) : lead.interestedProducts) : [];
+        
+        // Combine both sources and format them consistently, avoiding duplicates
+        const productMap = new Map();
+        
+        // First, add interestedProducts (from lead creation)
+        interestedProducts.forEach((product: any, index: number) => {
+          const productKey = product.id;
+          if (!productMap.has(productKey)) {
+            productMap.set(productKey, {
+              id: `interested-${product.id}-${index}`,
+              leadId: lead.id,
+              productId: product.id,
+              quantity: 1,
+              notes: null,
+              interestLevel: 'MEDIUM',
+              addedBy: lead.owner.id,
+              createdAt: lead.createdAt,
+              updatedAt: lead.updatedAt,
+              source: 'lead_creation', // Track the source
+              product: {
+                id: product.id,
+                sku: product.sku,
+                name: product.name,
+                price: product.price,
+                description: product.description,
+              }
+            });
+          }
+        });
+        
+        // Then, add leadProducts (from + button), but only if not already present
+        leadProducts.forEach((leadProduct: any) => {
+          const productKey = leadProduct.productId;
+          if (!productMap.has(productKey)) {
+            productMap.set(productKey, {
+              ...leadProduct,
+              source: 'manual_add' // Track the source
+            });
+          } else {
+            // If product already exists, update with the more detailed information from + button
+            const existing = productMap.get(productKey);
+            productMap.set(productKey, {
+              ...existing,
+              ...leadProduct,
+              source: 'both' // Track that it came from both sources
+            });
+          }
+        });
+        
+        const combinedProducts = Array.from(productMap.values());
+        
+        setProducts(combinedProducts);
+      } else {
+        console.error('Products API error:', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setProducts([]);
+    }
+  };
+
+  const fetchAssignedUsers = async () => {
+    if (!lead?.id) return;
+    
+    try {
+      const response = await fetch(`/api/lead-users?leadId=${lead.id}`, {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Assigned Users API response:', data);
+        // Use assignedUsers from the new API response structure
+        setAssignedUsers(Array.isArray(data.assignedUsers) ? data.assignedUsers : []);
+      } else {
+        console.error('Assigned Users API error:', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching assigned users:', error);
+      setAssignedUsers([]);
+    }
+  };
+
+  const updateMetrics = () => {
+    if (!lead) return;
+    
+    const totalInteractions = comments.length + emailHistory.length + smsHistory.length + tasks.length;
+    
+    // Response rate calculation removed - now using Stage Card instead
+    
+    // Calculate conversion probability based on status and interactions
+    let conversionProbability = 15; // Base probability
+    if (lead.status === 'QUALIFIED') conversionProbability = 75;
+    else if (lead.status === 'CONTACTED') conversionProbability = 45;
+    else if (lead.status === 'NEW') conversionProbability = 15;
+    
+    // Add bonus for interactions
+    if (totalInteractions > 5) conversionProbability += 10;
+    else if (totalInteractions > 2) conversionProbability += 5;
+    
+    const daysSinceCreated = Math.floor((new Date().getTime() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    
+    setMetrics({
+      totalInteractions,
+      conversionProbability: Math.min(conversionProbability, 95),
+      lastActivity: daysSinceCreated === 0 ? 'Today' : daysSinceCreated === 1 ? 'Yesterday' : `${daysSinceCreated} days ago`
+    });
+  };
+
+  const updateActivities = () => {
+    if (!lead) return;
+    
+    const newActivities = [];
+    
+    // Lead creation activity
+    newActivities.push({
+      id: 1,
+      type: 'lead_created',
+      title: 'Lead Created',
+      description: `Lead "${lead.firstName} ${lead.lastName}" was created`,
+      timestamp: lead.createdAt,
+      user: 'System',
+      icon: UserPlus,
+      color: 'bg-blue-500'
+    });
+    
+    // Comments activities
+    comments.forEach((comment, index) => {
+      newActivities.push({
+        id: 1000 + index,
+        type: 'comment_added',
+        title: 'Comment Added',
+        description: comment.isInternal ? 'Internal comment added' : 'Comment added',
+        timestamp: comment.createdAt,
+        user: comment.createdByUser?.name || 'Unknown User',
+        icon: MessageSquare,
+        color: comment.isInternal ? 'bg-yellow-500' : 'bg-gray-500'
+      });
+    });
+    
+    // Email activities
+    emailHistory.forEach((email, index) => {
+      newActivities.push({
+        id: 2000 + index,
+        type: 'email_sent',
+        title: 'Email Sent',
+        description: `Email sent: ${email.subject}`,
+        timestamp: email.sentAt || email.createdAt,
+        user: email.sentByUser?.name || 'Unknown User',
+        icon: Mail,
+        color: email.status === 'SENT' ? 'bg-green-500' : 'bg-red-500'
+      });
+    });
+    
+    // SMS activities
+    smsHistory.forEach((sms, index) => {
+      newActivities.push({
+        id: 3000 + index,
+        type: 'sms_sent',
+        title: 'SMS Sent',
+        description: `SMS sent to ${sms.to}`,
+        timestamp: sms.sentAt || sms.createdAt,
+        user: sms.sentByUser?.name || 'Unknown User',
+        icon: MessageSquare,
+        color: sms.status === 'SENT' ? 'bg-green-500' : 'bg-red-500'
+      });
+    });
+    
+    // Task activities
+    tasks.forEach((task, index) => {
+      newActivities.push({
+        id: 4000 + index,
+        type: 'task_created',
+        title: 'Task Created',
+        description: `Task created: ${task.title}`,
+        timestamp: task.createdAt,
+        user: task.assignedToUser?.name || 'Unknown User',
+        icon: CheckCircle,
+        color: task.status === 'COMPLETED' ? 'bg-green-500' : task.status === 'IN_PROGRESS' ? 'bg-yellow-500' : 'bg-blue-500'
+      });
+    });
+    
+    // File upload activities
+    files.forEach((file, index) => {
+      newActivities.push({
+        id: 5000 + index,
+        type: 'file_uploaded',
+        title: 'File Uploaded',
+        description: `File uploaded: ${file.fileName}`,
+        timestamp: file.uploadedAt,
+        user: file.uploadedByUser?.name || 'Unknown User',
+        icon: FileText,
+        color: 'bg-purple-500'
+      });
+    });
+    
+    // Meeting activities
+    meetings.forEach((meeting, index) => {
+      newActivities.push({
+        id: 6000 + index,
+        type: 'meeting_scheduled',
+        title: 'Meeting Scheduled',
+        description: `${meeting.type}: ${meeting.title}`,
+        timestamp: meeting.createdAt,
+        user: meeting.createdByUser?.name || 'Unknown User',
+        icon: meeting.type === 'CALL' ? PhoneCall : Video,
+        color: meeting.status === 'COMPLETED' ? 'bg-green-500' : meeting.status === 'CANCELLED' ? 'bg-red-500' : 'bg-blue-500'
+      });
+    });
+    
+    // Product activities
+    products.forEach((product, index) => {
+      newActivities.push({
+        id: 7000 + index,
+        type: 'product_added',
+        title: 'Product Interest Added',
+        description: `Added interest in ${product.product?.name || 'Unknown Product'} (${product.interestLevel} interest)`,
+        timestamp: product.createdAt,
+        user: product.addedByUser?.name || 'Unknown User',
+        icon: Star,
+        color: product.interestLevel === 'HIGH' ? 'bg-red-500' : product.interestLevel === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
+      });
+    });
+    
+    // Sort by timestamp (newest first)
+    newActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    
+    setActivities(newActivities);
+  };
+
   const fetchLead = async () => {
     try {
       const response = await fetch(`/api/leads/${leadId}`, {
@@ -280,10 +585,24 @@ export default function LeadDetailsPage() {
         const leadData = data.lead;
         const daysSinceCreated = Math.floor((new Date().getTime() - new Date(leadData.createdAt).getTime()) / (1000 * 60 * 60 * 24));
         
+        // Calculate total interactions (will be updated when we fetch actual data)
+        const totalInteractions = (comments.length + emailHistory.length + smsHistory.length + tasks.length);
+        
+        // Response rate calculation removed - now using Stage Card instead
+        
+        // Calculate conversion probability based on status and interactions
+        let conversionProbability = 15; // Base probability
+        if (leadData.status === 'QUALIFIED') conversionProbability = 75;
+        else if (leadData.status === 'CONTACTED') conversionProbability = 45;
+        else if (leadData.status === 'NEW') conversionProbability = 15;
+        
+        // Add bonus for interactions
+        if (totalInteractions > 5) conversionProbability += 10;
+        else if (totalInteractions > 2) conversionProbability += 5;
+        
         setMetrics({
-          totalInteractions: leadData.assignedTo?.length || 0,
-          responseRate: leadData.status === 'CONTACTED' ? 85 : 0,
-          conversionProbability: leadData.status === 'QUALIFIED' ? 75 : leadData.status === 'CONTACTED' ? 45 : 15,
+          totalInteractions,
+          conversionProbability: Math.min(conversionProbability, 95),
           lastActivity: daysSinceCreated === 0 ? 'Today' : daysSinceCreated === 1 ? 'Yesterday' : `${daysSinceCreated} days ago`
         });
       } else {
@@ -366,7 +685,8 @@ export default function LeadDetailsPage() {
 
       if (response.ok) {
         success('File uploaded successfully!');
-        // TODO: Refresh files list
+        // Refresh files list
+        fetchFiles();
       } else {
         const errorData = await response.json();
         error(errorData.error || 'Failed to upload file');
@@ -419,6 +739,82 @@ export default function LeadDetailsPage() {
       }
     } catch (err) {
       error('Failed to send SMS');
+    }
+  };
+
+  const handleAddProduct = async (productData: any) => {
+    try {
+      // Check if product already exists
+      const existingProduct = products.find(p => p.productId === productData.productId);
+      if (existingProduct) {
+        error('This product is already added to the lead. You can update the interest level or notes instead.');
+        return;
+      }
+
+      const response = await fetch('/api/lead-products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(productData),
+      });
+
+      if (response.ok) {
+        success('Product interest added successfully!');
+        fetchProducts();
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to add product interest');
+      }
+    } catch (err) {
+      error('Failed to add product interest');
+    }
+  };
+
+  const handleAddUser = async (userData: any) => {
+    try {
+      const response = await fetch('/api/lead-users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(userData),
+      });
+
+      if (response.ok) {
+        success('User assigned successfully!');
+        fetchAssignedUsers();
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to assign user');
+      }
+    } catch (err) {
+      error('Failed to assign user');
+    }
+  };
+
+  const handleAddMeeting = async (meetingData: any) => {
+    try {
+      const response = await fetch('/api/lead-meetings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(meetingData),
+      });
+
+      if (response.ok) {
+        success('Meeting scheduled successfully!');
+        fetchMeetings();
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to schedule meeting');
+      }
+    } catch (err) {
+      error('Failed to schedule meeting');
     }
   };
 
@@ -665,8 +1061,19 @@ export default function LeadDetailsPage() {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Response Rate</p>
-                  <p className="text-xl font-bold text-gray-900">{metrics.responseRate}%</p>
+                  <p className="text-sm font-medium text-gray-600">Current Stage</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      lead?.status === 'NEW' ? 'bg-blue-100 text-blue-800' :
+                      lead?.status === 'CONTACTED' ? 'bg-yellow-100 text-yellow-800' :
+                      lead?.status === 'QUALIFIED' ? 'bg-green-100 text-green-800' :
+                      lead?.status === 'CONVERTED' ? 'bg-emerald-100 text-emerald-800' :
+                      lead?.status === 'LOST' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {lead?.status || 'NEW'}
+                    </span>
+                  </div>
                 </div>
                 <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
                   <Target className={`w-5 h-5 text-${theme.primary}`} />
@@ -780,24 +1187,61 @@ export default function LeadDetailsPage() {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  success('Add Product clicked! (Feature coming soon)');
+                  setShowAddProductModal(true);
                 }}
               >
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
-            {lead.interestedProducts && lead.interestedProducts.length > 0 ? (
-              <div className="space-y-2">
-                {lead.interestedProducts.map((product) => (
-                  <div key={product.id} className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-blue-900">{product.name}</p>
-                      {product.sku && (
-                        <p className="text-sm text-blue-700">SKU: {product.sku}</p>
-                      )}
+            {products.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {products.slice(0, 3).map((product) => (
+                  <div key={product.id} className="p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-blue-900">{product.product?.name || 'Unknown Product'}</h4>
+                        {product.source === 'lead_creation' && (
+                          <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                            Initial
+                          </span>
+                        )}
+                        {product.source === 'manual_add' && (
+                          <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                            Added
+                          </span>
+                        )}
+                        {product.source === 'both' && (
+                          <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                            Updated
+                          </span>
+                        )}
+                      </div>
+                      <span className={`px-2 py-1 text-xs rounded ${
+                        product.interestLevel === 'HIGH' ? 'bg-red-100 text-red-800' :
+                        product.interestLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                        product.interestLevel === 'LOW' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {product.interestLevel}
+                      </span>
                     </div>
+                    <p className="text-sm text-blue-700 mb-2">Quantity: {product.quantity}</p>
+                    {product.product?.sku && (
+                      <p className="text-xs text-blue-600">SKU: {product.product.sku}</p>
+                    )}
+                    {product.notes && (
+                      <p className="text-sm text-gray-600 mt-2">{product.notes}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-2">
+                      {product.source === 'lead_creation' ? 'Initial interest' : 'Added'} {new Date(product.createdAt).toLocaleDateString()}
+                    </p>
                   </div>
                 ))}
+                {products.length > 3 && (
+                  <p className="text-sm text-gray-500 text-center py-2">
+                    +{products.length - 3} more products
+                  </p>
+                )}
               </div>
             ) : (
               <div className="text-center py-8">
@@ -818,20 +1262,23 @@ export default function LeadDetailsPage() {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  success('Add User clicked! (Feature coming soon)');
+                  setShowAddUserModal(true);
                 }}
               >
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
-            {lead.assignedTo && lead.assignedTo.length > 0 ? (
+            {assignedUsers.length > 0 ? (
               <div className="space-y-3">
-                {lead.assignedTo.map((user) => (
+                {assignedUsers.map((user) => (
                   <div key={user.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                     <User className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="font-medium text-gray-900">{user.name}</p>
                       <p className="text-sm text-gray-500">{user.email}</p>
+                      {user.role && (
+                        <p className="text-xs text-blue-600">{user.role}</p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1068,10 +1515,54 @@ export default function LeadDetailsPage() {
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No files attached</p>
-            </div>
+            {files.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {files.map((file) => (
+                  <div key={file.id} className="border rounded-lg p-3 bg-gray-50">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="w-4 h-4 text-gray-500" />
+                        <span className="font-medium text-sm text-gray-900 truncate">
+                          {file.fileName}
+                        </span>
+                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                          {file.category}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {new Date(file.uploadedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {file.description && (
+                      <p className="text-sm text-gray-600 mb-2">{file.description}</p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">
+                        {file.uploadedByUser?.name || 'Unknown User'}
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">
+                          {(file.fileSize / 1024).toFixed(1)} KB
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => window.open(file.filePath, '_blank')}
+                        >
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No files attached</p>
+              </div>
+            )}
           </Card>
 
           {/* Meetings & Calls */}
@@ -1085,16 +1576,49 @@ export default function LeadDetailsPage() {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  success('Add Meeting/Call clicked! (Feature coming soon)');
+                  setShowAddMeetingModal(true);
                 }}
               >
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
-            <div className="text-center py-8">
-              <Video className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No meetings scheduled</p>
-            </div>
+            {meetings.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {meetings.slice(0, 3).map((meeting) => (
+                  <div key={meeting.id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900">{meeting.title}</h4>
+                      <span className={`px-2 py-1 text-xs rounded ${
+                        meeting.status === 'SCHEDULED' ? 'bg-yellow-100 text-yellow-800' :
+                        meeting.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                        meeting.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {meeting.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-2">{meeting.type}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(meeting.scheduledAt).toLocaleDateString()} at {new Date(meeting.scheduledAt).toLocaleTimeString()}
+                    </p>
+                    <p className="text-xs text-gray-500">Duration: {meeting.duration} minutes</p>
+                    {meeting.description && (
+                      <p className="text-sm text-gray-600 mt-2">{meeting.description}</p>
+                    )}
+                  </div>
+                ))}
+                {meetings.length > 3 && (
+                  <p className="text-sm text-gray-500 text-center py-2">
+                    +{meetings.length - 3} more meetings
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Video className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No meetings scheduled</p>
+              </div>
+            )}
           </Card>
         </div>
 
@@ -1107,25 +1631,36 @@ export default function LeadDetailsPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Activity Timeline</h3>
-                <p className="text-sm text-gray-600">Track the lead's journey from creation to conversion</p>
+                <p className="text-sm text-gray-600">
+                  Track the lead's journey from creation to conversion
+                  {activities.length > 0 && (
+                    <span className="ml-2 text-blue-600">({activities.length} activities)</span>
+                  )}
+                </p>
               </div>
             </div>
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowAllActivities(!showAllActivities)}
+            >
               <History className="w-4 h-4 mr-2" />
-              View All
+              {showAllActivities ? 'Show Less' : 'View All'}
             </Button>
           </div>
           
           <div className="space-y-4">
-            {activities.map((activity, index) => {
+            {(showAllActivities ? activities : activities.slice(0, 4)).map((activity, index) => {
               const IconComponent = activity.icon;
+              const isLastInView = showAllActivities ? index === activities.length - 1 : index === 3;
+              const isLastOverall = index === activities.length - 1;
               return (
                 <div key={activity.id} className="relative flex items-start gap-4">
                   <div className="relative">
                     <div className={`p-2 rounded-full ${activity.color} text-white`}>
                       <IconComponent className="w-4 h-4" />
                     </div>
-                    {index < activities.length - 1 && (
+                    {!isLastInView && !isLastOverall && (
                       <div className="absolute left-1/2 transform -translate-x-1/2 mt-2 w-0.5 h-8 bg-gray-200"></div>
                     )}
                   </div>
@@ -1140,6 +1675,13 @@ export default function LeadDetailsPage() {
                 </div>
               );
             })}
+            {!showAllActivities && activities.length > 4 && (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500">
+                  Showing 4 of {activities.length} activities
+                </p>
+              </div>
+            )}
           </div>
         </Card>
       </div>
@@ -1213,6 +1755,36 @@ export default function LeadDetailsPage() {
           leadId={lead?.id || ''}
           leadName={lead ? `${lead.firstName} ${lead.lastName}` : ''}
           leadPhone={lead?.phone || ''}
+        />
+      )}
+
+      {showAddProductModal && (
+        <AddLeadProductModal
+          isOpen={showAddProductModal}
+          onClose={() => setShowAddProductModal(false)}
+          onSave={handleAddProduct}
+          leadId={lead?.id || ''}
+          leadName={lead ? `${lead.firstName} ${lead.lastName}` : ''}
+        />
+      )}
+
+      {showAddUserModal && (
+        <AddLeadUserModal
+          isOpen={showAddUserModal}
+          onClose={() => setShowAddUserModal(false)}
+          onSave={handleAddUser}
+          leadId={lead?.id || ''}
+          leadName={lead ? `${lead.firstName} ${lead.lastName}` : ''}
+        />
+      )}
+
+      {showAddMeetingModal && (
+        <AddLeadMeetingModal
+          isOpen={showAddMeetingModal}
+          onClose={() => setShowAddMeetingModal(false)}
+          onSave={handleAddMeeting}
+          leadId={lead?.id || ''}
+          leadName={lead ? `${lead.firstName} ${lead.lastName}` : ''}
         />
       )}
 

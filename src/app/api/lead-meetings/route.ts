@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,15 +10,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const leadId = formData.get('leadId') as string;
-    const description = formData.get('description') as string;
-    const category = formData.get('category') as string;
+    const body = await request.json();
+    const { leadId, type, title, description, scheduledAt, duration, status } = body;
 
-    if (!file || !leadId) {
+    if (!leadId || !type || !title || !scheduledAt) {
       return NextResponse.json(
-        { error: 'File and Lead ID are required' },
+        { error: 'Lead ID, type, title, and scheduled time are required' },
         { status: 400 }
       );
     }
@@ -41,37 +35,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create upload directory if it doesn't exist
-    const uploadDir = join(process.cwd(), 'uploads', 'leads', leadId);
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
-    }
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const fileExtension = file.name.split('.').pop();
-    const fileName = `${timestamp}-${file.name}`;
-    const filePath = join(uploadDir, fileName);
-
-    // Save file to disk
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
-
-    // Create database record
-    const leadFile = await (prisma as any).leadFile.create({
+    // Create LeadMeeting record
+    const leadMeeting = await (prisma as any).leadMeeting.create({
       data: {
         leadId,
-        fileName: file.name,
-        filePath: `/uploads/leads/${leadId}/${fileName}`,
-        fileSize: file.size,
-        mimeType: file.type,
+        type,
+        title,
         description: description || null,
-        category: category || 'DOCUMENT',
-        uploadedBy: session.user.id,
+        scheduledAt: new Date(scheduledAt),
+        duration: duration || 30,
+        status: status || 'SCHEDULED',
+        createdBy: session.user.id,
       },
       include: {
-        uploadedByUser: {
+        createdByUser: {
           select: {
             id: true,
             name: true,
@@ -81,11 +58,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(leadFile);
+    return NextResponse.json(leadMeeting);
   } catch (error) {
-    console.error('Error uploading lead file:', error);
+    console.error('Error adding lead meeting:', error);
     return NextResponse.json(
-      { error: 'Failed to upload file' },
+      { error: 'Failed to schedule meeting' },
       { status: 500 }
     );
   }
@@ -123,13 +100,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get files for the lead
-    const files = await (prisma as any).leadFile.findMany({
+    // Get meetings for the lead
+    const meetings = await (prisma as any).leadMeeting.findMany({
       where: {
         leadId,
       },
       include: {
-        uploadedByUser: {
+        createdByUser: {
           select: {
             id: true,
             name: true,
@@ -138,15 +115,15 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: {
-        uploadedAt: 'desc',
+        scheduledAt: 'desc',
       },
     });
 
-    return NextResponse.json({ files });
+    return NextResponse.json({ meetings });
   } catch (error) {
-    console.error('Error fetching lead files:', error);
+    console.error('Error fetching lead meetings:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch files' },
+      { error: 'Failed to fetch meetings' },
       { status: 500 }
     );
   }

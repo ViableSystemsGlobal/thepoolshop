@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,15 +10,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const leadId = formData.get('leadId') as string;
-    const description = formData.get('description') as string;
-    const category = formData.get('category') as string;
+    const body = await request.json();
+    const { leadId, productId, quantity, notes, interestLevel } = body;
 
-    if (!file || !leadId) {
+    if (!leadId || !productId) {
       return NextResponse.json(
-        { error: 'File and Lead ID are required' },
+        { error: 'Lead ID and Product ID are required' },
         { status: 400 }
       );
     }
@@ -41,37 +35,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create upload directory if it doesn't exist
-    const uploadDir = join(process.cwd(), 'uploads', 'leads', leadId);
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
+    // Verify the product exists
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      return NextResponse.json(
+        { error: 'Product not found' },
+        { status: 404 }
+      );
     }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const fileExtension = file.name.split('.').pop();
-    const fileName = `${timestamp}-${file.name}`;
-    const filePath = join(uploadDir, fileName);
+    // Check if product is already added to this lead
+    const existingLeadProduct = await (prisma as any).leadProduct.findFirst({
+      where: {
+        leadId,
+        productId,
+      },
+    });
 
-    // Save file to disk
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
+    if (existingLeadProduct) {
+      return NextResponse.json(
+        { error: 'This product is already added to the lead' },
+        { status: 400 }
+      );
+    }
 
-    // Create database record
-    const leadFile = await (prisma as any).leadFile.create({
+    // Create LeadProduct record
+    const leadProduct = await (prisma as any).leadProduct.create({
       data: {
         leadId,
-        fileName: file.name,
-        filePath: `/uploads/leads/${leadId}/${fileName}`,
-        fileSize: file.size,
-        mimeType: file.type,
-        description: description || null,
-        category: category || 'DOCUMENT',
-        uploadedBy: session.user.id,
+        productId,
+        quantity: quantity || 1,
+        notes: notes || null,
+        interestLevel: interestLevel || 'MEDIUM',
+        addedBy: session.user.id,
       },
       include: {
-        uploadedByUser: {
+        product: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            price: true,
+            description: true,
+          },
+        },
+        addedByUser: {
           select: {
             id: true,
             name: true,
@@ -81,11 +92,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(leadFile);
+    return NextResponse.json(leadProduct);
   } catch (error) {
-    console.error('Error uploading lead file:', error);
+    console.error('Error adding lead product:', error);
     return NextResponse.json(
-      { error: 'Failed to upload file' },
+      { error: 'Failed to add product interest' },
       { status: 500 }
     );
   }
@@ -123,13 +134,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get files for the lead
-    const files = await (prisma as any).leadFile.findMany({
+    // Get products for the lead
+    const products = await (prisma as any).leadProduct.findMany({
       where: {
         leadId,
       },
       include: {
-        uploadedByUser: {
+        product: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            price: true,
+            description: true,
+          },
+        },
+        addedByUser: {
           select: {
             id: true,
             name: true,
@@ -138,15 +158,15 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: {
-        uploadedAt: 'desc',
+        createdAt: 'desc',
       },
     });
 
-    return NextResponse.json({ files });
+    return NextResponse.json({ products });
   } catch (error) {
-    console.error('Error fetching lead files:', error);
+    console.error('Error fetching lead products:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch files' },
+      { error: 'Failed to fetch products' },
       { status: 500 }
     );
   }
