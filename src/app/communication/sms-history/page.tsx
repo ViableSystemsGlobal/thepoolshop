@@ -67,6 +67,8 @@ export default function SmsHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     loadSmsHistory();
@@ -163,6 +165,22 @@ export default function SmsHistoryPage() {
     const matchesStatus = statusFilter === 'all' || campaign.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredMessages.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedMessages = filteredMessages.slice(startIndex, endIndex);
+
+  const totalCampaignPages = Math.ceil(filteredCampaigns.length / itemsPerPage);
+  const campaignStartIndex = (currentPage - 1) * itemsPerPage;
+  const campaignEndIndex = campaignStartIndex + itemsPerPage;
+  const paginatedCampaigns = filteredCampaigns.slice(campaignStartIndex, campaignEndIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, activeTab]);
 
   return (
     <MainLayout>
@@ -266,7 +284,7 @@ export default function SmsHistoryPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredMessages.map((message) => (
+                {paginatedMessages.map((message) => (
                   <div key={message.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -301,15 +319,40 @@ export default function SmsHistoryPage() {
                           <p className="text-sm font-medium text-gray-900">Message</p>
                           <p className="text-sm text-gray-600 mt-1">{message.message}</p>
                         </div>
-                        {message.cost && (
-                          <div className="mt-2">
-                            <p className="text-xs text-gray-500">Cost: ${message.cost.toFixed(4)}</p>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            
+            {/* Pagination for Messages */}
+            {filteredMessages.length > itemsPerPage && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                <div className="text-sm text-gray-700">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredMessages.length)} of {filteredMessages.length} messages
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-gray-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
           </Card>
@@ -333,7 +376,7 @@ export default function SmsHistoryPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredCampaigns.map((campaign) => (
+                {paginatedCampaigns.map((campaign) => (
                   <div key={campaign.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -373,6 +416,36 @@ export default function SmsHistoryPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            
+            {/* Pagination for Campaigns */}
+            {filteredCampaigns.length > itemsPerPage && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                <div className="text-sm text-gray-700">
+                  Showing {campaignStartIndex + 1} to {Math.min(campaignEndIndex, filteredCampaigns.length)} of {filteredCampaigns.length} campaigns
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-gray-700">
+                    Page {currentPage} of {totalCampaignPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalCampaignPages))}
+                    disabled={currentPage === totalCampaignPages}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
           </Card>

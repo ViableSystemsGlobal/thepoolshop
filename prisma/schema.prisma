@@ -49,6 +49,7 @@ model User {
   leadSms                 LeadSMS[]
   leadProducts            LeadProduct[]
   leadMeetings            LeadMeeting[]
+  distributorLeads        DistributorLead[]
 
   @@map("users")
 }
@@ -1105,4 +1106,47 @@ enum CampaignStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+model DistributorLead {
+  id                      String                  @id @default(cuid())
+  firstName               String
+  lastName                String
+  email                   String                  @unique
+  phone                   String
+  dateOfBirth             String?
+  businessName            String
+  businessType            String
+  businessRegistrationNumber String?
+  yearsInBusiness         Int?
+  address                 String?
+  city                    String
+  region                  String
+  country                 String                  @default("Ghana")
+  postalCode              String?
+  latitude                Float?
+  longitude               Float?
+  territory               String?
+  expectedVolume          Int?
+  experience              String?
+  investmentCapacity      Int?
+  targetMarket            String?
+  notes                   String?
+  profileImage            String?
+  businessLicense         String?
+  taxCertificate          String?
+  status                  DistributorLeadStatus   @default(PENDING)
+  submittedBy             String
+  submittedByUser         User                    @relation(fields: [submittedBy], references: [id])
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+
+  @@map("distributor_leads")
+}
+
+enum DistributorLeadStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
 }

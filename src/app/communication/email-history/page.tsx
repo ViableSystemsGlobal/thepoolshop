@@ -46,6 +46,8 @@ export default function EmailHistoryPage() {
   const [activeTab, setActiveTab] = useState<'messages' | 'campaigns'>('messages');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     loadEmailHistory();
@@ -165,6 +167,22 @@ export default function EmailHistoryPage() {
     return matchesSearch && matchesStatus;
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredMessages.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedMessages = filteredMessages.slice(startIndex, endIndex);
+
+  const totalCampaignPages = Math.ceil(filteredCampaigns.length / itemsPerPage);
+  const campaignStartIndex = (currentPage - 1) * itemsPerPage;
+  const campaignEndIndex = campaignStartIndex + itemsPerPage;
+  const paginatedCampaigns = filteredCampaigns.slice(campaignStartIndex, campaignEndIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, activeTab]);
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -282,7 +300,7 @@ export default function EmailHistoryPage() {
           <Card className="p-6">
             <div className="space-y-4">
               {filteredMessages.length > 0 ? (
-                filteredMessages.map((message) => (
+                paginatedMessages.map((message) => (
                   <div key={message.id} className="border rounded-lg p-4 hover:bg-gray-50">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -318,6 +336,36 @@ export default function EmailHistoryPage() {
                 </div>
               )}
             </div>
+            
+            {/* Pagination for Messages */}
+            {filteredMessages.length > itemsPerPage && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                <div className="text-sm text-gray-700">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredMessages.length)} of {filteredMessages.length} messages
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-gray-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         )}
 
@@ -326,7 +374,7 @@ export default function EmailHistoryPage() {
           <Card className="p-6">
             <div className="space-y-4">
               {filteredCampaigns.length > 0 ? (
-                filteredCampaigns.map((campaign) => (
+                paginatedCampaigns.map((campaign) => (
                   <div key={campaign.id} className="border rounded-lg p-4 hover:bg-gray-50">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -372,6 +420,36 @@ export default function EmailHistoryPage() {
                 </div>
               )}
             </div>
+            
+            {/* Pagination for Campaigns */}
+            {filteredCampaigns.length > itemsPerPage && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                <div className="text-sm text-gray-700">
+                  Showing {campaignStartIndex + 1} to {Math.min(campaignEndIndex, filteredCampaigns.length)} of {filteredCampaigns.length} campaigns
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-gray-700">
+                    Page {currentPage} of {totalCampaignPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalCampaignPages))}
+                    disabled={currentPage === totalCampaignPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         )}
       </div>

@@ -30,10 +30,13 @@ const MODULE_ACCESS = {
   'settings': ['settings.view', 'users.view', 'roles.view'],
   'users': ['users.view', 'users.create', 'users.edit', 'users.delete'],
   'roles': ['roles.view', 'roles.create', 'roles.edit', 'roles.delete'],
-  // Missing modules
+  // DRM modules
   'drm': ['drm.view'],
-  'distributors': ['distributors.view'],
-  'agreements': ['agreements.view'],
+  'distributor-leads': ['distributor-leads.view', 'distributor-leads.create', 'distributor-leads.edit', 'distributor-leads.delete'],
+  'distributors': ['distributors.view', 'distributors.create', 'distributors.edit', 'distributors.delete'],
+  'agreements': ['agreements.view', 'agreements.create', 'agreements.edit', 'agreements.delete'],
+  'routes-mapping': ['routes-mapping.view', 'routes-mapping.create', 'routes-mapping.edit', 'routes-mapping.delete'],
+  'engagement': ['engagement.view', 'engagement.create', 'engagement.edit', 'engagement.delete'],
   'drm-orders': ['drm-orders.view'],
   'sales': ['sales.view'],
   'orders': ['orders.view'],
@@ -60,6 +63,7 @@ const MODULE_ACCESS = {
   'product-settings': ['product-settings.view'],
   'currency-settings': ['currency-settings.view'],
   'business-settings': ['business-settings.view'],
+  'google-maps': ['google-maps.view', 'google-maps.config'],
   'system-settings': ['system-settings.view'],
   'notifications': ['notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config'],
 };
@@ -86,7 +90,12 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     // Backorders
     'backorders.view', 'backorders.create', 'backorders.edit', 'backorders.delete',
     // DRM
-    'drm.view', 'distributors.view', 'agreements.view', 'drm-orders.view',
+    'drm.view', 'distributor-leads.view', 'distributor-leads.create', 'distributor-leads.edit', 'distributor-leads.delete',
+    'distributors.view', 'distributors.create', 'distributors.edit', 'distributors.delete',
+    'agreements.view', 'agreements.create', 'agreements.edit', 'agreements.delete',
+    'routes-mapping.view', 'routes-mapping.create', 'routes-mapping.edit', 'routes-mapping.delete',
+    'engagement.view', 'engagement.create', 'engagement.edit', 'engagement.delete',
+    'drm-orders.view',
     // Sales
     'sales.view', 'orders.view', 'proformas.view', 'invoices.view', 'payments.view', 'returns.view',
     // Communication
@@ -108,7 +117,7 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     // Settings - Full access
     'settings.view', 'users.view', 'users.create', 'users.edit', 'users.delete',
     'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
-    'product-settings.view', 'currency-settings.view', 'business-settings.view', 'system-settings.view',
+    'product-settings.view', 'currency-settings.view', 'business-settings.view', 'google-maps.view', 'google-maps.config', 'system-settings.view',
     'notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config',
   ],
   'ADMIN': [
@@ -131,7 +140,12 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     // Backorders
     'backorders.view', 'backorders.create', 'backorders.edit', 'backorders.delete',
     // DRM
-    'drm.view', 'distributors.view', 'agreements.view', 'drm-orders.view',
+    'drm.view', 'distributor-leads.view', 'distributor-leads.create', 'distributor-leads.edit', 'distributor-leads.delete',
+    'distributors.view', 'distributors.create', 'distributors.edit', 'distributors.delete',
+    'agreements.view', 'agreements.create', 'agreements.edit', 'agreements.delete',
+    'routes-mapping.view', 'routes-mapping.create', 'routes-mapping.edit', 'routes-mapping.delete',
+    'engagement.view', 'engagement.create', 'engagement.edit', 'engagement.delete',
+    'drm-orders.view',
     // Sales
     'sales.view', 'orders.view', 'proformas.view', 'invoices.view', 'payments.view', 'returns.view',
     // Communication
@@ -152,7 +166,7 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     // Settings
     'settings.view', 'users.view', 'users.create', 'users.edit', 'users.delete',
     'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
-           'product-settings.view', 'currency-settings.view', 'business-settings.view', 'system-settings.view',
+           'product-settings.view', 'currency-settings.view', 'business-settings.view', 'google-maps.view', 'google-maps.config', 'system-settings.view',
            'notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config',
   ],
   'SALES_MANAGER': [
@@ -164,6 +178,12 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'leads.read', 'leads.create', 'leads.update', 'leads.delete', 'leads.bulk-delete', 'leads.bulk-export', 'leads.bulk-update',
     'accounts.view', 'accounts.create', 'accounts.edit', 'accounts.delete',
     'opportunities.view', 'opportunities.create', 'opportunities.edit', 'opportunities.delete',
+    // DRM
+    'drm.view', 'distributor-leads.view', 'distributor-leads.create', 'distributor-leads.edit',
+    'distributors.view', 'distributors.create', 'distributors.edit',
+    'agreements.view', 'agreements.create', 'agreements.edit',
+    'routes-mapping.view', 'routes-mapping.create', 'routes-mapping.edit',
+    'engagement.view', 'engagement.create', 'engagement.edit',
     'backorders.view', 'backorders.create', 'backorders.edit',
     // Tasks
     'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign',
@@ -183,6 +203,8 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'leads.view', 'leads.create', 'leads.edit',
     'accounts.view', 'accounts.create', 'accounts.edit',
     'opportunities.view', 'opportunities.create', 'opportunities.edit',
+    // DRM - View only
+    'drm.view', 'distributor-leads.view', 'distributors.view', 'agreements.view', 'routes-mapping.view', 'engagement.view',
     'backorders.view', 'backorders.create',
     // Tasks
     'tasks.view', 'tasks.create', 'tasks.edit',

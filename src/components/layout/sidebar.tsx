@@ -25,6 +25,7 @@ import {
   ChevronRight,
   HelpCircle,
   Settings,
+  MapPin,
   FileText,
   Folder,
   Shield,
@@ -65,9 +66,11 @@ const navigation = [
     badge: null,
     module: "drm",
     children: [
-      { name: "Distributors", href: "/distributors", icon: Building, module: "distributors" },
-      { name: "Agreements", href: "/agreements", icon: FileText, module: "agreements" },
-      { name: "Orders", href: "/drm-orders", icon: Package, module: "drm-orders" },
+      { name: "Distributor Leads", href: "/drm/distributor-leads", icon: Users, module: "distributor-leads" },
+      { name: "Distributors", href: "/drm/distributors", icon: Building, module: "distributors" },
+      { name: "Agreements", href: "/drm/agreements", icon: FileText, module: "agreements" },
+      { name: "Routes & Mapping", href: "/drm/routes-mapping", icon: BarChart3, module: "routes-mapping" },
+      { name: "Engagement", href: "/drm/engagement", icon: MessageSquare, module: "engagement" },
     ]
   },
   { 
@@ -159,6 +162,7 @@ const navigation = [
       { name: "Product Settings", href: "/settings/products", icon: Package, module: "product-settings" },
       { name: "Currency Settings", href: "/settings/currency", icon: DollarSign, module: "currency-settings" },
       { name: "Business Settings", href: "/settings/business", icon: Building, module: "business-settings" },
+      { name: "Google Maps", href: "/settings/google-maps", icon: MapPin, module: "google-maps" },
       { name: "System Settings", href: "/settings/system", icon: Settings, module: "system-settings" },
     ]
   },
