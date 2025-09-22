@@ -10,9 +10,9 @@ import { Card } from '@/components/ui/card';
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { MainLayout } from '@/components/layout/main-layout';
 import { useTheme } from '@/contexts/theme-context';
+import { useToast } from '@/contexts/toast-context';
 import { AddAccountModal } from '@/components/modals/add-account-modal';
 import { EditAccountModal } from '@/components/modals/edit-account-modal';
-import { ViewAccountModal } from '@/components/modals/view-account-modal';
 import { ConfirmDeleteModal } from '@/components/modals/confirm-delete-modal';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { DataTable } from '@/components/ui/data-table';
@@ -53,6 +53,7 @@ export default function AccountsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { getThemeClasses } = useTheme();
+  const { success, error } = useToast();
   const theme = getThemeClasses();
 
   // All state hooks must be called before any conditional returns
@@ -62,7 +63,6 @@ export default function AccountsPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [metrics, setMetrics] = useState({
@@ -252,10 +252,6 @@ export default function AccountsPage() {
     setShowEditModal(true);
   };
 
-  const openViewModal = (account: Account) => {
-    setSelectedAccount(account);
-    setShowViewModal(true);
-  };
 
   const openDeleteModal = (account: Account) => {
     setSelectedAccount(account);
@@ -543,7 +539,7 @@ export default function AccountsPage() {
                       {
                         label: 'View',
                         icon: <Eye className="w-4 h-4" />,
-                        onClick: () => openViewModal(account),
+                        onClick: () => router.push(`/crm/accounts/${account.id}`),
                       },
                       {
                         label: 'Edit',
@@ -585,15 +581,6 @@ export default function AccountsPage() {
         />
       )}
 
-      {showViewModal && selectedAccount && (
-        <ViewAccountModal
-          account={selectedAccount}
-          onClose={() => {
-            setShowViewModal(false);
-            setSelectedAccount(null);
-          }}
-        />
-      )}
 
       {showDeleteModal && selectedAccount && (
         <ConfirmDeleteModal

@@ -342,20 +342,28 @@ export default function OpportunityDetailsPage() {
             )}
 
             {/* Interested Products */}
-            {opportunity.interestedProducts && opportunity.interestedProducts.length > 0 && (
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Interested Products</h3>
-                <div className="space-y-3">
-                  {opportunity.interestedProducts.map((product: any, index: number) => (
-                    <div key={index} className="p-3 bg-blue-50 rounded-lg">
-                      <h4 className="font-medium text-blue-900">{product.name}</h4>
-                      {product.sku && <p className="text-sm text-blue-700">SKU: {product.sku}</p>}
-                      {product.description && <p className="text-sm text-gray-600 mt-1">{product.description}</p>}
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
+            {(() => {
+              // Parse interestedProducts if it's a JSON string
+              const products = opportunity.interestedProducts ? 
+                (typeof opportunity.interestedProducts === 'string' ? 
+                  JSON.parse(opportunity.interestedProducts) : 
+                  opportunity.interestedProducts) : [];
+              
+              return products && products.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Interested Products</h3>
+                  <div className="space-y-3">
+                    {products.map((product: any, index: number) => (
+                      <div key={index} className="p-3 bg-blue-50 rounded-lg">
+                        <h4 className="font-medium text-blue-900">{product.name}</h4>
+                        {product.sku && <p className="text-sm text-blue-700">SKU: {product.sku}</p>}
+                        {product.description && <p className="text-sm text-gray-600 mt-1">{product.description}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              );
+            })()}
           </div>
 
           {/* Sidebar */}

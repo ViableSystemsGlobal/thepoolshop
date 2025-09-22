@@ -15,6 +15,7 @@ import { AddLeadModal } from '@/components/modals/add-lead-modal';
 import { EditLeadModal } from '@/components/modals/edit-lead-modal';
 import { ViewLeadModal } from '@/components/modals/view-lead-modal';
 import { ConfirmDeleteModal } from '@/components/modals/confirm-delete-modal';
+import { ConvertToOpportunityModal } from '@/components/modals/convert-to-opportunity-modal';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { DataTable } from '@/components/ui/data-table';
 
@@ -82,6 +83,7 @@ export default function LeadsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showConvertModal, setShowConvertModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [metrics, setMetrics] = useState({
@@ -300,7 +302,7 @@ export default function LeadsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...lead,
-          status: 'NEW_OPPORTUNITY'
+          status: 'QUOTE_SENT'
         }),
         credentials: 'include',
       });
@@ -319,9 +321,43 @@ export default function LeadsPage() {
     }
   };
 
+  const handleConvertToOpportunity = async (stage: string) => {
+    if (!selectedLead) return;
+
+    try {
+      const response = await fetch(`/api/leads/${selectedLead.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...selectedLead,
+          status: stage
+        }),
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        await fetchLeads();
+        setShowConvertModal(false);
+        setSelectedLead(null);
+        success(`Lead converted to opportunity at ${stage} stage!`);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to convert lead to opportunity');
+      }
+    } catch (err) {
+      console.error('Error converting lead:', err);
+      error('Failed to convert lead to opportunity');
+    }
+  };
+
   const openEditModal = (lead: Lead) => {
     setSelectedLead(lead);
     setShowEditModal(true);
+  };
+
+  const openConvertModal = (lead: Lead) => {
+    setSelectedLead(lead);
+    setShowConvertModal(true);
   };
 
   const openViewModal = (lead: Lead) => {
@@ -756,6 +792,12 @@ export default function LeadsPage() {
                         className: 'text-green-600',
                       },
                       {
+                        label: 'Convert to Opportunity',
+                        icon: <TrendingUp className="w-4 h-4" />,
+                        onClick: () => openConvertModal(lead),
+                        className: 'text-blue-600',
+                      },
+                      {
                         label: 'Delete',
                         icon: <Trash2 className="w-4 h-4" />,
                         onClick: () => openDeleteModal(lead),
@@ -845,6 +887,12 @@ export default function LeadsPage() {
                           className: 'text-green-600',
                         },
                         {
+                          label: 'Convert to Opportunity',
+                          icon: <TrendingUp className="w-4 h-4" />,
+                          onClick: () => openConvertModal(lead),
+                          className: 'text-blue-600',
+                        },
+                        {
                           label: 'Delete',
                           icon: <Trash2 className="w-4 h-4" />,
                           onClick: () => openDeleteModal(lead),
@@ -910,6 +958,12 @@ export default function LeadsPage() {
                           icon: <FileBarChart className="w-4 h-4" />,
                           onClick: () => handleCreateQuote(lead),
                           className: 'text-green-600',
+                        },
+                        {
+                          label: 'Convert to Opportunity',
+                          icon: <TrendingUp className="w-4 h-4" />,
+                          onClick: () => openConvertModal(lead),
+                          className: 'text-blue-600',
                         },
                         {
                           label: 'Delete',
@@ -979,6 +1033,12 @@ export default function LeadsPage() {
                           className: 'text-green-600',
                         },
                         {
+                          label: 'Convert to Opportunity',
+                          icon: <TrendingUp className="w-4 h-4" />,
+                          onClick: () => openConvertModal(lead),
+                          className: 'text-blue-600',
+                        },
+                        {
                           label: 'Delete',
                           icon: <Trash2 className="w-4 h-4" />,
                           onClick: () => openDeleteModal(lead),
@@ -1046,6 +1106,12 @@ export default function LeadsPage() {
                           className: 'text-green-600',
                         },
                         {
+                          label: 'Convert to Opportunity',
+                          icon: <TrendingUp className="w-4 h-4" />,
+                          onClick: () => openConvertModal(lead),
+                          className: 'text-blue-600',
+                        },
+                        {
                           label: 'Delete',
                           icon: <Trash2 className="w-4 h-4" />,
                           onClick: () => openDeleteModal(lead),
@@ -1111,6 +1177,18 @@ export default function LeadsPage() {
             setSelectedLead(null);
           }}
           onConfirm={handleDeleteLead}
+        />
+      )}
+
+      {showConvertModal && selectedLead && (
+        <ConvertToOpportunityModal
+          isOpen={showConvertModal}
+          onClose={() => {
+            setShowConvertModal(false);
+            setSelectedLead(null);
+          }}
+          onConvert={handleConvertToOpportunity}
+          leadName={`${selectedLead.firstName} ${selectedLead.lastName}`}
         />
       )}
       </div>

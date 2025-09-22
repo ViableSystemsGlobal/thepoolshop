@@ -48,6 +48,12 @@ export async function GET(request: NextRequest) {
         opportunities: {
           select: { id: true, name: true, stage: true, value: true, closeDate: true },
         },
+        quotations: {
+          select: { id: true, number: true, status: true, total: true, createdAt: true },
+        },
+        proformas: {
+          select: { id: true, number: true, status: true, total: true, createdAt: true },
+        },
         _count: {
           select: { contacts: true, opportunities: true, quotations: true, proformas: true },
         },

@@ -38,9 +38,9 @@ export async function GET(request: NextRequest) {
     if (status) {
       where.status = status;
     } else {
-      // Use all status values that exist in the database for testing
+      // Only show the simplified opportunity statuses
       where.status = {
-        in: ['NEW_OPPORTUNITY', 'QUALIFIED', 'NEW']
+        in: ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST']
       };
     }
 

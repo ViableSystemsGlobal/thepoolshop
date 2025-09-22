@@ -29,6 +29,10 @@ export async function GET(request: NextRequest) {
 
     const where: any = {
       ownerId: userId,
+      // Exclude opportunity statuses from leads
+      status: {
+        notIn: ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST']
+      }
     };
 
     if (status) {

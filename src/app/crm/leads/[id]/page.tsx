@@ -893,7 +893,7 @@ export default function LeadDetailsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...lead,
-          status: 'NEW_OPPORTUNITY'
+          status: 'QUOTE_SENT'
         }),
         credentials: 'include',
       });

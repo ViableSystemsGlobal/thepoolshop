@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, TrendingUp, FileBarChart, CheckCircle, XCircle, DollarSign, Calendar } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, TrendingUp, FileBarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -47,35 +47,9 @@ export default function OpportunitiesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [currency, setCurrency] = useState('GHS');
-  const [exchangeRate, setExchangeRate] = useState(1);
-  const [aiRecommendations, setAiRecommendations] = useState([
-    {
-      id: '1',
-      title: 'Follow up on quote sent',
-      description: 'You have 2 opportunities with quotes sent that need follow-up within 48 hours.',
-      priority: 'high' as const,
-      completed: false,
-    },
-    {
-      id: '2',
-      title: 'Move negotiations forward',
-      description: 'Review 3 opportunities in negotiation stage and schedule next steps.',
-      priority: 'medium' as const,
-      completed: false,
-    },
-    {
-      id: '3',
-      title: 'Close pending deals',
-      description: 'Focus on opportunities with high probability of closing this month.',
-      priority: 'high' as const,
-      completed: false,
-    },
-  ]);
 
-  // Opportunity stages
+  // Simplified stages
   const stages = [
-    { key: 'NEW_OPPORTUNITY', label: 'New Opportunity', color: 'bg-blue-100 text-blue-800' },
     { key: 'QUOTE_SENT', label: 'Quote Sent', color: 'bg-yellow-100 text-yellow-800' },
     { key: 'NEGOTIATION', label: 'Negotiation', color: 'bg-purple-100 text-purple-800' },
     { key: 'CONTRACT_SIGNED', label: 'Contract Signed', color: 'bg-emerald-100 text-emerald-800' },
@@ -86,7 +60,6 @@ export default function OpportunitiesPage() {
   useEffect(() => {
     if (session?.user) {
       fetchOpportunities();
-      fetchExchangeRate();
     }
   }, [session, searchTerm, statusFilter]);
 
@@ -121,53 +94,11 @@ export default function OpportunitiesPage() {
   };
 
   const formatCurrency = (amount?: number) => {
-    if (!amount) return `${currency} 0`;
-    const convertedAmount = currency === 'USD' ? amount * exchangeRate : amount;
+    if (!amount) return '$0';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: currency,
-    }).format(convertedAmount);
-  };
-
-  const calculatePipelineValue = () => {
-    return opportunities.reduce((total, opp) => {
-      if (opp.dealValue && opp.status !== 'LOST') {
-        return total + (opp.dealValue * (opp.probability || 0) / 100);
-      }
-      return total;
-    }, 0);
-  };
-
-  const calculateProjectedClose = () => {
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    
-    return opportunities.filter(opp => {
-      if (!opp.expectedCloseDate || opp.status === 'LOST') return false;
-      const closeDate = new Date(opp.expectedCloseDate);
-      return closeDate.getMonth() === currentMonth && closeDate.getFullYear() === currentYear;
-    }).length;
-  };
-
-  const fetchExchangeRate = async () => {
-    try {
-      const response = await fetch('/api/currency/convert?from=GHS&to=USD&amount=1');
-      if (response.ok) {
-        const data = await response.json();
-        setExchangeRate(data.rate || 1);
-      }
-    } catch (err) {
-      console.error('Error fetching exchange rate:', err);
-    }
-  };
-
-  const handleRecommendationComplete = (id: string) => {
-    setAiRecommendations(prev => 
-      prev.map(rec => 
-        rec.id === id ? { ...rec, completed: true } : rec
-      )
-    );
-    success('Recommendation completed! Great job!');
+      currency: 'USD',
+    }).format(amount);
   };
 
   // Redirect to sign-in if not authenticated
@@ -195,134 +126,42 @@ export default function OpportunitiesPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Opportunities</h1>
-            <p className="text-gray-600">Manage your sales opportunities</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Currency Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Currency:</span>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              >
-                <option value="GHS">GHS</option>
-                <option value="USD">USD</option>
-              </select>
-            </div>
-            <Button
-              onClick={() => router.push('/crm/leads')}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <TrendingUp className="w-4 h-4" />
-              View Leads
-            </Button>
-            <Button
-              onClick={() => setShowAddModal(true)}
-              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Opportunity
-            </Button>
-          </div>
-        </div>
-
-        {/* AI Recommendation and Metrics Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* AI Recommendation Card - Left Side */}
-          <div>
-            <AIRecommendationCard 
-              title="Opportunity Management AI"
-              subtitle="Your intelligent assistant for opportunity optimization"
-              recommendations={aiRecommendations}
-              onRecommendationComplete={handleRecommendationComplete}
-            />
-          </div>
-
-          {/* Metrics Cards - Right Side */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Opportunities</p>
-                  <p className="text-xl font-bold text-gray-900">{opportunities.length}</p>
-                </div>
-                <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
-                  <FileBarChart className={`w-5 h-5 text-${theme.primary}`} />
-                </div>
-              </div>
-            </Card>
-            
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Pipeline Value</p>
-                  <p className="text-xl font-bold text-blue-600">{formatCurrency(calculatePipelineValue())}</p>
-                </div>
-                <div className="p-2 rounded-full bg-blue-100">
-                  <DollarSign className="w-5 h-5 text-blue-600" />
-                </div>
-              </div>
-            </Card>
-            
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Projected Close</p>
-                  <p className="text-xl font-bold text-green-600">{calculateProjectedClose()}</p>
-                </div>
-                <div className="p-2 rounded-full bg-green-100">
-                  <Calendar className="w-5 h-5 text-green-600" />
-                </div>
-              </div>
-            </Card>
-            
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Quote Sent</p>
-                  <p className="text-xl font-bold text-yellow-600">{opportunities.filter(o => o.status === 'QUOTE_SENT').length}</p>
-                </div>
-                <div className="p-2 rounded-full bg-yellow-100">
-                  <FileBarChart className="w-5 h-5 text-yellow-600" />
-                </div>
-              </div>
-            </Card>
-            
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Won Deals</p>
-                  <p className="text-xl font-bold text-emerald-600">{opportunities.filter(o => o.status === 'WON').length}</p>
-                </div>
-                <div className="p-2 rounded-full bg-emerald-100">
-                  <CheckCircle className="w-5 h-5 text-emerald-600" />
-                </div>
-              </div>
-            </Card>
-            
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Lost Deals</p>
-                  <p className="text-xl font-bold text-red-600">{opportunities.filter(o => o.status === 'LOST').length}</p>
-                </div>
-                <div className="p-2 rounded-full bg-red-100">
-                  <XCircle className="w-5 h-5 text-red-600" />
-                </div>
-              </div>
-            </Card>
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Left Sidebar - AI Card */}
+        <div className="lg:col-span-1">
+          <AIRecommendationCard />
         </div>
 
         {/* Main Content */}
-        <div className="space-y-6">
+        <div className="lg:col-span-3 space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Opportunities</h1>
+              <p className="text-gray-600 mt-1">Track your sales opportunities</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => router.push('/crm/leads')}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <TrendingUp className="w-4 h-4" />
+                View Leads
+              </Button>
+              <Button
+                onClick={() => setShowAddModal(true)}
+                className={`flex items-center gap-2 bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0 font-medium`}
+                style={{
+                  backgroundColor: theme.primary,
+                  color: 'white'
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Create Opportunity
+              </Button>
+            </div>
+          </div>
 
           {/* Search and Filter */}
           <div className="flex items-center gap-4">
@@ -444,12 +283,11 @@ export default function OpportunitiesPage() {
                                   className: 'text-red-600',
                                 },
                               ]}
-                              trigger={
-                                <Button variant="ghost" size="sm">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </Button>
-                              }
-                            />
+                            >
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenu>
                           </td>
                         </tr>
                       );

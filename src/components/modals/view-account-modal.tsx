@@ -119,22 +119,22 @@ export function ViewAccountModal({ account, onClose }: ViewAccountModalProps) {
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-gray-50 p-4 rounded-lg text-center">
               <Users className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-              <div className="text-2xl font-bold">{account.contacts.length}</div>
+              <div className="text-2xl font-bold">{account.contacts?.length || 0}</div>
               <div className="text-sm text-gray-500">Contacts</div>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg text-center">
               <TrendingUp className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-              <div className="text-2xl font-bold">{account.opportunities.length}</div>
+              <div className="text-2xl font-bold">{account.opportunities?.length || 0}</div>
               <div className="text-sm text-gray-500">Opportunities</div>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg text-center">
               <FileText className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-              <div className="text-2xl font-bold">{account.quotations.length}</div>
+              <div className="text-2xl font-bold">{account.quotations?.length || 0}</div>
               <div className="text-sm text-gray-500">Quotations</div>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg text-center">
               <Receipt className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-              <div className="text-2xl font-bold">{account.proformas.length}</div>
+              <div className="text-2xl font-bold">{account.proformas?.length || 0}</div>
               <div className="text-sm text-gray-500">Proformas</div>
             </div>
           </div>
@@ -195,7 +195,7 @@ export function ViewAccountModal({ account, onClose }: ViewAccountModalProps) {
             {/* Recent Activity */}
             <div className="space-y-4">
               <h4 className="font-semibold text-gray-900">Recent Quotations</h4>
-              {account.quotations.length > 0 ? (
+              {account.quotations?.length > 0 ? (
                 <div className="space-y-2">
                   {account.quotations.slice(0, 3).map((quotation) => (
                     <div key={quotation.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -221,7 +221,7 @@ export function ViewAccountModal({ account, onClose }: ViewAccountModalProps) {
           </div>
 
           {/* Contacts */}
-          {account.contacts.length > 0 && (
+          {account.contacts?.length > 0 && (
             <div>
               <h4 className="font-semibold text-gray-900 mb-3">Contacts</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

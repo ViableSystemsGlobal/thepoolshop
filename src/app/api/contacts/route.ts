@@ -6,117 +6,142 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = (session.user as any).id;
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
-    const emailOnly = searchParams.get('email') === 'true';
+    const accountId = searchParams.get('accountId');
 
-    // Build where clause
-    const whereClause = emailOnly ? 
-      { email: { not: null } } : 
-      { OR: [{ phone: { not: null } }, { email: { not: null } }] };
+    const where: any = {
+      account: {
+        ownerId: userId,
+      },
+    };
+
+    if (accountId) {
+      where.accountId = accountId;
+    }
 
     if (search) {
-      whereClause.OR = [
-        { firstName: { contains: search } },
-        { lastName: { contains: search } },
-        { phone: { contains: search } },
-        { email: { contains: search } }
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { position: { contains: search, mode: 'insensitive' } },
       ];
     }
 
     const contacts = await prisma.contact.findMany({
-      where: {
-        ...whereClause,
-        ...(search && {
-          OR: [
-            { firstName: { contains: search } },
-            { lastName: { contains: search } },
-            { phone: { contains: search } },
-            { email: { contains: search } }
-          ]
-        })
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        account: {
+          select: { id: true, name: true, type: true },
+        },
       },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        email: true
-      },
-      orderBy: {
-        firstName: 'asc'
-      }
     });
 
-    // Also get leads with phone numbers or email addresses
-    const leadsWhereClause = emailOnly ? 
-      { email: { not: null } } : 
-      { OR: [{ phone: { not: null } }, { email: { not: null } }] };
-
-    const leads = await prisma.lead.findMany({
-      where: {
-        ...leadsWhereClause,
-        ...(search && {
-          OR: [
-            { firstName: { contains: search } },
-            { lastName: { contains: search } },
-            { phone: { contains: search } },
-            { email: { contains: search } }
-          ]
-        })
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        email: true
-      },
-      orderBy: {
-        firstName: 'asc'
-      }
-    });
-
-    // Transform contacts to have a name field
-    const transformedContacts = contacts.map(contact => ({
-      id: contact.id,
-      name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown',
-      phone: contact.phone,
-      email: contact.email
-    }));
-
-    // Transform leads to have a name field
-    const transformedLeads = leads.map(lead => ({
-      id: lead.id,
-      name: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Unknown',
-      phone: lead.phone,
-      email: lead.email
-    }));
-
-    // Combine and deduplicate contacts
-    const allContacts = [...transformedContacts, ...transformedLeads].reduce((acc, contact) => {
-      const existing = acc.find(c => 
-        (contact.email && c.email === contact.email) || 
-        (contact.phone && c.phone === contact.phone)
-      );
-      if (!existing) {
-        acc.push(contact);
-      }
-      return acc;
-    }, [] as typeof transformedContacts);
-
-    return NextResponse.json({
-      contacts: allContacts
-    });
-
+    return NextResponse.json(contacts);
   } catch (error) {
     console.error('Error fetching contacts:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to fetch contacts' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      position,
+      accountId,
+    } = body;
+
+    if (!firstName || !lastName) {
+      return NextResponse.json(
+        { error: 'First name and last name are required' },
+        { status: 400 }
+      );
+    }
+
+    if (!accountId) {
+      return NextResponse.json(
+        { error: 'Account ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify the account belongs to the user
+    const account = await prisma.account.findFirst({
+      where: {
+        id: accountId,
+        ownerId: userId,
+      },
+    });
+
+    if (!account) {
+      return NextResponse.json(
+        { error: 'Account not found or access denied' },
+        { status: 404 }
+      );
+    }
+
+    const contact = await prisma.contact.create({
+      data: {
+        firstName,
+        lastName,
+        email,
+        phone,
+        position,
+        accountId,
+      },
+      include: {
+        account: {
+          select: { id: true, name: true, type: true },
+        },
+      },
+    });
+
+    // Log activity
+    await prisma.activity.create({
+      data: {
+        entityType: 'Contact',
+        entityId: contact.id,
+        action: 'created',
+        details: { contact: { firstName, lastName, email, position } },
+        userId: userId,
+      },
+    });
+
+    return NextResponse.json(contact, { status: 201 });
+  } catch (error) {
+    console.error('Error creating contact:', error);
+    return NextResponse.json(
+      { error: 'Failed to create contact' },
       { status: 500 }
     );
   }

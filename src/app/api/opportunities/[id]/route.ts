@@ -25,7 +25,7 @@ export async function GET(
         id,
         ownerId: userId,
         status: {
-          in: ['OPPORTUNITY', 'NEW_OPPORTUNITY', 'QUOTE_SENT', 'QUOTE_REVIEWED', 'NEGOTIATION', 'APPROVED', 'CONTRACT_SENT', 'CONTRACT_SIGNED', 'WON', 'LOST']
+          in: ['QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'] as any
         },
       },
       include: {
@@ -77,7 +77,7 @@ export async function PUT(
         id,
         ownerId: userId,
         status: {
-          in: ['OPPORTUNITY', 'NEW_OPPORTUNITY', 'QUOTE_SENT', 'QUOTE_REVIEWED', 'NEGOTIATION', 'APPROVED', 'CONTRACT_SENT', 'CONTRACT_SIGNED', 'WON', 'LOST']
+          in: ['QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'] as any
         },
       },
     });
@@ -116,7 +116,7 @@ export async function PUT(
         company,
         subject,
         source,
-        status: status || 'OPPORTUNITY', // Ensure it remains an opportunity
+        status: status || 'QUOTE_SENT' as any, // Ensure it remains an opportunity
         assignedTo: assignedTo ? JSON.stringify(assignedTo) : null,
         interestedProducts: interestedProducts ? JSON.stringify(interestedProducts) : null,
         followUpDate: followUpDate ? new Date(followUpDate) : null,
@@ -124,7 +124,7 @@ export async function PUT(
         dealValue,
         probability,
         expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null,
-      },
+      } as any,
       include: {
         owner: {
           select: {
@@ -172,7 +172,7 @@ export async function DELETE(
         id,
         ownerId: userId,
         status: {
-          in: ['OPPORTUNITY', 'NEW_OPPORTUNITY', 'QUOTE_SENT', 'QUOTE_REVIEWED', 'NEGOTIATION', 'APPROVED', 'CONTRACT_SENT', 'CONTRACT_SIGNED', 'WON', 'LOST']
+          in: ['QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'] as any
         },
       },
     });
