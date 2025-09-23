@@ -36,57 +36,53 @@ export async function POST(request: NextRequest) {
       experience: formData.get('experience') as string,
       investmentCapacity: formData.get('investmentCapacity') as string,
       targetMarket: formData.get('targetMarket') as string,
+      territory: formData.get('territory') as string,
+      expectedVolume: formData.get('expectedVolume') as string,
       notes: formData.get('notes') as string,
       submittedBy: session.user.id,
       status: 'PENDING',
       createdAt: new Date(),
     };
 
-    // Handle file uploads
-    const uploadDir = join(process.cwd(), 'uploads', 'distributor-leads');
-    
-    // Create upload directory if it doesn't exist
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
-    }
+    // Handle file uploads like the working products system
+    const imagesToCreate: any[] = [];
 
-    const filePaths: { [key: string]: string } = {};
-
-    // Handle profile picture
+    // Handle profile picture upload
     const profilePicture = formData.get('profilePicture') as File;
     if (profilePicture && profilePicture.size > 0) {
-      const bytes = await profilePicture.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const fileName = `profile_${Date.now()}_${profilePicture.name}`;
-      const filePath = join(uploadDir, fileName);
-      await writeFile(filePath, buffer);
-      filePaths.profilePicture = `/uploads/distributor-leads/${fileName}`;
-    }
+      try {
+        // Create uploads directory if it doesn't exist
+        const uploadsDir = join(process.cwd(), 'uploads', 'distributor-leads');
+        if (!existsSync(uploadsDir)) {
+          await mkdir(uploadsDir, { recursive: true });
+        }
 
-    // Handle business license
-    const businessLicense = formData.get('businessLicense') as File;
-    if (businessLicense && businessLicense.size > 0) {
-      const bytes = await businessLicense.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const fileName = `license_${Date.now()}_${businessLicense.name}`;
-      const filePath = join(uploadDir, fileName);
-      await writeFile(filePath, buffer);
-      filePaths.businessLicense = `/uploads/distributor-leads/${fileName}`;
-    }
+        // Generate unique filename
+        const timestamp = Date.now();
+        const fileExtension = profilePicture.name.split('.').pop();
+        const filename = `profile_${timestamp}-${profilePicture.name}`;
+        const filepath = join(uploadsDir, filename);
 
-    // Handle tax certificate
-    const taxCertificate = formData.get('taxCertificate') as File;
-    if (taxCertificate && taxCertificate.size > 0) {
-      const bytes = await taxCertificate.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const fileName = `tax_${Date.now()}_${taxCertificate.name}`;
-      const filePath = join(uploadDir, fileName);
-      await writeFile(filePath, buffer);
-      filePaths.taxCertificate = `/uploads/distributor-leads/${fileName}`;
+        // Save file
+        const bytes = await profilePicture.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filepath, buffer);
+        
+        imagesToCreate.push({
+          fileName: filename,
+          originalName: profilePicture.name,
+          filePath: `/uploads/distributor-leads/${filename}`, // Web-accessible path
+          fileType: profilePicture.type,
+          fileSize: profilePicture.size,
+          imageType: 'PROFILE_PICTURE'
+        });
+      } catch (error) {
+        console.error('Error processing image:', error);
+      }
     }
 
     // Create new distributor lead
-    // Create distributor lead in database
+    // Create distributor lead in database with images
     const distributorLead = await prisma.distributorLead.create({
       data: {
         firstName: distributorLeadData.firstName,
@@ -106,26 +102,40 @@ export async function POST(request: NextRequest) {
         latitude: distributorLeadData.latitude ? parseFloat(distributorLeadData.latitude) : null,
         longitude: distributorLeadData.longitude ? parseFloat(distributorLeadData.longitude) : null,
         territory: distributorLeadData.territory || null,
-        expectedVolume: distributorLeadData.expectedVolume ? parseInt(distributorLeadData.expectedVolume) : null,
+        expectedVolume: distributorLeadData.salesVolume ? parseInt(distributorLeadData.salesVolume) : null,
         experience: distributorLeadData.experience || null,
-        investmentCapacity: distributorLeadData.investmentCapacity ? parseInt(distributorLeadData.investmentCapacity) : null,
+        investmentCapacity: distributorLeadData.investmentCapacity || null,
         targetMarket: distributorLeadData.targetMarket || null,
         notes: distributorLeadData.notes || null,
-        profileImage: filePaths.profilePicture || null,
-        businessLicense: filePaths.businessLicense || null,
-        taxCertificate: filePaths.taxCertificate || null,
         submittedBy: session.user.id,
-        status: 'PENDING'
+        status: 'PENDING',
+        images: {
+          create: imagesToCreate
+        },
+        interestedProducts: {
+          create: (distributorLeadData.interestedProducts || []).map((productId: string) => ({
+            productId,
+            quantity: 1,
+            interestLevel: 'MEDIUM',
+            addedBy: session.user.id
+          }))
+        }
+      },
+      include: {
+        images: true
       }
     });
 
     console.log('New distributor lead application:', distributorLead);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Distributor lead application submitted successfully',
       data: distributorLead
     });
+    
+    console.log('Response being sent:', response);
+    return response;
 
   } catch (error) {
     console.error('Error creating distributor lead:', error);
@@ -144,9 +154,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Return distributor leads from database
-    // For now, return all leads. You can add filtering by role/permissions later
+    // Return distributor leads from database with images
     const leads = await prisma.distributorLead.findMany({
+      include: {
+        images: true,
+        interestedProducts: {
+          include: {
+            product: true
+          }
+        }
+      },
       orderBy: {
         createdAt: 'desc'
       }

@@ -29,7 +29,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  ArrowLeft
+  ArrowLeft,
+  TrendingUp
 } from 'lucide-react';
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
 
@@ -56,6 +57,12 @@ interface DistributorLead {
   territory?: string;
   expectedVolume?: number;
   experience?: string;
+  profileImage?: string;
+  images?: Array<{
+    id: string;
+    imageType: string;
+    filePath: string;
+  }>;
 }
 
 export default function DistributorLeadsPage() {
@@ -236,6 +243,17 @@ export default function DistributorLeadsPage() {
     }
   };
 
+  // Helper function to get profile image
+  const getProfileImage = (lead: DistributorLead) => {
+    if (lead.images && lead.images.length > 0) {
+      const profileImage = lead.images.find(img => img.imageType === 'PROFILE_PICTURE');
+      if (profileImage) {
+        return profileImage.filePath;
+      }
+    }
+    return lead.profileImage || null;
+  };
+
   const filteredLeads = leads.filter(lead => {
     // Get display values with fallbacks
     const companyName = lead.companyName || lead.businessName || '';
@@ -361,9 +379,9 @@ export default function DistributorLeadsPage() {
         </div>
 
         {/* AI Recommendation and Stats Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* AI Recommendation Card - Left Side */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-1">
             <AIRecommendationCard 
               title="Distributor Leads AI"
               subtitle="Smart insights for application management"
@@ -373,7 +391,7 @@ export default function DistributorLeadsPage() {
           </div>
 
           {/* Stats Cards - Right Side */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="lg:col-span-1 grid grid-cols-2 lg:grid-cols-3 gap-4">
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -424,6 +442,34 @@ export default function DistributorLeadsPage() {
               </div>
               <div className="p-2 rounded-full bg-green-100">
                 <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Pipeline</p>
+                <p className="text-xl font-bold text-indigo-600">
+                  GHS {leads.reduce((sum, lead) => sum + (lead.expectedVolume || 0), 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="p-2 rounded-full bg-indigo-100">
+                <TrendingUp className="w-5 h-5 text-indigo-600" />
+              </div>
+            </div>
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Approved Pipeline</p>
+                <p className="text-xl font-bold text-emerald-600">
+                  GHS {leads.filter(l => l.status === 'APPROVED').reduce((sum, lead) => sum + (lead.expectedVolume || 0), 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="p-2 rounded-full bg-emerald-100">
+                <CheckCircle className="w-5 h-5 text-emerald-600" />
               </div>
             </div>
           </Card>
@@ -479,6 +525,9 @@ export default function DistributorLeadsPage() {
                     Territory
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Sales Volume
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -499,21 +548,31 @@ export default function DistributorLeadsPage() {
                   
                   return (
                     <tr key={lead.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="p-2 rounded-lg bg-blue-100">
-                            <Building2 className="w-4 h-4 text-blue-600" />
-                          </div>
-                          <div className="ml-3">
-                            <div className="text-sm font-medium text-gray-900">
-                              {companyName}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              {getProfileImage(lead) ? (
+                                <img
+                                  className="h-10 w-10 rounded-full object-cover"
+                                  src={getProfileImage(lead)!}
+                                  alt="Profile"
+                                />
+                              ) : (
+                                <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                  <Building2 className="w-5 h-5 text-gray-500" />
+                                </div>
+                              )}
                             </div>
-                            <div className="text-sm text-gray-500">
-                              {lead.businessType}
+                            <div className="ml-3">
+                              <div className="text-sm font-medium text-gray-900">
+                                {companyName}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {lead.businessType}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{contactPerson}</div>
                         <div className="text-sm text-gray-500">{lead.email}</div>
@@ -527,6 +586,9 @@ export default function DistributorLeadsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {lead.territory || lead.region || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {lead.expectedVolume ? `GHS ${lead.expectedVolume.toLocaleString()}/month` : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

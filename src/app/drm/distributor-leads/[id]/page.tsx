@@ -34,9 +34,38 @@ import {
   Camera,
   Upload,
   Trash2,
-  MessageSquare
+  MessageSquare,
+  Package,
+  ExternalLink
 } from 'lucide-react';
 import { useTheme } from '@/contexts/theme-context';
+import { AddLeadSMSModal } from '@/components/modals/add-lead-sms-modal';
+import { AddLeadEmailModal } from '@/components/modals/add-lead-email-modal';
+import { useToast } from '@/contexts/toast-context';
+
+interface DistributorLeadImage {
+  id: string;
+  fileName: string;
+  originalName: string;
+  filePath: string;
+  fileType: string;
+  fileSize: number;
+  imageType: string;
+  uploadedAt: string;
+}
+
+interface DistributorLeadProduct {
+  id: string;
+  productId: string;
+  quantity: number;
+  notes?: string;
+  interestLevel: string;
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+  };
+}
 
 interface DistributorLead {
   id: string;
@@ -65,8 +94,10 @@ interface DistributorLead {
   businessLicense?: string;
   taxCertificate?: string;
   yearsInBusiness?: number;
-  investmentCapacity?: number;
+  investmentCapacity?: string;
   targetMarket?: string;
+  images?: DistributorLeadImage[];
+  interestedProducts?: DistributorLeadProduct[];
 }
 
 export default function DistributorLeadDetailsPage() {
@@ -74,10 +105,14 @@ export default function DistributorLeadDetailsPage() {
   const router = useRouter();
   const { getThemeClasses } = useTheme();
   const themeClasses = getThemeClasses();
+  const { success, error } = useToast();
   
   const [lead, setLead] = useState<DistributorLead | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showSMSModal, setShowSMSModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showAllActivities, setShowAllActivities] = useState(false);
 
   useEffect(() => {
     const fetchLead = async () => {
@@ -90,6 +125,11 @@ export default function DistributorLeadDetailsPage() {
         if (response.ok) {
           const data = await response.json();
           console.log('API Response:', data);
+          console.log('📸 Frontend - Lead images:', {
+            imagesCount: data.data?.images?.length || 0,
+            images: data.data?.images || [],
+            legacyProfileImage: data.data?.profileImage
+          });
           setLead(data.data);
         } else {
           console.error('Failed to fetch distributor lead. Status:', response.status);
@@ -114,7 +154,7 @@ export default function DistributorLeadDetailsPage() {
             createdAt: new Date().toISOString(),
             profileImage: '/api/placeholder/150/150',
             yearsInBusiness: 5,
-            investmentCapacity: 50000,
+            investmentCapacity: 'GHS 50,000 - 100,000',
             targetMarket: 'FMCG, Electronics, Home & Garden'
           });
         }
@@ -183,9 +223,173 @@ export default function DistributorLeadDetailsPage() {
     }
   };
 
+  // Helper function to get profile image from new images array or legacy field
+  const getProfileImage = () => {
+    if (lead.images && lead.images.length > 0) {
+      const profileImage = lead.images.find((img: DistributorLeadImage) => img.imageType === 'PROFILE_PICTURE');
+      if (profileImage && profileImage.filePath) {
+        return profileImage.filePath;
+      }
+    }
+    return null;
+  };
+
+  // Generate real activities from lead data
+  const generateActivities = () => {
+    if (!lead) return [];
+    
+    const activities = [];
+    
+    // Application submitted activity
+    activities.push({
+      id: 'application',
+      type: 'application',
+      title: 'Application Submitted',
+      description: `Submitted by ${contactPerson}`,
+      timestamp: new Date(applicationDate),
+      icon: <CheckCircle className="w-3 h-3 text-green-600" />
+    });
+    
+    // Documents uploaded activity
+    if (lead.images && lead.images.length > 0) {
+      activities.push({
+        id: 'documents',
+        type: 'documents',
+        title: 'Documents Uploaded',
+        description: `${lead.images.length} document(s) uploaded for review`,
+        timestamp: new Date(applicationDate), // Use application date as fallback
+        icon: <FileText className="w-3 h-3 text-blue-600" />
+      });
+    }
+    
+    // Interested products activity
+    if (lead.interestedProducts && lead.interestedProducts.length > 0) {
+      activities.push({
+        id: 'products',
+        type: 'products',
+        title: 'Products Selected',
+        description: `${lead.interestedProducts.length} product(s) selected`,
+        timestamp: new Date(applicationDate), // Use application date as fallback
+        icon: <Package className="w-3 h-3 text-purple-600" />
+      });
+    }
+    
+    // Status change activities
+    if (status === 'UNDER_REVIEW') {
+      activities.push({
+        id: 'review',
+        type: 'status',
+        title: 'Application Under Review',
+        description: 'Status changed to Under Review',
+        timestamp: new Date(applicationDate), // Use application date as fallback
+        icon: <FileText className="w-3 h-3 text-blue-600" />
+      });
+    }
+    
+    if (status === 'APPROVED') {
+      activities.push({
+        id: 'approved',
+        type: 'status',
+        title: 'Application Approved',
+        description: 'Status changed to Approved',
+        timestamp: new Date(applicationDate), // Use application date as fallback
+        icon: <CheckCircle className="w-3 h-3 text-green-600" />
+      });
+    }
+    
+    if (status === 'REJECTED') {
+      activities.push({
+        id: 'rejected',
+        type: 'status',
+        title: 'Application Rejected',
+        description: 'Status changed to Rejected',
+        timestamp: new Date(applicationDate), // Use application date as fallback
+        icon: <XCircle className="w-3 h-3 text-red-600" />
+      });
+    }
+    
+    // Sort by timestamp (newest first)
+    return activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  };
+
+  // Get activities to display (limited or all)
+  const getDisplayActivities = () => {
+    const allActivities = generateActivities();
+    return showAllActivities ? allActivities : allActivities.slice(0, 4);
+  };
+
+  // Helper function to format time ago
+  const getTimeAgo = (timestamp: Date) => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - timestamp.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    return timestamp.toLocaleDateString();
+  };
+
+  // Helper function to generate Google Maps URL
+  const getGoogleMapsUrl = (): string | null => {
+    if (lead && (lead as any).latitude && (lead as any).longitude) {
+      // Use coordinates if available
+      return `https://www.google.com/maps?q=${(lead as any).latitude},${(lead as any).longitude}`;
+    } else if (location && location !== 'N/A') {
+      // Use location string as fallback
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+    }
+    return null;
+  };
+
+  const handleSMSSend = async (smsData: any) => {
+    try {
+      const response = await fetch('/api/distributor-lead-sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(smsData),
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        success('SMS sent successfully!');
+        setShowSMSModal(false);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to send SMS');
+      }
+    } catch (err) {
+      error('Failed to send SMS');
+    }
+  };
+
+  const handleEmailSend = async (emailData: any) => {
+    try {
+      const response = await fetch('/api/distributor-lead-emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emailData),
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        success('Email sent successfully!');
+        setShowEmailModal(false);
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to send email');
+      }
+    } catch (err) {
+      error('Failed to send email');
+    }
+  };
+
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <User className="w-4 h-4" /> },
-    { id: 'business', label: 'Business Details', icon: <Building className="w-4 h-4" /> },
     { id: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" /> },
     { id: 'activity', label: 'Activity', icon: <Activity className="w-4 h-4" /> }
   ];
@@ -209,7 +413,7 @@ export default function DistributorLeadDetailsPage() {
           <div className="flex items-center space-x-3">
             <Button
               variant="outline"
-              onClick={() => window.open(`mailto:${lead.email}`)}
+              onClick={() => setShowEmailModal(true)}
             >
               <Mail className="w-4 h-4 mr-2" />
               Email
@@ -223,7 +427,7 @@ export default function DistributorLeadDetailsPage() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => window.open(`sms:${lead.phone}`)}
+              onClick={() => setShowSMSModal(true)}
             >
               <MessageSquare className="w-4 h-4 mr-2" />
               SMS
@@ -245,22 +449,22 @@ export default function DistributorLeadDetailsPage() {
         <Card className="overflow-hidden">
           <div className="bg-blue-600 text-white p-8">
             <div className="flex items-center space-x-6">
-              {lead.profileImage ? (
-                <div className="relative">
+              <div className="relative">
+                {getProfileImage() ? (
                   <img
-                    src={lead.profileImage}
+                    src={getProfileImage()!}
                     alt={contactPerson}
                     className="w-24 h-24 rounded-full object-cover border-4 border-white border-opacity-20"
                   />
-                  <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                    <Camera className="w-4 h-4 text-gray-600" />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-white bg-opacity-20 flex items-center justify-center border-4 border-white border-opacity-20">
+                    <User className="w-12 h-12 text-white" />
                   </div>
+                )}
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                  <Camera className="w-4 h-4 text-gray-600" />
                 </div>
-              ) : (
-                <div className="w-24 h-24 bg-white bg-opacity-20 rounded-full flex items-center justify-center border-4 border-white border-opacity-20">
-                  <User className="w-12 h-12" />
-                </div>
-              )}
+              </div>
               <div className="flex-1">
                 <h1 className="text-3xl font-bold mb-2">{companyName}</h1>
                 <p className="text-xl text-white text-opacity-90 mb-4">{contactPerson}</p>
@@ -303,7 +507,7 @@ export default function DistributorLeadDetailsPage() {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 {/* Key Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <Card className="p-4">
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -312,7 +516,7 @@ export default function DistributorLeadDetailsPage() {
                       <div>
                         <p className="text-sm text-gray-500">Investment Capacity</p>
                         <p className="text-lg font-semibold">
-                          {lead.investmentCapacity ? `GHS ${lead.investmentCapacity.toLocaleString()}` : 'N/A'}
+                          {lead.investmentCapacity || 'N/A'}
                         </p>
                       </div>
                     </div>
@@ -323,9 +527,9 @@ export default function DistributorLeadDetailsPage() {
                         <TrendingUp className="w-5 h-5 text-green-600" />
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500">Expected Volume</p>
+                        <p className="text-sm text-gray-500">Sales Volume</p>
                         <p className="text-lg font-semibold">
-                          {lead.expectedVolume ? `${lead.expectedVolume.toLocaleString()} units/month` : 'N/A'}
+                          {lead.expectedVolume ? `GHS ${lead.expectedVolume.toLocaleString()}/month` : 'N/A'}
                         </p>
                       </div>
                     </div>
@@ -380,9 +584,22 @@ export default function DistributorLeadDetailsPage() {
                       </div>
                       <div className="flex items-center space-x-3">
                         <MapPin className="w-4 h-4 text-gray-500" />
-                        <div>
+                        <div className="flex-1">
                           <p className="text-sm text-gray-500">Location</p>
-                          <p className="font-medium">{location}</p>
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium">{location}</p>
+                            {getGoogleMapsUrl() && (
+                              <a
+                                href={getGoogleMapsUrl()!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 font-medium"
+                              >
+                                <ExternalLink className="w-3 h-3 mr-1" />
+                                View on Google Maps
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -421,24 +638,39 @@ export default function DistributorLeadDetailsPage() {
                   </Card>
                 </div>
 
-                {/* Notes */}
-                {lead.notes && (
+                {/* Interested Products */}
+                {lead.interestedProducts && lead.interestedProducts.length > 0 && (
                   <Card className="p-6">
                     <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
-                      <FileText className="w-5 h-5" />
-                      <span>Notes</span>
+                      <Package className="w-5 h-5" />
+                      <span>Interested Products</span>
                     </h3>
-                    <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{lead.notes}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {lead.interestedProducts.map((product) => (
+                        <div key={product.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <Package className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium">{product.product.name}</p>
+                            <p className="text-sm text-gray-500">SKU: {product.product.sku}</p>
+                            <p className="text-xs text-gray-400">
+                              Interest Level: {product.interestLevel}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </Card>
                 )}
-              </div>
-            )}
 
-            {activeTab === 'business' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card className="p-6">
-                    <h3 className="text-lg font-semibold mb-4">Business Profile</h3>
+                {/* Business Profile */}
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
+                    <Building className="w-5 h-5" />
+                    <span>Business Profile</span>
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
                       <div>
                         <p className="text-sm text-gray-500">Business Name</p>
@@ -457,181 +689,126 @@ export default function DistributorLeadDetailsPage() {
                         <p className="font-medium">{lead.targetMarket || 'N/A'}</p>
                       </div>
                     </div>
-                  </Card>
-
-                  <Card className="p-6">
-                    <h3 className="text-lg font-semibold mb-4">Financial Information</h3>
                     <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Primary Territory</p>
+                        <p className="font-medium">{lead.territory || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Experience</p>
+                        <p className="font-medium">{lead.experience || 'N/A'}</p>
+                      </div>
                       <div>
                         <p className="text-sm text-gray-500">Investment Capacity</p>
                         <p className="font-medium text-lg">
-                          {lead.investmentCapacity ? `GHS ${lead.investmentCapacity.toLocaleString()}` : 'N/A'}
+                          {lead.investmentCapacity || 'N/A'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500">Expected Monthly Volume</p>
+                        <p className="text-sm text-gray-500">Sales Volume</p>
                         <p className="font-medium text-lg">
-                          {lead.expectedVolume ? `${lead.expectedVolume.toLocaleString()} units` : 'N/A'}
+                          {lead.expectedVolume ? `GHS ${lead.expectedVolume.toLocaleString()}/month` : 'N/A'}
                         </p>
                       </div>
                     </div>
-                  </Card>
-                </div>
-
-                <Card className="p-6">
-                  <h3 className="text-lg font-semibold mb-4">Territory & Coverage</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Primary Territory</p>
-                      <p className="font-medium">{lead.territory || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Location</p>
-                      <p className="font-medium">{location}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Experience</p>
-                      <p className="font-medium">{lead.experience || 'N/A'}</p>
-                    </div>
                   </div>
                 </Card>
+
+                {/* Notes */}
+                {lead.notes && (
+                  <Card className="p-6">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
+                      <FileText className="w-5 h-5" />
+                      <span>Notes</span>
+                    </h3>
+                    <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{lead.notes}</p>
+                  </Card>
+                )}
               </div>
             )}
 
+
             {activeTab === 'documents' && (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Profile Picture */}
-                  <Card className="p-6 text-center">
-                    <div className="w-20 h-20 bg-gray-100 rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
-                      {lead.profileImage && lead.profileImage !== '/api/placeholder/150/150' ? (
-                        <img
-                          src={lead.profileImage}
-                          alt="Profile"
-                          className="w-full h-full rounded-lg object-cover"
-                        />
-                      ) : (
-                        <Camera className="w-8 h-8 text-gray-400" />
-                      )}
-                    </div>
-                    <h4 className="font-medium mb-2">Profile Picture</h4>
-                    <p className="text-xs text-gray-500 mb-3">
-                      {lead.profileImage && lead.profileImage !== '/api/placeholder/150/150' ? 'Uploaded' : 'Not uploaded'}
-                    </p>
-                    <div className="space-y-2">
-                      {lead.profileImage && lead.profileImage !== '/api/placeholder/150/150' ? (
-                        <>
-                          <Button size="sm" variant="outline" className="w-full">
-                            <Eye className="w-4 h-4 mr-2" />
-                            View
-                          </Button>
-                          <Button size="sm" variant="outline" className="w-full">
-                            <Download className="w-4 h-4 mr-2" />
-                            Download
-                          </Button>
-                        </>
-                      ) : (
-                        <Button size="sm" variant="outline" className="w-full" disabled>
-                          <Upload className="w-4 h-4 mr-2" />
-                          No Image
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-
-                  {/* Business License */}
-                  <Card className="p-6 text-center">
-                    <div className="w-20 h-20 bg-gray-100 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                      {lead.businessLicense ? (
-                        <FileText className="w-8 h-8 text-green-600" />
-                      ) : (
-                        <FileText className="w-8 h-8 text-gray-400" />
-                      )}
-                    </div>
-                    <h4 className="font-medium mb-2">Business License</h4>
-                    <p className="text-xs text-gray-500 mb-3">
-                      {lead.businessLicense ? 'Uploaded' : 'Not uploaded'}
-                    </p>
-                    <div className="space-y-2">
-                      {lead.businessLicense ? (
-                        <>
-                          <Button size="sm" variant="outline" className="w-full">
-                            <Eye className="w-4 h-4 mr-2" />
-                            View
-                          </Button>
-                          <Button size="sm" variant="outline" className="w-full">
-                            <Download className="w-4 h-4 mr-2" />
-                            Download
-                          </Button>
-                        </>
-                      ) : (
-                        <Button size="sm" variant="outline" className="w-full" disabled>
-                          <Upload className="w-4 h-4 mr-2" />
-                          No Document
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-
-                  {/* Tax Certificate */}
-                  <Card className="p-6 text-center">
-                    <div className="w-20 h-20 bg-gray-100 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                      {lead.taxCertificate ? (
-                        <FileText className="w-8 h-8 text-green-600" />
-                      ) : (
-                        <FileText className="w-8 h-8 text-gray-400" />
-                      )}
-                    </div>
-                    <h4 className="font-medium mb-2">Tax Certificate</h4>
-                    <p className="text-xs text-gray-500 mb-3">
-                      {lead.taxCertificate ? 'Uploaded' : 'Not uploaded'}
-                    </p>
-                    <div className="space-y-2">
-                      {lead.taxCertificate ? (
-                        <>
-                          <Button size="sm" variant="outline" className="w-full">
-                            <Eye className="w-4 h-4 mr-2" />
-                            View
-                          </Button>
-                          <Button size="sm" variant="outline" className="w-full">
-                            <Download className="w-4 h-4 mr-2" />
-                            Download
-                          </Button>
-                        </>
-                      ) : (
-                        <Button size="sm" variant="outline" className="w-full" disabled>
-                          <Upload className="w-4 h-4 mr-2" />
-                          No Document
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                </div>
-
-                {/* Upload Status */}
-                <Card className="p-4">
-                  <h4 className="font-medium mb-3">Document Status</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Profile Picture</span>
-                      <Badge className={lead.profileImage && lead.profileImage !== '/api/placeholder/150/150' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                        {lead.profileImage && lead.profileImage !== '/api/placeholder/150/150' ? 'Uploaded' : 'Missing'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Business License</span>
-                      <Badge className={lead.businessLicense ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                        {lead.businessLicense ? 'Uploaded' : 'Missing'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Tax Certificate</span>
-                      <Badge className={lead.taxCertificate ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                        {lead.taxCertificate ? 'Uploaded' : 'Missing'}
-                      </Badge>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">Uploaded Documents</h3>
+                  <div className="text-sm text-gray-500">
+                    {lead.images ? lead.images.length : 0} documents uploaded
                   </div>
-                </Card>
+                </div>
+                
+                {lead.images && lead.images.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {lead.images.map((image: DistributorLeadImage) => (
+                      <Card key={image.id} className="p-6">
+                        <div className="text-center">
+                          <div className="w-20 h-20 bg-gray-100 rounded-lg mx-auto mb-4 flex items-center justify-center overflow-hidden">
+                            {image.imageType === 'PROFILE_PICTURE' || image.imageType === 'BUSINESS_PREMISES' ? (
+                              <img
+                                src={image.filePath}
+                                alt={image.originalName}
+                                className="w-full h-full rounded-lg object-cover"
+                              />
+                            ) : (
+                              <FileText className="w-8 h-8 text-blue-600" />
+                            )}
+                          </div>
+                          <h4 className="font-medium mb-2 text-sm">
+                            {image.imageType.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                          </h4>
+                          <p className="text-xs text-gray-500 mb-2">{image.originalName}</p>
+                          <p className="text-xs text-gray-400 mb-3">
+                            {(image.fileSize / 1024).toFixed(1)} KB • {new Date(image.uploadedAt).toLocaleDateString()}
+                          </p>
+                          <div className="space-y-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => {
+                        // Open image in a modal or new tab
+                        const newWindow = window.open('', '_blank');
+                        if (newWindow) {
+                          newWindow.document.write(`
+                            <html>
+                              <head><title>${image.originalName}</title></head>
+                              <body style="margin:0; padding:20px; background:#f5f5f5; display:flex; justify-content:center; align-items:center; min-height:100vh;">
+                                <img src="${image.filePath}" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15);" alt="${image.originalName}" />
+                              </body>
+                            </html>
+                          `);
+                        }
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View
+                    </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="w-full"
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = image.filePath;
+                                link.download = image.originalName;
+                                link.click();
+                              }}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Documents Uploaded</h3>
+                    <p className="text-gray-500">This distributor lead hasn't uploaded any documents yet.</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -647,9 +824,22 @@ export default function DistributorLeadDetailsPage() {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium">Application Submitted</p>
-                        <p className="text-xs text-gray-500">{new Date(applicationDate).toLocaleDateString()} at {new Date(applicationDate).toLocaleTimeString()}</p>
+                        <p className="text-xs text-gray-500">Submitted by {contactPerson} on {new Date(applicationDate).toLocaleDateString()} at {new Date(applicationDate).toLocaleTimeString()}</p>
                       </div>
                     </div>
+
+                    {/* Documents Uploaded */}
+                    {lead.images && lead.images.length > 0 && (
+                      <div className="flex items-center space-x-4">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <FileText className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Documents Uploaded</p>
+                          <p className="text-xs text-gray-500">{lead.images.length} document(s) uploaded for review</p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Status Changes */}
                     {status === 'UNDER_REVIEW' && (
@@ -712,38 +902,37 @@ export default function DistributorLeadDetailsPage() {
 
                     {/* Recent Activities */}
                     <div className="border-t pt-4 mt-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">Recent Activities</h4>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-gray-700">Recent Activities</h4>
+                        {generateActivities().length > 4 && (
+                          <button
+                            onClick={() => setShowAllActivities(!showAllActivities)}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            {showAllActivities ? 'Show Less' : 'View All'}
+                          </button>
+                        )}
+                      </div>
                       
                       <div className="space-y-3">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                            <Mail className="w-3 h-3 text-gray-600" />
+                        {getDisplayActivities().map((activity) => (
+                          <div key={activity.id} className="flex items-center space-x-3">
+                            <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                              {activity.icon}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm">{activity.title}</p>
+                              <p className="text-xs text-gray-500">{activity.description}</p>
+                              <p className="text-xs text-gray-400">{getTimeAgo(activity.timestamp)}</p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm">Email sent to {lead.email}</p>
-                            <p className="text-xs text-gray-500">2 hours ago</p>
-                          </div>
-                        </div>
+                        ))}
                         
-                        <div className="flex items-center space-x-3">
-                          <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                            <Phone className="w-3 h-3 text-gray-600" />
+                        {getDisplayActivities().length === 0 && (
+                          <div className="text-center py-4">
+                            <p className="text-sm text-gray-500">No recent activities</p>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm">Phone call made to {lead.phone}</p>
-                            <p className="text-xs text-gray-500">1 day ago</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-3">
-                          <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                            <FileText className="w-3 h-3 text-gray-600" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm">Documents uploaded</p>
-                            <p className="text-xs text-gray-500">3 days ago</p>
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -753,6 +942,30 @@ export default function DistributorLeadDetailsPage() {
           </div>
         </Card>
       </div>
+
+      {/* SMS Modal */}
+      {lead && (
+        <AddLeadSMSModal
+          isOpen={showSMSModal}
+          onClose={() => setShowSMSModal(false)}
+          onSave={handleSMSSend}
+          leadId={lead.id}
+          leadName={`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.businessName || 'Distributor Lead'}
+          leadPhone={lead.phone}
+        />
+      )}
+
+      {/* Email Modal */}
+      {lead && (
+        <AddLeadEmailModal
+          isOpen={showEmailModal}
+          onClose={() => setShowEmailModal(false)}
+          onSave={handleEmailSend}
+          leadId={lead.id}
+          leadName={`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.businessName || 'Distributor Lead'}
+          leadEmail={lead.email}
+        />
+      )}
     </MainLayout>
   );
 }

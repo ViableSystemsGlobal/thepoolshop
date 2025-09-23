@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import {
   Map
 } from 'lucide-react';
 import { googleMapsService } from '@/lib/google-maps-service';
+import { MultiSelect } from '@/components/ui/multi-select';
 
 interface AddDistributorLeadModalProps {
   isOpen: boolean;
@@ -54,12 +55,20 @@ interface DistributorLeadData {
   experience: string;
   investmentCapacity: string;
   targetMarket: string;
+  territory: string;
+      salesVolume: string;
+  interestedProducts: string[];
   notes: string;
   
   // Documents
   profilePicture: File | null;
   businessLicense: File | null;
   taxCertificate: File | null;
+  businessPremises: File | null;
+  idDocument: File | null;
+  bankStatement: File | null;
+  referenceLetter: File | null;
+  otherDocument: File | null;
 }
 
 export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistributorLeadModalProps) {
@@ -70,10 +79,40 @@ export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistr
   const [isLoading, setIsLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [products, setProducts] = useState<Array<{id: string, name: string}>>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const businessLicenseRef = useRef<HTMLInputElement>(null);
   const taxCertificateRef = useRef<HTMLInputElement>(null);
+
+  // Load products when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadProducts();
+    }
+  }, [isOpen]);
+
+  const loadProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const response = await fetch('/api/products?limit=1000', {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(data.products?.map((product: any) => ({
+          id: product.id,
+          name: product.name
+        })) || []);
+      }
+    } catch (error) {
+      console.error('Error loading products:', error);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
   
   const [formData, setFormData] = useState<DistributorLeadData>({
     firstName: '',
@@ -94,10 +133,18 @@ export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistr
     experience: '',
     investmentCapacity: '',
     targetMarket: '',
+    territory: '',
+      salesVolume: '',
+    interestedProducts: [],
     notes: '',
     profilePicture: null,
     businessLicense: null,
     taxCertificate: null,
+    businessPremises: null,
+    idDocument: null,
+    bankStatement: null,
+    referenceLetter: null,
+    otherDocument: null,
   });
 
   const handleInputChange = (field: keyof DistributorLeadData, value: string | File | null) => {
@@ -107,7 +154,7 @@ export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistr
     }));
   };
 
-  const handleFileUpload = (field: 'profilePicture' | 'businessLicense' | 'taxCertificate', file: File | null) => {
+  const handleFileUpload = (field: 'profilePicture' | 'businessLicense' | 'taxCertificate' | 'businessPremises' | 'idDocument' | 'bankStatement' | 'referenceLetter' | 'otherDocument', file: File | null) => {
     setFormData(prev => ({
       ...prev,
       [field]: file
@@ -193,11 +240,15 @@ export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistr
         formData: Object.fromEntries(formDataToSend.entries())
       });
 
+      console.log('Submitting form data:', formDataToSend);
       const response = await fetch('/api/drm/distributor-leads', {
         method: 'POST',
         body: formDataToSend,
         credentials: 'include',
       });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
 
       if (response.ok) {
         const result = await response.json();
@@ -225,16 +276,31 @@ export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistr
           experience: '',
           investmentCapacity: '',
           targetMarket: '',
+          territory: '',
+          salesVolume: '',
+          interestedProducts: [],
           notes: '',
           profilePicture: null,
           businessLicense: null,
           taxCertificate: null,
+          businessPremises: null,
+          idDocument: null,
+          bankStatement: null,
+          referenceLetter: null,
+          otherDocument: null,
         });
         setCurrentStep(1);
       } else {
-        const errorData = await response.json();
-        console.error('Error response:', errorData);
-        showError(errorData.error || 'Failed to submit application');
+        let errorMessage = 'Failed to submit application';
+        try {
+          const errorData = await response.json();
+          console.error('Error response:', errorData);
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('Could not parse error response:', parseError);
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        showError(errorMessage);
       }
     } catch (error) {
       console.error('Error submitting application:', error);
@@ -445,45 +511,164 @@ export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistr
                   />
                 </div>
 
-                {/* Document Uploads */}
-                <div className="space-y-4">
-                  <h4 className="font-medium">Business Documents</h4>
-                  
+                {/* Document Uploads for Review & Approval */}
+                <div className="space-y-6">
                   <div>
-                    <input
-                      ref={businessLicenseRef}
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) => handleFileUpload('businessLicense', e.target.files?.[0] || null)}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => businessLicenseRef.current?.click()}
-                      className="w-full"
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      {formData.businessLicense ? formData.businessLicense.name : 'Upload Business License'}
-                    </Button>
+                    <h4 className="font-medium mb-2">Required Documents for Review</h4>
+                    <p className="text-sm text-gray-600 mb-4">Upload clear images of all required documents for faster approval</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Business License */}
+                    <div>
+                      <input
+                        ref={businessLicenseRef}
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => handleFileUpload('businessLicense', e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => businessLicenseRef.current?.click()}
+                        className="w-full h-20 flex flex-col items-center justify-center"
+                      >
+                        <FileText className="h-5 w-5 mb-1" />
+                        <span className="text-xs">
+                          {formData.businessLicense ? formData.businessLicense.name : 'Business License'}
+                        </span>
+                      </Button>
+                    </div>
+
+                    {/* Tax Certificate */}
+                    <div>
+                      <input
+                        ref={taxCertificateRef}
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => handleFileUpload('taxCertificate', e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => taxCertificateRef.current?.click()}
+                        className="w-full h-20 flex flex-col items-center justify-center"
+                      >
+                        <FileText className="h-5 w-5 mb-1" />
+                        <span className="text-xs">
+                          {formData.taxCertificate ? formData.taxCertificate.name : 'Tax Certificate'}
+                        </span>
+                      </Button>
+                    </div>
+
+                    {/* Business Premises */}
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload('businessPremises', e.target.files?.[0] || null)}
+                        className="hidden"
+                        id="businessPremises"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById('businessPremises')?.click()}
+                        className="w-full h-20 flex flex-col items-center justify-center"
+                      >
+                        <Camera className="h-5 w-5 mb-1" />
+                        <span className="text-xs">
+                          {formData.businessPremises ? formData.businessPremises.name : 'Business Premises'}
+                        </span>
+                      </Button>
+                    </div>
+
+                    {/* ID Document */}
+                    <div>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => handleFileUpload('idDocument', e.target.files?.[0] || null)}
+                        className="hidden"
+                        id="idDocument"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById('idDocument')?.click()}
+                        className="w-full h-20 flex flex-col items-center justify-center"
+                      >
+                        <FileText className="h-5 w-5 mb-1" />
+                        <span className="text-xs">
+                          {formData.idDocument ? formData.idDocument.name : 'ID Document'}
+                        </span>
+                      </Button>
+                    </div>
+
+                    {/* Bank Statement */}
+                    <div>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => handleFileUpload('bankStatement', e.target.files?.[0] || null)}
+                        className="hidden"
+                        id="bankStatement"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById('bankStatement')?.click()}
+                        className="w-full h-20 flex flex-col items-center justify-center"
+                      >
+                        <FileText className="h-5 w-5 mb-1" />
+                        <span className="text-xs">
+                          {formData.bankStatement ? formData.bankStatement.name : 'Bank Statement'}
+                        </span>
+                      </Button>
+                    </div>
+
+                    {/* Reference Letter */}
+                    <div>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => handleFileUpload('referenceLetter', e.target.files?.[0] || null)}
+                        className="hidden"
+                        id="referenceLetter"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById('referenceLetter')?.click()}
+                        className="w-full h-20 flex flex-col items-center justify-center"
+                      >
+                        <FileText className="h-5 w-5 mb-1" />
+                        <span className="text-xs">
+                          {formData.referenceLetter ? formData.referenceLetter.name : 'Reference Letter'}
+                        </span>
+                      </Button>
+                    </div>
                   </div>
 
+                  {/* Other Documents */}
                   <div>
                     <input
-                      ref={taxCertificateRef}
                       type="file"
                       accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) => handleFileUpload('taxCertificate', e.target.files?.[0] || null)}
+                      onChange={(e) => handleFileUpload('otherDocument', e.target.files?.[0] || null)}
                       className="hidden"
+                      id="otherDocument"
                     />
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => taxCertificateRef.current?.click()}
+                      onClick={() => document.getElementById('otherDocument')?.click()}
                       className="w-full"
                     >
                       <FileText className="h-4 w-4 mr-2" />
-                      {formData.taxCertificate ? formData.taxCertificate.name : 'Upload Tax Certificate'}
+                      {formData.otherDocument ? formData.otherDocument.name : 'Upload Other Documents (Optional)'}
                     </Button>
                   </div>
                 </div>
@@ -612,6 +797,45 @@ export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistr
                     onChange={(e) => handleInputChange('targetMarket', e.target.value)}
                     rows={3}
                     placeholder="Describe your target market and customer base..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="territory">Territory</Label>
+                    <Input
+                      id="territory"
+                      value={formData.territory}
+                      onChange={(e) => handleInputChange('territory', e.target.value)}
+                      placeholder="e.g., Greater Accra, Ashanti Region"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="salesVolume">Sales Volume (Monthly)</Label>
+                    <Input
+                      id="salesVolume"
+                      type="number"
+                      value={formData.salesVolume}
+                      onChange={(e) => handleInputChange('salesVolume', e.target.value)}
+                      placeholder="Expected sales in GHS per month"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="interestedProducts">Interested Products</Label>
+                  <MultiSelect
+                    options={products}
+                    selected={products.filter(p => formData.interestedProducts.includes(p.id))}
+                    onChange={(selected) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        interestedProducts: selected.map(p => p.id)
+                      }));
+                    }}
+                    placeholder={productsLoading ? "Loading products..." : "Search and select products..."}
+                    label="Select products you're interested in distributing"
+                    disabled={productsLoading}
                   />
                 </div>
 

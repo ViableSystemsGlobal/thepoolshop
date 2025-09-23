@@ -22,6 +22,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { googleMapsService } from '@/lib/google-maps-service';
+import { MultiSelect } from '@/components/ui/multi-select';
 
 interface EditDistributorLeadModalProps {
   isOpen: boolean;
@@ -37,13 +38,74 @@ export function EditDistributorLeadModal({ isOpen, onClose, onSuccess, lead }: E
   
   const [isLoading, setIsLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [products, setProducts] = useState<Array<{id: string, name: string}>>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [existingImages, setExistingImages] = useState<{
+    profilePicture?: string;
+    businessLicense?: string;
+    taxCertificate?: string;
+  }>({});
   
   // File upload refs
   const profileImageRef = useRef<HTMLInputElement>(null);
   const businessLicenseRef = useRef<HTMLInputElement>(null);
   const taxCertificateRef = useRef<HTMLInputElement>(null);
+
+  // Load products when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadProducts();
+    }
+  }, [isOpen]);
+
+  const loadProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const response = await fetch('/api/products?limit=1000', {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(data.products?.map((product: any) => ({
+          id: product.id,
+          name: product.name
+        })) || []);
+      }
+    } catch (error) {
+      console.error('Error loading products:', error);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    dateOfBirth: string;
+    businessName: string;
+    businessType: string;
+    businessRegistrationNumber: string;
+    yearsInBusiness: string;
+    address: string;
+    city: string;
+    region: string;
+    country: string;
+    latitude: number | null;
+    longitude: number | null;
+    experience: string;
+    investmentCapacity: string;
+    targetMarket: string;
+    territory: string;
+      salesVolume: string;
+    interestedProducts: string[];
+    notes: string;
+    profilePicture: File | null;
+    businessLicense: File | null;
+    taxCertificate: File | null;
+  }>({
     firstName: '',
     lastName: '',
     email: '',
@@ -62,6 +124,9 @@ export function EditDistributorLeadModal({ isOpen, onClose, onSuccess, lead }: E
     experience: '',
     investmentCapacity: '',
     targetMarket: '',
+    territory: '',
+      salesVolume: '',
+    interestedProducts: [],
     notes: '',
     profilePicture: null as File | null,
     businessLicense: null as File | null,
@@ -90,7 +155,24 @@ export function EditDistributorLeadModal({ isOpen, onClose, onSuccess, lead }: E
         experience: lead.experience || '',
         investmentCapacity: lead.investmentCapacity || '',
         targetMarket: lead.targetMarket || '',
+        territory: lead.territory || '',
+        salesVolume: lead.expectedVolume || '',
+        interestedProducts: lead.interestedProducts?.map((p: any) => p.productId) || [],
         notes: lead.notes || '',
+        profilePicture: null,
+        businessLicense: null,
+        taxCertificate: null
+      });
+
+      // Set existing images from new images array
+      const profileImage = lead.images?.find((img: any) => img.imageType === 'PROFILE_PICTURE');
+      const businessLicenseImage = lead.images?.find((img: any) => img.imageType === 'BUSINESS_LICENSE');
+      const taxCertificateImage = lead.images?.find((img: any) => img.imageType === 'TAX_CERTIFICATE');
+      
+      setExistingImages({
+        profilePicture: profileImage?.filePath || lead.profileImage || undefined,
+        businessLicense: businessLicenseImage?.filePath || lead.businessLicense || undefined,
+        taxCertificate: taxCertificateImage?.filePath || lead.taxCertificate || undefined
       });
     }
   }, [lead]);
@@ -164,25 +246,53 @@ export function EditDistributorLeadModal({ isOpen, onClose, onSuccess, lead }: E
     setIsLoading(true);
 
     try {
-      // Create FormData for file uploads
-      const formDataToSend = new FormData();
+      // Check if we have file uploads
+      const hasFileUploads = formData.profilePicture || formData.businessLicense || formData.taxCertificate;
       
-      // Append all form fields
-      Object.entries(formData).forEach(([key, value]) => {
-        if (value !== null && value !== '') {
-          if (value instanceof File) {
-            formDataToSend.append(key, value);
-          } else {
-            formDataToSend.append(key, String(value));
+      let response;
+      
+      if (hasFileUploads) {
+        // Use FormData for file uploads
+        const formDataToSend = new FormData();
+        
+        // Append all form fields
+        Object.entries(formData).forEach(([key, value]) => {
+          if (value !== null && value !== '') {
+            if (value instanceof File) {
+              formDataToSend.append(key, value);
+            } else if (key === 'interestedProducts' && Array.isArray(value)) {
+              // Handle array fields specially
+              formDataToSend.append(key, JSON.stringify(value));
+            } else {
+              formDataToSend.append(key, String(value));
+            }
           }
-        }
-      });
+        });
 
-      const response = await fetch(`/api/drm/distributor-leads/${lead.id}`, {
-        method: 'PUT',
-        body: formDataToSend, // Use FormData instead of JSON
-        credentials: 'include',
-      });
+        response = await fetch(`/api/drm/distributor-leads/${lead.id}`, {
+          method: 'PUT',
+          body: formDataToSend,
+          credentials: 'include',
+        });
+      } else {
+        // Use JSON for non-file updates (including products)
+        const jsonData = {
+          ...formData,
+          // Convert File objects to null for JSON
+          profilePicture: null,
+          businessLicense: null,
+          taxCertificate: null
+        };
+
+        response = await fetch(`/api/drm/distributor-leads/${lead.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(jsonData),
+          credentials: 'include',
+        });
+      }
 
       if (response.ok) {
         const result = await response.json();
@@ -468,6 +578,44 @@ export function EditDistributorLeadModal({ isOpen, onClose, onSuccess, lead }: E
               </div>
 
               <div className="mt-4">
+                <Label htmlFor="territory">Territory</Label>
+                <Input
+                  id="territory"
+                  value={formData.territory}
+                  onChange={(e) => handleInputChange('territory', e.target.value)}
+                  placeholder="e.g., Greater Accra Region"
+                />
+              </div>
+
+              <div className="mt-4">
+                <Label htmlFor="salesVolume">Sales Volume (Monthly)</Label>
+                <Input
+                  id="salesVolume"
+                  type="number"
+                  value={formData.salesVolume}
+                  onChange={(e) => handleInputChange('salesVolume', e.target.value)}
+                  placeholder="e.g., 4000 (in GHS)"
+                />
+              </div>
+
+              <div className="mt-4">
+                <Label htmlFor="interestedProducts">Interested Products</Label>
+                <MultiSelect
+                  options={products}
+                  selected={products.filter(p => formData.interestedProducts.includes(p.id))}
+                  onChange={(selected) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      interestedProducts: selected.map(p => p.id)
+                    }));
+                  }}
+                  placeholder={productsLoading ? "Loading products..." : "Search and select products..."}
+                  label="Select products you're interested in distributing"
+                  disabled={productsLoading}
+                />
+              </div>
+
+              <div className="mt-4">
                 <Label htmlFor="notes">Additional Notes</Label>
                 <Textarea
                   id="notes"
@@ -506,6 +654,26 @@ export function EditDistributorLeadModal({ isOpen, onClose, onSuccess, lead }: E
                           onClick={() => handleFileUpload('profilePicture', null)}
                         >
                           <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : existingImages.profilePicture ? (
+                      <div className="flex items-center space-x-2">
+                        <img
+                          src={existingImages.profilePicture}
+                          alt="Current profile"
+                          className="w-16 h-16 rounded-lg object-cover"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">Current Profile Picture</p>
+                          <p className="text-xs text-gray-500">Click upload to replace</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => profileImageRef.current?.click()}
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Replace
                         </Button>
                       </div>
                     ) : (

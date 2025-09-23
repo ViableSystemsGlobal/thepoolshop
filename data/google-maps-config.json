@@ -1,0 +1,11 @@
+{
+  "apiKey": "AIzaSyCNUyN2Vzqh8Slff8P1m1qNbA3KTerfW-0",
+  "enabled": true,
+  "geocodingEnabled": true,
+  "placesEnabled": true,
+  "directionsEnabled": true,
+  "mapsEnabled": true,
+  "usageQuota": 1000,
+  "currentUsage": 0,
+  "lastUpdated": "2025-09-23T03:37:55.039Z"
+}
