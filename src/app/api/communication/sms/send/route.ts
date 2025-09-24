@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { recipients, message, isBulk } = await request.json();
+    const { recipients, message, isBulk, distributorId } = await request.json();
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return NextResponse.json({ error: 'Recipients array is required' }, { status: 400 });
@@ -156,20 +156,35 @@ export async function POST(request: NextRequest) {
         
         if (smsResult.success) {
           // Save successful SMS to database
-          await prisma.smsMessage.create({
-            data: {
-              recipient: phoneNumber,
-              message: message,
-              status: 'SENT',
-              sentAt: new Date(),
-              cost: smsResult.cost || 0.05,
-              provider: 'deywuro',
-              providerId: smsResult.messageId,
-              userId: session.user.id,
-              campaignId: campaignId,
-              isBulk: isBulk
-            }
-          });
+          if (distributorId) {
+            // Save to distributor SMS table
+            await prisma.distributorSMS.create({
+              data: {
+                distributorId: distributorId,
+                to: phoneNumber,
+                message: message,
+                status: 'SENT',
+                sentBy: session.user.id,
+                sentAt: new Date()
+              }
+            });
+          } else {
+            // Save to general SMS table
+            await prisma.smsMessage.create({
+              data: {
+                recipient: phoneNumber,
+                message: message,
+                status: 'SENT',
+                sentAt: new Date(),
+                cost: smsResult.cost || 0.05,
+                provider: 'deywuro',
+                providerId: smsResult.messageId,
+                userId: session.user.id,
+                campaignId: campaignId,
+                isBulk: isBulk
+              }
+            });
+          }
 
           results.push({
             phoneNumber,
@@ -181,18 +196,34 @@ export async function POST(request: NextRequest) {
           totalCost += smsResult.cost || 0.05;
         } else {
           // Save failed SMS to database
-          await prisma.smsMessage.create({
-            data: {
-              recipient: phoneNumber,
-              message: message,
-              status: 'FAILED',
-              failedAt: new Date(),
-              errorMessage: smsResult.error,
-              userId: session.user.id,
-              campaignId: campaignId,
-              isBulk: isBulk
-            }
-          });
+          if (distributorId) {
+            // Save to distributor SMS table
+            await prisma.distributorSMS.create({
+              data: {
+                distributorId: distributorId,
+                to: phoneNumber,
+                message: message,
+                status: 'FAILED',
+                sentBy: session.user.id,
+                sentAt: new Date(),
+                errorMessage: smsResult.error
+              }
+            });
+          } else {
+            // Save to general SMS table
+            await prisma.smsMessage.create({
+              data: {
+                recipient: phoneNumber,
+                message: message,
+                status: 'FAILED',
+                failedAt: new Date(),
+                errorMessage: smsResult.error,
+                userId: session.user.id,
+                campaignId: campaignId,
+                isBulk: isBulk
+              }
+            });
+          }
 
           results.push({
             phoneNumber,
@@ -205,18 +236,34 @@ export async function POST(request: NextRequest) {
         console.error(`Error sending SMS to ${phoneNumber}:`, error);
         
         // Save failed SMS to database
-        await prisma.smsMessage.create({
-          data: {
-            recipient: phoneNumber,
-            message: message,
-            status: 'FAILED',
-            failedAt: new Date(),
-            errorMessage: error instanceof Error ? error.message : 'Unknown error',
-            userId: session.user.id,
-            campaignId: campaignId,
-            isBulk: isBulk
-          }
-        });
+        if (distributorId) {
+          // Save to distributor SMS table
+          await prisma.distributorSMS.create({
+            data: {
+              distributorId: distributorId,
+              to: phoneNumber,
+              message: message,
+              status: 'FAILED',
+              sentBy: session.user.id,
+              sentAt: new Date(),
+              errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            }
+          });
+        } else {
+          // Save to general SMS table
+          await prisma.smsMessage.create({
+            data: {
+              recipient: phoneNumber,
+              message: message,
+              status: 'FAILED',
+              failedAt: new Date(),
+              errorMessage: error instanceof Error ? error.message : 'Unknown error',
+              userId: session.user.id,
+              campaignId: campaignId,
+              isBulk: isBulk
+            }
+          });
+        }
 
         results.push({
           phoneNumber,

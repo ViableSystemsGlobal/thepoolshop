@@ -290,4 +290,5 @@ class GoogleMapsService {
 
 // Export singleton instance
 export const googleMapsService = new GoogleMapsService();
+export { GoogleMapsService };
 export default googleMapsService;

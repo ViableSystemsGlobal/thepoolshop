@@ -17,7 +17,7 @@ export async function GET(
     const { id: distributorId } = await params;
 
     // Fetch distributor with all related data
-    const distributor = await (prisma as any).distributor.findUnique({
+    const distributor = await prisma.distributor.findUnique({
       where: {
         id: distributorId
       },
@@ -69,14 +69,60 @@ export async function PUT(
     const { id: distributorId } = await params;
     const body = await request.json();
 
+    const {
+      firstName,
+      lastName,
+      dateOfBirth,
+      businessName,
+      businessType,
+      businessRegistrationNumber,
+      yearsInBusiness,
+      email,
+      phone,
+      address,
+      city,
+      region,
+      country,
+      postalCode,
+      latitude,
+      longitude,
+      territory,
+      expectedVolume,
+      experience,
+      investmentCapacity,
+      targetMarket,
+      notes,
+      interestedProducts
+    } = body;
+
     // Update distributor
-    const updatedDistributor = await (prisma as any).distributor.update({
+    const updatedDistributor = await prisma.distributor.update({
       where: {
         id: distributorId
       },
       data: {
-        ...body,
-        updatedAt: new Date()
+        firstName,
+        lastName,
+        dateOfBirth: dateOfBirth || null,
+        businessName,
+        businessType,
+        businessRegistrationNumber: businessRegistrationNumber || null,
+        yearsInBusiness: yearsInBusiness || null,
+        email,
+        phone,
+        address: address || null,
+        city,
+        region,
+        country: country || 'Ghana',
+        postalCode: postalCode || null,
+        latitude: latitude || null,
+        longitude: longitude || null,
+        territory: territory || null,
+        expectedVolume: expectedVolume || null,
+        experience: experience || null,
+        investmentCapacity: investmentCapacity || null,
+        targetMarket: targetMarket || null,
+        notes: notes || null
       },
       include: {
         images: true,
@@ -93,6 +139,31 @@ export async function PUT(
         }
       }
     });
+
+    // Update interested products if provided
+    if (interestedProducts !== undefined) {
+      // Delete existing products
+      await prisma.distributorProduct.deleteMany({
+        where: { distributorId }
+      });
+
+      // Add new products
+      if (interestedProducts && interestedProducts.length > 0) {
+        await Promise.all(
+          interestedProducts.map((productId: string) =>
+            prisma.distributorProduct.create({
+              data: {
+                distributorId,
+                productId,
+                interestLevel: 'MEDIUM',
+                quantity: 1,
+                addedBy: session.user.id
+              }
+            })
+          )
+        );
+      }
+    }
 
     return NextResponse.json({
       success: true,

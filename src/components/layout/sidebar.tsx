@@ -68,7 +68,6 @@ const navigation = [
     children: [
       { name: "Distributor Leads", href: "/drm/distributor-leads", icon: Users, module: "distributor-leads" },
       { name: "Distributors", href: "/drm/distributors", icon: Building, module: "distributors" },
-      { name: "Agreements", href: "/drm/agreements", icon: FileText, module: "agreements" },
       { name: "Routes & Mapping", href: "/drm/routes-mapping", icon: MapPin, module: "routes-mapping" },
       { name: "Engagement", href: "/drm/engagement", icon: MessageSquare, module: "engagement" },
     ]
@@ -163,6 +162,7 @@ const navigation = [
       { name: "Currency Settings", href: "/settings/currency", icon: DollarSign, module: "currency-settings" },
       { name: "Business Settings", href: "/settings/business", icon: Building, module: "business-settings" },
       { name: "Google Maps", href: "/settings/google-maps", icon: MapPin, module: "google-maps" },
+      { name: "Credit Monitoring", href: "/settings/credit-monitoring", icon: CreditCard, module: "credit-monitoring" },
       { name: "System Settings", href: "/settings/system", icon: Settings, module: "system-settings" },
     ]
   },

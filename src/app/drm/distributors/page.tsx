@@ -30,9 +30,16 @@ import {
   Users,
   Package,
   DollarSign,
-  Activity
+  Activity,
+  Download,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import AddDistributorModal from '@/components/modals/add-distributor-modal';
+import EditDistributorModal from '@/components/modals/edit-distributor-modal';
+import { ExportDistributorsModal } from '@/components/modals/export-distributors-modal';
+import { BulkActionsDistributorsModal } from '@/components/modals/bulk-actions-distributors-modal';
 
 interface Distributor {
   id: string;
@@ -79,6 +86,15 @@ export default function DistributorsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 9;
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedDistributor, setSelectedDistributor] = useState<Distributor | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showBulkActionsModal, setShowBulkActionsModal] = useState(false);
+  const [selectedDistributors, setSelectedDistributors] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   // Load distributors from API
   const loadDistributors = async () => {
@@ -174,6 +190,42 @@ export default function DistributorsPage() {
     return matchesSearch && matchesStatus;
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredDistributors.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedDistributors = filteredDistributors.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  // Handle distributor selection
+  const handleDistributorSelect = (distributorId: string) => {
+    setSelectedDistributors(prev => 
+      prev.includes(distributorId) 
+        ? prev.filter(id => id !== distributorId)
+        : [...prev, distributorId]
+    );
+  };
+
+  // Handle select all
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedDistributors([]);
+    } else {
+      setSelectedDistributors(paginatedDistributors.map(d => d.id));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // Reset selection when page changes
+  useEffect(() => {
+    setSelectedDistributors([]);
+    setSelectAll(false);
+  }, [currentPage, searchTerm, statusFilter]);
+
   const totalVolume = distributors.reduce((sum, d) => sum + (d.expectedVolume || 0), 0);
   const activeDistributors = distributors.filter(d => d.status === 'ACTIVE').length;
   const totalDistributors = distributors.length;
@@ -225,17 +277,39 @@ export default function DistributorsPage() {
               <p className="text-gray-600">Manage your distributor network and performance</p>
             </div>
           </div>
-          <Button
-            onClick={() => {/* TODO: Open add modal */}}
-            className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-            style={{
-              backgroundColor: theme.primary,
-              color: 'white'
-            }}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Distributor
-          </Button>
+          <div className="flex items-center gap-3">
+            {selectedDistributors.length > 0 && (
+              <>
+                <Button
+                  onClick={() => setShowBulkActionsModal(true)}
+                  variant="outline"
+                  className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                >
+                  <CheckSquare className="w-4 h-4 mr-2" />
+                  Bulk Actions ({selectedDistributors.length})
+                </Button>
+                <Button
+                  onClick={() => setShowExportModal(true)}
+                  variant="outline"
+                  className="border-green-500 text-green-600 hover:bg-green-50"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Selected
+                </Button>
+              </>
+            )}
+            <Button
+              onClick={() => setShowAddModal(true)}
+              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+              style={{
+                backgroundColor: theme.primary,
+                color: 'white'
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Distributor
+            </Button>
+          </div>
         </div>
 
         {/* AI Recommendation and Stats Layout */}
@@ -352,16 +426,44 @@ export default function DistributorsPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredDistributors.map((distributor) => {
+          <>
+            {/* Select All Checkbox */}
+            {paginatedDistributors.length > 0 && (
+              <div className="flex items-center gap-2 mb-4">
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800"
+                >
+                  {selectAll ? (
+                    <CheckSquare className="w-4 h-4 text-blue-600" />
+                  ) : (
+                    <Square className="w-4 h-4 text-gray-400" />
+                  )}
+                  Select All ({paginatedDistributors.length})
+                </button>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {paginatedDistributors.map((distributor) => {
             const contactPerson = `${distributor.firstName} ${distributor.lastName}`;
             const location = `${distributor.city}, ${distributor.region}`;
             const approvedDate = new Date(distributor.approvedAt).toLocaleDateString();
 
             return (
-              <Card key={distributor.id} className="p-6">
+              <Card key={distributor.id} className={`p-6 ${selectedDistributors.includes(distributor.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}>
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleDistributorSelect(distributor.id)}
+                      className="flex-shrink-0"
+                    >
+                      {selectedDistributors.includes(distributor.id) ? (
+                        <CheckSquare className="w-4 h-4 text-blue-600" />
+                      ) : (
+                        <Square className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
                     <div className="p-2 rounded-lg bg-blue-100">
                       <Building2 className="w-5 h-5 text-blue-600" />
                     </div>
@@ -385,7 +487,10 @@ export default function DistributorsPage() {
                       {
                         label: 'Edit',
                         icon: <Edit className="w-4 h-4" />,
-                        onClick: () => {/* TODO: Edit */}
+                        onClick: () => {
+                          setSelectedDistributor(distributor);
+                          setShowEditModal(true);
+                        }
                       },
                       {
                         label: 'View Performance',
@@ -463,8 +568,103 @@ export default function DistributorsPage() {
               </Card>
             );
           })}
-          </div>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6">
+                <div className="text-sm text-gray-700">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredDistributors.length)} of {filteredDistributors.length} distributors
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(page)}
+                        className={currentPage === page ? `bg-${theme.primary} text-white` : ''}
+                        style={currentPage === page ? {
+                          backgroundColor: theme.primary,
+                          color: 'white'
+                        } : {}}
+                      >
+                        {page}
+                      </Button>
+                    ))}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
+
+        {/* Add Distributor Modal */}
+        <AddDistributorModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSuccess={() => {
+            loadDistributors();
+            setShowAddModal(false);
+          }}
+        />
+
+        {/* Edit Distributor Modal */}
+        <EditDistributorModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedDistributor(null);
+          }}
+          onSuccess={() => {
+            loadDistributors();
+            setShowEditModal(false);
+            setSelectedDistributor(null);
+          }}
+          distributor={selectedDistributor}
+        />
+
+        {/* Export Distributors Modal */}
+        <ExportDistributorsModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          distributors={selectedDistributors.length > 0 
+            ? distributors.filter(d => selectedDistributors.includes(d.id))
+            : distributors
+          }
+        />
+
+        {/* Bulk Actions Modal */}
+        <BulkActionsDistributorsModal
+          isOpen={showBulkActionsModal}
+          onClose={() => setShowBulkActionsModal(false)}
+          selectedDistributors={distributors.filter(d => selectedDistributors.includes(d.id))}
+          onSuccess={() => {
+            loadDistributors();
+            setSelectedDistributors([]);
+            setSelectAll(false);
+            setShowBulkActionsModal(false);
+          }}
+        />
       </div>
     </MainLayout>
   );

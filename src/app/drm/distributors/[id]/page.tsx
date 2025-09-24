@@ -34,9 +34,17 @@ import {
   Download,
   Eye,
   Edit,
-  MoreHorizontal
+  MoreHorizontal,
+  Upload,
+  Image,
+  FileIcon
 } from 'lucide-react';
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import CreditApprovalModal from '@/components/modals/credit-approval-modal';
+import CreditHistoryModal from '@/components/modals/credit-history-modal';
+import SendDistributorSMSModal from '@/components/modals/send-distributor-sms-modal';
+import SendDistributorEmailModal from '@/components/modals/send-distributor-email-modal';
+import UploadDistributorDocumentModal from '@/components/modals/upload-distributor-document-modal';
 
 interface Distributor {
   id: string;
@@ -68,6 +76,13 @@ interface Distributor {
     name: string;
     email: string;
   };
+  // Credit Management Fields
+  creditLimit?: number;
+  currentCreditUsed?: number;
+  creditTerms?: string;
+  creditStatus?: 'ACTIVE' | 'SUSPENDED' | 'OVERDUE' | 'UNDER_REVIEW';
+  lastCreditReview?: string;
+  nextCreditReview?: string;
   images?: Array<{
     id: string;
     imageType: string;
@@ -85,15 +100,16 @@ interface Distributor {
   }>;
 }
 
-interface PerformanceMetrics {
-  totalOrders: number;
-  totalRevenue: number;
-  averageOrderValue: number;
-  targetVolume: number;
-  actualVolume: number;
-  performanceRating: number;
-  lastOrderDate?: string;
-  paymentStatus: 'CURRENT' | 'OVERDUE' | 'EXCELLENT';
+
+interface CreditInfo {
+  creditLimit: number;
+  currentCreditUsed: number;
+  availableCredit: number;
+  creditUtilization: number;
+  creditStatus: 'ACTIVE' | 'SUSPENDED' | 'OVERDUE' | 'UNDER_REVIEW';
+  creditTerms: string;
+  lastCreditReview?: string;
+  nextCreditReview?: string;
 }
 
 interface Order {
@@ -128,11 +144,21 @@ export default function DistributorDetailsPage() {
   const { success, error } = useToast();
 
   const [distributor, setDistributor] = useState<Distributor | null>(null);
-  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null);
+  const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showCreditModal, setShowCreditModal] = useState(false);
+  const [showCreditHistoryModal, setShowCreditHistoryModal] = useState(false);
+  const [showSMSModal, setShowSMSModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [communications, setCommunications] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [communicationsLoading, setCommunicationsLoading] = useState(false);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentFilter, setDocumentFilter] = useState<'ALL' | 'AGREEMENTS' | 'BUSINESS' | 'ID' | 'OTHER'>('ALL');
 
   const distributorId = params.id as string;
 
@@ -151,26 +177,34 @@ export default function DistributorDetailsPage() {
         console.error('Failed to load distributor. Status:', response.status);
         error('Failed to load distributor details');
       }
-    } catch (error) {
-      console.error('Error loading distributor:', error);
+    } catch (err) {
+      console.error('Error loading distributor:', err);
       error('Error loading distributor details');
     } finally {
       setLoading(false);
     }
   };
 
-  // Load performance metrics (mock data for now)
-  const loadPerformanceMetrics = async () => {
+
+  // Load credit information
+  const loadCreditInfo = async () => {
+    if (!distributor) return;
+    
     // TODO: Replace with actual API call
-    setPerformanceMetrics({
-      totalOrders: 24,
-      totalRevenue: 125000,
-      averageOrderValue: 5208,
-      targetVolume: 150000,
-      actualVolume: 125000,
-      performanceRating: 83,
-      lastOrderDate: '2025-09-20',
-      paymentStatus: 'CURRENT'
+    const creditLimit = distributor.creditLimit ? parseFloat(distributor.creditLimit.toString()) : 2000;
+    const currentUsed = distributor.currentCreditUsed ? parseFloat(distributor.currentCreditUsed.toString()) : 500;
+    const available = creditLimit - currentUsed;
+    const utilization = creditLimit > 0 ? (currentUsed / creditLimit) * 100 : 0;
+    
+    setCreditInfo({
+      creditLimit,
+      currentCreditUsed: currentUsed,
+      availableCredit: available,
+      creditUtilization: utilization,
+      creditStatus: distributor.creditStatus || 'ACTIVE',
+      creditTerms: distributor.creditTerms || 'Net 30',
+      lastCreditReview: distributor.lastCreditReview ? new Date(distributor.lastCreditReview).toLocaleDateString() : undefined,
+      nextCreditReview: distributor.nextCreditReview ? new Date(distributor.nextCreditReview).toLocaleDateString() : undefined
     });
   };
 
@@ -228,11 +262,16 @@ export default function DistributorDetailsPage() {
   useEffect(() => {
     if (session?.user?.id && distributorId) {
       loadDistributorData();
-      loadPerformanceMetrics();
       loadOrders();
       loadPayments();
     }
   }, [session?.user?.id, distributorId]);
+
+  useEffect(() => {
+    if (distributor) {
+      loadCreditInfo();
+    }
+  }, [distributor]);
 
   // AI Recommendations for this distributor
   const [aiRecommendations] = useState([
@@ -274,6 +313,66 @@ export default function DistributorDetailsPage() {
       window.open(url, '_blank');
     }
   };
+
+  const handleCreditApprovalComplete = () => {
+    // Reload distributor data to get updated credit information
+    loadDistributorData();
+  };
+
+  // Load communications data
+  const loadCommunications = async () => {
+    if (!distributorId) return;
+    
+    setCommunicationsLoading(true);
+    try {
+      const response = await fetch(`/api/drm/distributors/${distributorId}/communications`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setCommunications(data.data.communications || []);
+      } else {
+        console.error('Failed to load communications');
+      }
+    } catch (error) {
+      console.error('Error loading communications:', error);
+    } finally {
+      setCommunicationsLoading(false);
+    }
+  };
+
+  // Load documents data
+  const loadDocuments = async () => {
+    if (!distributorId) return;
+    
+    setDocumentsLoading(true);
+    try {
+      const response = await fetch(`/api/drm/distributors/${distributorId}/documents`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDocuments(data.data.documents || []);
+      } else {
+        console.error('Failed to load documents');
+      }
+    } catch (error) {
+      console.error('Error loading documents:', error);
+    } finally {
+      setDocumentsLoading(false);
+    }
+  };
+
+  // Load data when tab changes
+  useEffect(() => {
+    if (activeTab === 'communication') {
+      loadCommunications();
+    } else if (activeTab === 'documents') {
+      loadDocuments();
+    }
+  }, [activeTab, distributorId]);
 
   // Show loading state
   if (loading) {
@@ -331,6 +430,32 @@ export default function DistributorDetailsPage() {
             <div>
               <h1 className="text-3xl font-bold">{distributor.businessName}</h1>
               <p className="text-gray-600">Distributor Details & Performance</p>
+              
+              {/* Contact Information */}
+              <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                <div className="flex items-center gap-1">
+                  <Mail className="w-3 h-3" />
+                  <span>{distributor.email}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  <span>{distributor.phone}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />
+                  <span>{location}</span>
+                  {distributor.latitude && distributor.longitude && (
+                    <Button
+                      onClick={handleViewOnMaps}
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-blue-600 hover:text-blue-800 p-0 h-auto ml-1"
+                    >
+                      View on Maps
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -370,95 +495,6 @@ export default function DistributorDetailsPage() {
           </div>
         </div>
 
-        {/* Profile Overview Card */}
-        <Card className="p-4">
-          <div className="flex items-start gap-4">
-            {/* Profile Image */}
-            <div className="flex-shrink-0">
-              {profileImage ? (
-                <img
-                  src={profileImage.filePath}
-                  alt={distributor.businessName}
-                  className="w-16 h-16 rounded-lg object-cover border-2 border-gray-200"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center border-2 border-gray-200">
-                  <Building2 className="w-6 h-6 text-gray-400" />
-                </div>
-              )}
-            </div>
-
-            {/* Business Information */}
-            <div className="flex-1">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">{distributor.businessName}</h2>
-                  <p className="text-sm text-gray-600">{contactPerson}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className={`w-2 h-2 rounded-full ${
-                      distributor.status === 'ACTIVE' ? 'bg-green-500' : 
-                      distributor.status === 'SUSPENDED' ? 'bg-red-500' : 'bg-gray-500'
-                    }`} />
-                    <span className="text-sm font-medium capitalize">{distributor.status.toLowerCase()}</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-500">Approved on</p>
-                  <p className="text-sm font-medium">{approvedDate}</p>
-                  <p className="text-xs text-gray-500">by {distributor.approvedByUser.name}</p>
-                </div>
-              </div>
-
-              {/* Contact Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Mail className="w-3 h-3" />
-                    <span>{distributor.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Phone className="w-3 h-3" />
-                    <span>{distributor.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <MapPin className="w-3 h-3" />
-                    <span>{location}</span>
-                    {distributor.latitude && distributor.longitude && (
-                      <Button
-                        onClick={handleViewOnMaps}
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs text-blue-600 hover:text-blue-800 p-0 h-auto"
-                      >
-                        View on Maps
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  {distributor.territory && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Users className="w-3 h-3" />
-                      <span>{distributor.territory}</span>
-                    </div>
-                  )}
-                  {distributor.businessType && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Building2 className="w-3 h-3" />
-                      <span>{distributor.businessType}</span>
-                    </div>
-                  )}
-                  {distributor.yearsInBusiness && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Calendar className="w-3 h-3" />
-                      <span>{distributor.yearsInBusiness} years in business</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
 
         {/* AI Recommendations and Performance Metrics */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -472,53 +508,73 @@ export default function DistributorDetailsPage() {
             />
           </div>
 
-          {/* Performance Metrics */}
+          {/* Metric Cards */}
           <div className="space-y-4">
-            {performanceMetrics && (
-              <>
-                {/* Performance Rating and Total Orders in one line */}
-                <div className="grid grid-cols-2 gap-4">
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">Performance Rating</p>
-                        <p className="text-2xl font-bold text-blue-600">{performanceMetrics.performanceRating}%</p>
-                      </div>
-                      <div className="p-2 rounded-full bg-blue-100">
-                        <Star className="w-5 h-5 text-blue-600" />
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">Total Orders</p>
-                        <p className="text-xl font-bold text-purple-600">{performanceMetrics.totalOrders}</p>
-                      </div>
-                      <div className="p-2 rounded-full bg-purple-100">
-                        <Package className="w-5 h-5 text-purple-600" />
-                      </div>
-                    </div>
-                  </Card>
-                </div>
-
-                {/* Total Revenue in full width */}
-                <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                      <p className="text-xl font-bold text-green-600">
-                        GHS {performanceMetrics.totalRevenue.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="p-2 rounded-full bg-green-100">
-                      <DollarSign className="w-5 h-5 text-green-600" />
-                    </div>
+            {/* Top Row: Performance Rating and Total Orders */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Performance Rating */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Performance Rating</p>
+                    <p className="text-2xl font-bold text-blue-600">83%</p>
                   </div>
-                </Card>
-              </>
-            )}
+                  <div className="p-2 rounded-full bg-blue-100">
+                    <Star className="w-5 h-5 text-blue-600" />
+                  </div>
+                </div>
+              </Card>
+
+              {/* Total Orders */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Orders</p>
+                    <p className="text-2xl font-bold text-purple-600">{orders.length}</p>
+                  </div>
+                  <div className="p-2 rounded-full bg-purple-100">
+                    <Package className="w-5 h-5 text-purple-600" />
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Bottom Row: Revenue and Available Credit */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Revenue */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Revenue</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      <span className="text-lg">GHS</span> 45,200
+                    </p>
+                  </div>
+                  <div className="p-2 rounded-full bg-green-100">
+                    <DollarSign className="w-5 h-5 text-green-600" />
+                  </div>
+                </div>
+              </Card>
+
+              {/* Available Credit */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Available Credit</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {creditInfo ? (
+                        <>
+                          <span className="text-lg">GHS</span> {creditInfo.availableCredit.toLocaleString()}
+                        </>
+                      ) : 'N/A'}
+                    </p>
+                  </div>
+                  <div className="p-2 rounded-full bg-blue-100">
+                    <CreditCard className="w-5 h-5 text-blue-600" />
+                  </div>
+                </div>
+              </Card>
+            </div>
           </div>
         </div>
 
@@ -527,9 +583,9 @@ export default function DistributorDetailsPage() {
           <nav className="-mb-px flex space-x-8">
             {[
               { id: 'overview', label: 'Overview', icon: <Eye className="w-4 h-4" /> },
-              { id: 'performance', label: 'Performance', icon: <BarChart3 className="w-4 h-4" /> },
+              { id: 'credit', label: 'Credit', icon: <CreditCard className="w-4 h-4" /> },
               { id: 'orders', label: 'Orders', icon: <Package className="w-4 h-4" /> },
-              { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
+              { id: 'payments', label: 'Payments', icon: <DollarSign className="w-4 h-4" /> },
               { id: 'communication', label: 'Communication', icon: <MessageSquare className="w-4 h-4" /> },
               { id: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" /> }
             ].map((tab) => (
@@ -552,101 +608,327 @@ export default function DistributorDetailsPage() {
         {/* Tab Content */}
         <div className="mt-6">
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Business Details */}
-              <Card className="p-4">
-                <h3 className="text-base font-semibold mb-3">Business Details</h3>
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-xs text-gray-500">Business Type</p>
-                    <p className="text-sm font-medium">{distributor.businessType || 'N/A'}</p>
+            <div className="space-y-6">
+              {/* Top Row: Profile Overview and Sales Volume */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Profile Overview Card */}
+                <Card className="p-4">
+                <div className="flex items-start gap-4">
+                  {/* Profile Image */}
+                  <div className="flex-shrink-0">
+                    {profileImage ? (
+                      <img
+                        src={profileImage.filePath}
+                        alt={distributor.businessName}
+                        className="w-16 h-16 rounded-lg object-cover border-2 border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center border-2 border-gray-200">
+                        <Building2 className="w-6 h-6 text-gray-400" />
+                      </div>
+                    )}
                   </div>
-                  {distributor.businessRegistrationNumber && (
-                    <div>
-                      <p className="text-xs text-gray-500">Registration Number</p>
-                      <p className="text-sm font-medium">{distributor.businessRegistrationNumber}</p>
-                    </div>
-                  )}
-                  {distributor.investmentCapacity && (
-                    <div>
-                      <p className="text-xs text-gray-500">Investment Capacity</p>
-                      <p className="text-sm font-medium">{distributor.investmentCapacity}</p>
-                    </div>
-                  )}
-                  {distributor.experience && (
-                    <div>
-                      <p className="text-xs text-gray-500">Experience</p>
-                      <p className="text-sm font-medium">{distributor.experience}</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
 
-              {/* Target vs Actual Volume */}
-              <Card className="p-4">
-                <h3 className="text-base font-semibold mb-3">Sales Volume</h3>
-                {performanceMetrics && (
+                  {/* Business Information */}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900">{distributor.businessName}</h2>
+                        <p className="text-sm text-gray-600">{contactPerson}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className={`w-2 h-2 rounded-full ${
+                            distributor.status === 'ACTIVE' ? 'bg-green-500' : 
+                            distributor.status === 'SUSPENDED' ? 'bg-red-500' : 'bg-gray-500'
+                          }`} />
+                          <span className="text-sm font-medium capitalize">{distributor.status.toLowerCase()}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">Approved on</p>
+                        <p className="text-sm font-medium">{approvedDate}</p>
+                        <p className="text-xs text-gray-500">by {distributor.approvedByUser.name}</p>
+                      </div>
+                    </div>
+
+                    {/* Business Details Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-500">Business Type</p>
+                        <p className="text-sm font-medium">{distributor.businessType || 'N/A'}</p>
+                      </div>
+                      {distributor.businessRegistrationNumber && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-500">Registration Number</p>
+                          <p className="text-sm font-medium">{distributor.businessRegistrationNumber}</p>
+                        </div>
+                      )}
+                      {distributor.investmentCapacity && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-500">Investment Capacity</p>
+                          <p className="text-sm font-medium">{distributor.investmentCapacity}</p>
+                        </div>
+                      )}
+                      {distributor.experience && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-500">Experience</p>
+                          <p className="text-sm font-medium">{distributor.experience}</p>
+                        </div>
+                      )}
+                      {distributor.territory && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-500">Territory</p>
+                          <p className="text-sm font-medium">{distributor.territory}</p>
+                        </div>
+                      )}
+                      {distributor.yearsInBusiness && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-500">Years in Business</p>
+                          <p className="text-sm font-medium">{distributor.yearsInBusiness} years</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                </Card>
+
+                {/* Sales Volume Card */}
+                <Card className="p-4">
+                  <h3 className="text-base font-semibold mb-3">Sales Volume</h3>
                   <div className="space-y-3">
-                    <div>
+                    <div className="text-center py-4">
+                      <p className="text-sm text-gray-500">Sales volume data will be available when orders are processed</p>
+                    </div>
+                    
+                    {/* Last Order Information */}
+                    {orders && orders.length > 0 && (
+                      <div className="pt-3 border-t border-gray-200">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs text-gray-600">Last Order</span>
+                          <span className="text-xs text-gray-500">{orders[0].date}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">{orders[0].orderNumber}</span>
+                          <span className="text-sm font-medium text-green-600">GHS {orders[0].totalAmount.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+
+              {/* Bottom Row: Credit Information and Interested Products */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Credit Information */}
+                {creditInfo && (
+                  <Card className="p-4">
+                    <h3 className="text-base font-semibold mb-3">Credit Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500">Credit Limit</p>
+                        <p className="text-sm font-medium">GHS {creditInfo.creditLimit.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Credit Used</p>
+                        <p className="text-sm font-medium">GHS {creditInfo.currentCreditUsed.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Available Credit</p>
+                        <p className={`text-sm font-medium ${creditInfo.availableCredit > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          GHS {creditInfo.availableCredit.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Credit Status</p>
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          creditInfo.creditStatus === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                          creditInfo.creditStatus === 'SUSPENDED' ? 'bg-red-100 text-red-800' :
+                          creditInfo.creditStatus === 'OVERDUE' ? 'bg-orange-100 text-orange-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {creditInfo.creditStatus.replace('_', ' ')}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4">
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs text-gray-600">Target Volume</span>
-                        <span className="text-sm font-medium">GHS {performanceMetrics.targetVolume.toLocaleString()}</span>
+                        <span className="text-xs text-gray-600">Credit Utilization</span>
+                        <span className="text-xs font-medium">{creditInfo.creditUtilization.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
-                          className="bg-blue-600 h-2 rounded-full" 
-                          style={{ width: `${(performanceMetrics.actualVolume / performanceMetrics.targetVolume) * 100}%` }}
+                          className={`h-2 rounded-full ${
+                            creditInfo.creditUtilization >= 90 ? 'bg-red-600' :
+                            creditInfo.creditUtilization >= 80 ? 'bg-orange-600' :
+                            'bg-green-600'
+                          }`}
+                          style={{ width: `${Math.min(creditInfo.creditUtilization, 100)}%` }}
                         ></div>
                       </div>
                     </div>
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs text-gray-600">Actual Volume</span>
-                        <span className="text-sm font-medium">GHS {performanceMetrics.actualVolume.toLocaleString()}</span>
+
+                    <div className="mt-3 grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500">Payment Terms</p>
+                        <p className="text-sm font-medium">{creditInfo.creditTerms}</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="w-3 h-3 text-green-600" />
-                        <span className="text-xs text-green-600">
-                          {((performanceMetrics.actualVolume / performanceMetrics.targetVolume) * 100).toFixed(1)}% of target
-                        </span>
+                      {creditInfo.nextCreditReview && (
+                        <div>
+                          <p className="text-xs text-gray-500">Next Review</p>
+                          <p className="text-sm font-medium">{creditInfo.nextCreditReview}</p>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Interested Products */}
+                {distributor.interestedProducts && distributor.interestedProducts.length > 0 && (
+                  <Card className="p-4">
+                    <h3 className="text-base font-semibold mb-3">Interested Products</h3>
+                    <div className="max-h-64 overflow-y-auto">
+                      <div className="grid grid-cols-1 gap-3 pr-2">
+                        {distributor.interestedProducts.map((product, index) => (
+                          <div key={index} className="border rounded-lg p-3">
+                            <h4 className="text-sm font-medium">{product.product.name}</h4>
+                            <p className="text-xs text-gray-600">SKU: {product.product.sku}</p>
+                            <div className="flex justify-between items-center mt-2">
+                              <span className="text-xs text-gray-500">Interest Level</span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                product.interestLevel === 'HIGH' ? 'bg-green-100 text-green-800' :
+                                product.interestLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {product.interestLevel}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            </div>
+          )}
+
+
+          {activeTab === 'credit' && (
+            <div className="space-y-6">
+              <Card className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold">Credit Management</h3>
+                  <Button 
+                    size="sm"
+                    onClick={() => setShowCreditModal(true)}
+                  >
+                    Adjust Credit Limit
+                  </Button>
+                </div>
+                {creditInfo && (
+                  <div className="space-y-6">
+                    {/* Credit Overview */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="text-center p-4 border rounded-lg">
+                        <p className="text-2xl font-bold text-blue-600">GHS {creditInfo.creditLimit.toLocaleString()}</p>
+                        <p className="text-sm text-gray-600">Credit Limit</p>
+                      </div>
+                      <div className="text-center p-4 border rounded-lg">
+                        <p className="text-2xl font-bold text-orange-600">GHS {creditInfo.currentCreditUsed.toLocaleString()}</p>
+                        <p className="text-sm text-gray-600">Credit Used</p>
+                      </div>
+                      <div className="text-center p-4 border rounded-lg">
+                        <p className={`text-2xl font-bold ${creditInfo.availableCredit > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          GHS {creditInfo.availableCredit.toLocaleString()}
+                        </p>
+                        <p className="text-sm text-gray-600">Available Credit</p>
+                      </div>
+                    </div>
+
+                    {/* Credit Utilization Chart */}
+                    <div>
+                      <h4 className="text-base font-semibold mb-3">Credit Utilization</h4>
+                      <div className="w-full bg-gray-200 rounded-full h-4">
+                        <div 
+                          className={`h-4 rounded-full ${
+                            creditInfo.creditUtilization >= 90 ? 'bg-red-600' :
+                            creditInfo.creditUtilization >= 80 ? 'bg-orange-600' :
+                            'bg-green-600'
+                          }`}
+                          style={{ width: `${Math.min(creditInfo.creditUtilization, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-sm text-gray-600">0%</span>
+                        <span className="text-sm font-medium">{creditInfo.creditUtilization.toFixed(1)}% utilized</span>
+                        <span className="text-sm text-gray-600">100%</span>
+                      </div>
+                    </div>
+
+                    {/* Credit Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="text-base font-semibold mb-3">Credit Details</h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Status:</span>
+                            <span className={`text-sm px-2 py-1 rounded ${
+                              creditInfo.creditStatus === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                              creditInfo.creditStatus === 'SUSPENDED' ? 'bg-red-100 text-red-800' :
+                              creditInfo.creditStatus === 'OVERDUE' ? 'bg-orange-100 text-orange-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {creditInfo.creditStatus.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Payment Terms:</span>
+                            <span className="text-sm font-medium">{creditInfo.creditTerms}</span>
+                          </div>
+                          {creditInfo.lastCreditReview && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Last Review:</span>
+                              <span className="text-sm font-medium">{creditInfo.lastCreditReview}</span>
+                            </div>
+                          )}
+                          {creditInfo.nextCreditReview && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Next Review:</span>
+                              <span className="text-sm font-medium">{creditInfo.nextCreditReview}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-base font-semibold mb-3">Quick Actions</h4>
+                        <div className="space-y-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full justify-start"
+                            onClick={() => setShowCreditModal(true)}
+                          >
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Adjust Credit Limit
+                          </Button>
+                          <Button variant="outline" size="sm" className="w-full justify-start">
+                            <Calendar className="w-4 h-4 mr-2" />
+                            Schedule Review
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full justify-start"
+                            onClick={() => setShowCreditHistoryModal(true)}
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            View Credit History
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
-              </Card>
-
-              {/* Interested Products */}
-              {distributor.interestedProducts && distributor.interestedProducts.length > 0 && (
-                <Card className="p-4 lg:col-span-2">
-                  <h3 className="text-base font-semibold mb-3">Interested Products</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {distributor.interestedProducts.map((product, index) => (
-                      <div key={index} className="border rounded-lg p-3">
-                        <h4 className="text-sm font-medium">{product.product.name}</h4>
-                        <p className="text-xs text-gray-600">SKU: {product.product.sku}</p>
-                        <div className="flex justify-between items-center mt-2">
-                          <span className="text-xs text-gray-500">Interest Level</span>
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            product.interestLevel === 'HIGH' ? 'bg-green-100 text-green-800' :
-                            product.interestLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {product.interestLevel}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'performance' && (
-            <div className="space-y-6">
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Performance Analytics</h3>
-                <p className="text-gray-600">Performance analytics will be implemented here with charts and detailed metrics.</p>
               </Card>
             </div>
           )}
@@ -726,9 +1008,143 @@ export default function DistributorDetailsPage() {
 
           {activeTab === 'communication' && (
             <div className="space-y-6">
+              {/* Communication Actions */}
               <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Communication Hub</h3>
-                <p className="text-gray-600">Communication history and notification management will be implemented here.</p>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Communication Hub</h3>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setShowSMSModal(true)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Phone className="w-4 h-4 mr-2" />
+                      Send SMS
+                    </Button>
+                    <Button
+                      onClick={() => setShowEmailModal(true)}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Send Email
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Communication Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <Phone className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">SMS Messages</p>
+                        <p className="text-xl font-bold text-blue-600">
+                          {communications.filter(c => c.type === 'SMS').length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <Mail className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Email Messages</p>
+                        <p className="text-xl font-bold text-green-600">
+                          {communications.filter(c => c.type === 'EMAIL').length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <MessageSquare className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Total Messages</p>
+                        <p className="text-xl font-bold text-purple-600">
+                          {communications.length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Communication History */}
+                <div>
+                  <h4 className="text-md font-semibold mb-3">Recent Communications</h4>
+                  {communicationsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="ml-2 text-gray-600">Loading communications...</span>
+                    </div>
+                  ) : communications.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p>No communications yet</p>
+                      <p className="text-sm">Send your first SMS or email to start the conversation</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {communications.map((comm) => (
+                        <div key={comm.id} className="border rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              <div className={`p-2 rounded-lg ${
+                                comm.type === 'SMS' ? 'bg-blue-100' : 'bg-green-100'
+                              }`}>
+                                {comm.type === 'SMS' ? (
+                                  <Phone className="w-4 h-4 text-blue-600" />
+                                ) : (
+                                  <Mail className="w-4 h-4 text-green-600" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`text-sm font-medium ${
+                                    comm.type === 'SMS' ? 'text-blue-600' : 'text-green-600'
+                                  }`}>
+                                    {comm.type}
+                                  </span>
+                                  <span className={`text-xs px-2 py-1 rounded ${
+                                    comm.status === 'SENT' ? 'bg-green-100 text-green-800' :
+                                    comm.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {comm.status}
+                                  </span>
+                                </div>
+                                {comm.subject && (
+                                  <p className="text-sm font-medium text-gray-900 mb-1">
+                                    {comm.subject}
+                                  </p>
+                                )}
+                                <p className="text-sm text-gray-600 mb-2">
+                                  {comm.content.length > 100 
+                                    ? `${comm.content.substring(0, 100)}...` 
+                                    : comm.content
+                                  }
+                                </p>
+                                <div className="flex items-center gap-4 text-xs text-gray-500">
+                                  <span>To: {comm.to}</span>
+                                  <span>{new Date(comm.sentAt).toLocaleString()}</span>
+                                </div>
+                                {comm.errorMessage && (
+                                  <p className="text-xs text-red-600 mt-1">
+                                    Error: {comm.errorMessage}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Card>
             </div>
           )}
@@ -736,13 +1152,291 @@ export default function DistributorDetailsPage() {
           {activeTab === 'documents' && (
             <div className="space-y-6">
               <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Documents & Agreements</h3>
-                <p className="text-gray-600">Document management and agreement tracking will be implemented here.</p>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Documents & Agreements</h3>
+                  <Button
+                    onClick={() => setShowUploadModal(true)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Document
+                  </Button>
+                </div>
+
+                {/* Document Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <FileText className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Agreements</p>
+                        <p className="text-xl font-bold text-blue-600">
+                          {documents.filter(d => ['DISTRIBUTOR_AGREEMENT', 'SERVICE_CONTRACT', 'TERMS_CONDITIONS'].includes(d.imageType)).length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <FileIcon className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Business Docs</p>
+                        <p className="text-xl font-bold text-green-600">
+                          {documents.filter(d => ['BUSINESS_LICENSE', 'TAX_CERTIFICATE', 'BUSINESS_PREMISES'].includes(d.imageType)).length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-orange-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-orange-100 rounded-lg">
+                        <FileText className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">ID Documents</p>
+                        <p className="text-xl font-bold text-orange-600">
+                          {documents.filter(d => d.imageType === 'ID_DOCUMENT').length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <Image className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Other</p>
+                        <p className="text-xl font-bold text-purple-600">
+                          {documents.filter(d => ['PROFILE_PICTURE', 'BANK_STATEMENT', 'REFERENCE_LETTER', 'OTHER'].includes(d.imageType)).length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Document Filter */}
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      variant={documentFilter === 'ALL' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setDocumentFilter('ALL')}
+                      className={documentFilter === 'ALL' ? 'bg-blue-600 text-white' : ''}
+                    >
+                      All ({documents.length})
+                    </Button>
+                    <Button
+                      variant={documentFilter === 'AGREEMENTS' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setDocumentFilter('AGREEMENTS')}
+                      className={documentFilter === 'AGREEMENTS' ? 'bg-blue-600 text-white' : ''}
+                    >
+                      Agreements ({documents.filter(d => ['DISTRIBUTOR_AGREEMENT', 'SERVICE_CONTRACT', 'TERMS_CONDITIONS'].includes(d.imageType)).length})
+                    </Button>
+                    <Button
+                      variant={documentFilter === 'BUSINESS' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setDocumentFilter('BUSINESS')}
+                      className={documentFilter === 'BUSINESS' ? 'bg-green-600 text-white' : ''}
+                    >
+                      Business ({documents.filter(d => ['BUSINESS_LICENSE', 'TAX_CERTIFICATE', 'BUSINESS_PREMISES'].includes(d.imageType)).length})
+                    </Button>
+                    <Button
+                      variant={documentFilter === 'ID' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setDocumentFilter('ID')}
+                      className={documentFilter === 'ID' ? 'bg-orange-600 text-white' : ''}
+                    >
+                      ID ({documents.filter(d => d.imageType === 'ID_DOCUMENT').length})
+                    </Button>
+                    <Button
+                      variant={documentFilter === 'OTHER' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setDocumentFilter('OTHER')}
+                      className={documentFilter === 'OTHER' ? 'bg-purple-600 text-white' : ''}
+                    >
+                      Other ({documents.filter(d => ['PROFILE_PICTURE', 'BANK_STATEMENT', 'REFERENCE_LETTER', 'OTHER'].includes(d.imageType)).length})
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Documents List */}
+                <div>
+                  <h4 className="text-md font-semibold mb-3">
+                    {documentFilter === 'ALL' ? 'All Documents' : 
+                     documentFilter === 'AGREEMENTS' ? 'Agreement Documents' :
+                     documentFilter === 'BUSINESS' ? 'Business Documents' :
+                     documentFilter === 'ID' ? 'ID Documents' : 'Other Documents'}
+                  </h4>
+                  {documentsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="ml-2 text-gray-600">Loading documents...</span>
+                    </div>
+                  ) : documents.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p>No documents uploaded yet</p>
+                      <p className="text-sm">Upload business documents, IDs, and other relevant files</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {documents.filter(doc => {
+                        if (documentFilter === 'ALL') return true;
+                        if (documentFilter === 'AGREEMENTS') return ['DISTRIBUTOR_AGREEMENT', 'SERVICE_CONTRACT', 'TERMS_CONDITIONS'].includes(doc.imageType);
+                        if (documentFilter === 'BUSINESS') return ['BUSINESS_LICENSE', 'TAX_CERTIFICATE', 'BUSINESS_PREMISES'].includes(doc.imageType);
+                        if (documentFilter === 'ID') return doc.imageType === 'ID_DOCUMENT';
+                        if (documentFilter === 'OTHER') return ['PROFILE_PICTURE', 'BANK_STATEMENT', 'REFERENCE_LETTER', 'OTHER'].includes(doc.imageType);
+                        return true;
+                      }).map((doc) => (
+                        <div key={doc.id} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-gray-100 rounded-lg">
+                                {doc.fileType.startsWith('image/') ? (
+                                  <Image className="w-5 h-5 text-blue-600" />
+                                ) : doc.fileType.includes('pdf') ? (
+                                  <FileText className="w-5 h-5 text-red-600" />
+                                ) : (
+                                  <FileIcon className="w-5 h-5 text-gray-600" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {doc.originalName}
+                                  </span>
+                                  <span className={`text-xs px-2 py-1 rounded ${
+                                    ['DISTRIBUTOR_AGREEMENT', 'SERVICE_CONTRACT', 'TERMS_CONDITIONS'].includes(doc.imageType) 
+                                      ? 'bg-blue-100 text-blue-700' 
+                                      : ['BUSINESS_LICENSE', 'TAX_CERTIFICATE', 'BUSINESS_PREMISES'].includes(doc.imageType)
+                                      ? 'bg-green-100 text-green-700'
+                                      : doc.imageType === 'ID_DOCUMENT'
+                                      ? 'bg-orange-100 text-orange-700'
+                                      : 'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    {doc.imageType === 'DISTRIBUTOR_AGREEMENT' ? 'Agreement' :
+                                     doc.imageType === 'SERVICE_CONTRACT' ? 'Contract' :
+                                     doc.imageType === 'TERMS_CONDITIONS' ? 'Terms' :
+                                     doc.imageType === 'BUSINESS_LICENSE' ? 'License' :
+                                     doc.imageType === 'TAX_CERTIFICATE' ? 'Tax Cert' :
+                                     doc.imageType === 'BUSINESS_PREMISES' ? 'Premises' :
+                                     doc.imageType === 'ID_DOCUMENT' ? 'ID' :
+                                     doc.imageType === 'BANK_STATEMENT' ? 'Bank Statement' :
+                                     doc.imageType === 'REFERENCE_LETTER' ? 'Reference' :
+                                     doc.imageType === 'PROFILE_PICTURE' ? 'Profile' :
+                                     doc.imageType.replace('_', ' ')}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-gray-500">
+                                  <span>{(doc.fileSize / 1024 / 1024).toFixed(2)} MB</span>
+                                  <span>{new Date(doc.uploadedAt).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                onClick={() => window.open(doc.filePath, '_blank')}
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = doc.filePath;
+                                  link.download = doc.originalName;
+                                  link.click();
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1"
+                              >
+                                <Download className="w-4 h-4" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Card>
             </div>
           )}
         </div>
       </div>
+
+      {/* Credit Approval Modal */}
+      {distributor && (
+        <CreditApprovalModal
+          isOpen={showCreditModal}
+          onClose={() => setShowCreditModal(false)}
+          distributor={{
+            id: distributor.id,
+            businessName: distributor.businessName,
+            firstName: distributor.firstName,
+            lastName: distributor.lastName,
+            currentCreditLimit: distributor.creditLimit,
+            currentCreditUsed: distributor.currentCreditUsed
+          }}
+          onApprovalComplete={handleCreditApprovalComplete}
+        />
+      )}
+
+      {/* Credit History Modal */}
+      {distributor && (
+        <CreditHistoryModal
+          isOpen={showCreditHistoryModal}
+          onClose={() => setShowCreditHistoryModal(false)}
+          distributorId={distributor.id}
+          distributorName={distributor.businessName}
+        />
+      )}
+
+      {/* Send SMS Modal */}
+      {distributor && (
+        <SendDistributorSMSModal
+          isOpen={showSMSModal}
+          onClose={() => setShowSMSModal(false)}
+          distributorId={distributor.id}
+          distributorName={distributor.businessName}
+          phoneNumber={distributor.phone}
+          onSent={loadCommunications}
+        />
+      )}
+
+      {/* Send Email Modal */}
+      {distributor && (
+        <SendDistributorEmailModal
+          isOpen={showEmailModal}
+          onClose={() => setShowEmailModal(false)}
+          distributorId={distributor.id}
+          distributorName={distributor.businessName}
+          emailAddress={distributor.email}
+          onSent={loadCommunications}
+        />
+      )}
+
+      {/* Upload Document Modal */}
+      {distributor && (
+        <UploadDistributorDocumentModal
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          distributorId={distributor.id}
+          distributorName={distributor.businessName}
+          onUploaded={loadDocuments}
+        />
+      )}
     </MainLayout>
   );
 }

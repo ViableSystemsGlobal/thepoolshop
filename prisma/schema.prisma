@@ -57,6 +57,9 @@ model User {
   distributorSMS          DistributorSMS[]
   distributorEmails       DistributorEmail[]
   distributorProducts     DistributorProduct[]
+  creditHistory           DistributorCreditHistory[]
+  creditApprovedDistributors Distributor[] @relation("CreditApprovedBy")
+  orders                  Order[]
 
   @@map("users")
 }
@@ -153,6 +156,7 @@ model Product {
   leadProducts           LeadProduct[]
   distributorLeadProducts DistributorLeadProduct[]
   distributorProducts    DistributorProduct[]
+  orderItems             OrderItem[]
 
   @@map("products")
 }
@@ -1256,11 +1260,25 @@ model Distributor {
   approvedBy              String
   approvedAt              DateTime                @default(now())
   approvedByUser          User                    @relation(fields: [approvedBy], references: [id])
+  
+  // Credit Management Fields
+  creditLimit             Decimal?                // Maximum credit allowed
+  currentCreditUsed       Decimal?                @default(0) // Currently used credit
+  creditTerms             String?                 // Payment terms (e.g., "Net 30", "Net 60")
+  creditStatus            CreditStatus?           @default(ACTIVE) // Credit status
+  lastCreditReview        DateTime?               // Last time credit was reviewed
+  creditApprovedBy        String?                 // User who approved the credit limit
+  creditApprovedAt        DateTime?               // When credit was approved
+  creditApprovedByUser    User?                   @relation("CreditApprovedBy", fields: [creditApprovedBy], references: [id])
+  nextCreditReview        DateTime?               // Next scheduled credit review
+  
   // Relations
   images                  DistributorImage[]
   smsMessages             DistributorSMS[]
   emails                  DistributorEmail[]
   interestedProducts      DistributorProduct[]
+  creditHistory           DistributorCreditHistory[]
+  orders                  Order[]
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
 
@@ -1333,6 +1351,25 @@ model DistributorProduct {
   @@map("distributor_products")
 }
 
+model DistributorCreditHistory {
+  id                String          @id @default(cuid())
+  distributorId     String
+  action            String          // CREDIT_LIMIT_SET, CREDIT_LIMIT_INCREASED, CREDIT_LIMIT_DECREASED, CREDIT_USED, PAYMENT_RECEIVED, CREDIT_REVIEWED
+  previousLimit     Decimal?        // Previous credit limit
+  newLimit          Decimal?        // New credit limit
+  previousUsed      Decimal?        // Previous credit used
+  newUsed           Decimal?        // New credit used
+  amount            Decimal?        // Amount involved in the action
+  reason            String?         // Reason for the change
+  notes             String?         // Additional notes
+  performedBy       String          // User who performed the action
+  performedAt       DateTime        @default(now())
+  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  performedByUser   User            @relation(fields: [performedBy], references: [id])
+
+  @@map("distributor_credit_history")
+}
+
 enum DistributorLeadStatus {
   PENDING
   UNDER_REVIEW
@@ -1346,6 +1383,13 @@ enum DistributorStatus {
   SUSPENDED
 }
 
+enum CreditStatus {
+  ACTIVE
+  SUSPENDED
+  OVERDUE
+  UNDER_REVIEW
+}
+
 enum DistributorImageType {
   PROFILE_PICTURE
   BUSINESS_PREMISES
@@ -1354,5 +1398,52 @@ enum DistributorImageType {
   ID_DOCUMENT
   BANK_STATEMENT
   REFERENCE_LETTER
+  DISTRIBUTOR_AGREEMENT
+  SERVICE_CONTRACT
+  TERMS_CONDITIONS
   OTHER
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  distributorId   String
+  totalAmount     Decimal
+  status          OrderStatus @default(PENDING)
+  paymentMethod   String      @default("credit") // credit, cash, bank_transfer
+  notes           String?
+  deliveryAddress String?
+  deliveryDate    DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  createdBy       String
+  distributor     Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  items           OrderItem[]
+  createdByUser   User        @relation(fields: [createdBy], references: [id])
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String
+  quantity    Int
+  unitPrice   Decimal
+  totalPrice  Decimal
+  notes       String?
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
 }
