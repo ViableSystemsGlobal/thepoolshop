@@ -7,6 +7,7 @@ import { LoadingProvider } from "@/contexts/loading-context";
 import { ToastContainer } from "@/components/toast-container";
 import { HydrationBoundary } from "@/components/hydration-boundary";
 import { TaskNotificationStarter } from "@/components/task-notification-starter";
+import { DynamicFavicon } from "@/components/dynamic-favicon";
 
 export const metadata: Metadata = {
   title: "AD Pools SM - Sales Management System",
@@ -27,6 +28,7 @@ export default function RootLayout({
                     <ToastProvider>
                       <AuthSessionProvider>
                         <TaskNotificationStarter />
+                        <DynamicFavicon />
                         {children}
                         <ToastContainer />
                       </AuthSessionProvider>

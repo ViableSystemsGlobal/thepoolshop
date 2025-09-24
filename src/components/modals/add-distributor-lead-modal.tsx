@@ -229,6 +229,11 @@ export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistr
         if (value !== null && value !== '') {
           if (value instanceof File) {
             formDataToSend.append(key, value);
+          } else if (key === 'interestedProducts' && Array.isArray(value)) {
+            // Handle interested products array
+            value.forEach(productId => {
+              formDataToSend.append('interestedProducts', productId);
+            });
           } else {
             formDataToSend.append(key, String(value));
           }
@@ -296,6 +301,13 @@ export function AddDistributorLeadModal({ isOpen, onClose, onSuccess }: AddDistr
           const errorData = await response.json();
           console.error('Error response:', errorData);
           errorMessage = errorData.error || errorMessage;
+          
+          // Handle specific error cases
+          if (errorData.error && errorData.error.includes('Unique constraint')) {
+            errorMessage = 'An application with this email already exists. Please use a different email address.';
+          } else if (errorData.error && errorData.error.includes('email')) {
+            errorMessage = 'This email address is already registered. Please use a different email.';
+          }
         } catch (parseError) {
           console.error('Could not parse error response:', parseError);
           errorMessage = `Server error: ${response.status} ${response.statusText}`;

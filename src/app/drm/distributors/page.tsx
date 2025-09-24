@@ -36,27 +36,35 @@ import { DropdownMenu } from '@/components/ui/dropdown-menu';
 
 interface Distributor {
   id: string;
-  companyName: string;
-  contactPerson: string;
+  firstName: string;
+  lastName: string;
+  businessName: string;
   email: string;
   phone: string;
-  location: string;
-  territory: string;
-  joinDate: string;
-  status: 'ACTIVE' | 'SUSPENDED' | 'TERMINATED';
-  performance: {
-    rating: number;
-    monthlyVolume: number;
-    lastMonthVolume: number;
-    totalSales: number;
-    activeRoutes: number;
+  city: string;
+  region: string;
+  territory?: string;
+  expectedVolume?: number;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  approvedAt: string;
+  approvedByUser: {
+    name: string;
+    email: string;
   };
-  contract: {
-    startDate: string;
-    endDate: string;
-    commissionRate: number;
-    minimumVolume: number;
-  };
+  images?: Array<{
+    id: string;
+    imageType: string;
+    filePath: string;
+  }>;
+  interestedProducts?: Array<{
+    id: string;
+    product: {
+      name: string;
+      sku: string;
+    };
+    interestLevel: string;
+    quantity: number;
+  }>;
 }
 
 export default function DistributorsPage() {
@@ -71,6 +79,37 @@ export default function DistributorsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+
+  // Load distributors from API
+  const loadDistributors = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/drm/distributors', {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDistributors(data.data || []);
+      } else {
+        console.error('Failed to load distributors. Status:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        setDistributors([]);
+      }
+    } catch (error) {
+      console.error('Error loading distributors:', error);
+      setDistributors([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      loadDistributors();
+    }
+  }, [session?.user?.id]);
 
   // AI Recommendations for Distributors
   const [aiRecommendations] = useState([
@@ -103,85 +142,6 @@ export default function DistributorsPage() {
   };
 
   // Mock data for now
-  useEffect(() => {
-    const mockDistributors: Distributor[] = [
-      {
-        id: '1',
-        companyName: 'Ghana Distribution Ltd',
-        contactPerson: 'Kwame Asante',
-        email: 'kwame@ghanadist.com',
-        phone: '+233 24 123 4567',
-        location: 'Accra, Ghana',
-        territory: 'Greater Accra',
-        joinDate: '2023-06-15',
-        status: 'ACTIVE',
-        performance: {
-          rating: 4.8,
-          monthlyVolume: 125000,
-          lastMonthVolume: 118000,
-          totalSales: 1500000,
-          activeRoutes: 8
-        },
-        contract: {
-          startDate: '2023-06-15',
-          endDate: '2024-06-15',
-          commissionRate: 12,
-          minimumVolume: 100000
-        }
-      },
-      {
-        id: '2',
-        companyName: 'West Africa Logistics',
-        contactPerson: 'Ama Serwaa',
-        email: 'ama@walogistics.com',
-        phone: '+233 20 987 6543',
-        location: 'Kumasi, Ghana',
-        territory: 'Ashanti Region',
-        joinDate: '2023-08-20',
-        status: 'ACTIVE',
-        performance: {
-          rating: 4.6,
-          monthlyVolume: 95000,
-          lastMonthVolume: 102000,
-          totalSales: 1200000,
-          activeRoutes: 6
-        },
-        contract: {
-          startDate: '2023-08-20',
-          endDate: '2024-08-20',
-          commissionRate: 10,
-          minimumVolume: 80000
-        }
-      },
-      {
-        id: '3',
-        companyName: 'Northern Distributors',
-        contactPerson: 'Ibrahim Mohammed',
-        email: 'ibrahim@northdist.com',
-        phone: '+233 26 555 1234',
-        location: 'Tamale, Ghana',
-        territory: 'Northern Region',
-        joinDate: '2023-12-01',
-        status: 'ACTIVE',
-        performance: {
-          rating: 4.2,
-          monthlyVolume: 45000,
-          lastMonthVolume: 42000,
-          totalSales: 450000,
-          activeRoutes: 3
-        },
-        contract: {
-          startDate: '2023-12-01',
-          endDate: '2024-12-01',
-          commissionRate: 8,
-          minimumVolume: 40000
-        }
-      }
-    ];
-    
-    setDistributors(mockDistributors);
-    setLoading(false);
-  }, []);
 
   const statusOptions = [
     { key: 'ALL', label: 'All Distributors', color: 'bg-gray-100 text-gray-800' },
@@ -199,24 +159,50 @@ export default function DistributorsPage() {
   };
 
   const filteredDistributors = distributors.filter(distributor => {
+    const contactPerson = `${distributor.firstName} ${distributor.lastName}`;
+    const location = `${distributor.city}, ${distributor.region}`;
+    
     const matchesSearch = 
-      distributor.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      distributor.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      distributor.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
       distributor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      distributor.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      distributor.territory.toLowerCase().includes(searchTerm.toLowerCase());
+      location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (distributor.territory || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === 'ALL' || distributor.status === statusFilter;
     
     return matchesSearch && matchesStatus;
   });
 
-  const totalVolume = distributors.reduce((sum, d) => sum + d.performance.monthlyVolume, 0);
-  const totalSales = distributors.reduce((sum, d) => sum + d.performance.totalSales, 0);
-  const averageRating = distributors.reduce((sum, d) => sum + d.performance.rating, 0) / distributors.length;
+  const totalVolume = distributors.reduce((sum, d) => sum + (d.expectedVolume || 0), 0);
+  const activeDistributors = distributors.filter(d => d.status === 'ACTIVE').length;
+  const totalDistributors = distributors.length;
 
-  if (!session?.user) {
-    return <div>Please sign in to access distributors.</div>;
+  // Show loading state while session is being checked
+  if (loading && !session?.user) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading distributors...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Show sign in message only if we're sure there's no session
+  if (!loading && !session?.user) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-gray-600">Please sign in to access distributors.</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
   }
 
   return (
@@ -226,7 +212,7 @@ export default function DistributorsPage() {
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button
-              onClick={() => router.push('/drm')}
+              onClick={() => router.push('/drm/distributor-leads')}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
@@ -270,7 +256,7 @@ export default function DistributorsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Distributors</p>
-                <p className="text-xl font-bold text-gray-900">{distributors.length}</p>
+                <p className="text-xl font-bold text-gray-900">{totalDistributors}</p>
               </div>
               <div className="p-2 rounded-full bg-blue-100">
                 <Building2 className="w-5 h-5 text-blue-600" />
@@ -281,9 +267,9 @@ export default function DistributorsPage() {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Monthly Volume</p>
+                <p className="text-sm font-medium text-gray-600">Active Distributors</p>
                 <p className="text-xl font-bold text-green-600">
-                  ${totalVolume.toLocaleString()}
+                  {activeDistributors}
                 </p>
               </div>
               <div className="p-2 rounded-full bg-green-100">
@@ -295,9 +281,9 @@ export default function DistributorsPage() {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Sales</p>
+                <p className="text-sm font-medium text-gray-600">Total Pipeline</p>
                 <p className="text-xl font-bold text-purple-600">
-                  ${totalSales.toLocaleString()}
+                  GHS {totalVolume.toLocaleString()}
                 </p>
               </div>
               <div className="p-2 rounded-full bg-purple-100">
@@ -309,9 +295,14 @@ export default function DistributorsPage() {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Avg Rating</p>
+                <p className="text-sm font-medium text-gray-600">Approved This Month</p>
                 <p className="text-xl font-bold text-yellow-600">
-                  {averageRating.toFixed(1)}
+                  {distributors.filter(d => {
+                    const approvedDate = new Date(d.approvedAt);
+                    const now = new Date();
+                    return approvedDate.getMonth() === now.getMonth() && 
+                           approvedDate.getFullYear() === now.getFullYear();
+                  }).length}
                 </p>
               </div>
               <div className="p-2 rounded-full bg-yellow-100">
@@ -353,12 +344,19 @@ export default function DistributorsPage() {
         </Card>
 
         {/* Distributors Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredDistributors.map((distributor) => {
-            const volumeChange = getPerformanceChange(
-              distributor.performance.monthlyVolume,
-              distributor.performance.lastMonthVolume
-            );
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading distributors...</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredDistributors.map((distributor) => {
+            const contactPerson = `${distributor.firstName} ${distributor.lastName}`;
+            const location = `${distributor.city}, ${distributor.region}`;
+            const approvedDate = new Date(distributor.approvedAt).toLocaleDateString();
 
             return (
               <Card key={distributor.id} className="p-6">
@@ -368,8 +366,8 @@ export default function DistributorsPage() {
                       <Building2 className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900">{distributor.companyName}</h3>
-                      <p className="text-sm text-gray-600">{distributor.contactPerson}</p>
+                      <h3 className="font-semibold text-gray-900">{distributor.businessName}</h3>
+                      <p className="text-sm text-gray-600">{contactPerson}</p>
                     </div>
                   </div>
                   <DropdownMenu
@@ -382,7 +380,7 @@ export default function DistributorsPage() {
                       {
                         label: 'View Details',
                         icon: <Eye className="w-4 h-4" />,
-                        onClick: () => {/* TODO: View details */}
+                        onClick: () => router.push(`/drm/distributors/${distributor.id}`)
                       },
                       {
                         label: 'Edit',
@@ -401,52 +399,72 @@ export default function DistributorsPage() {
                 <div className="space-y-3 mb-4">
                   <div className="flex items-center text-sm text-gray-600">
                     <MapPin className="w-4 h-4 mr-2" />
-                    {distributor.location}
+                    {location}
                   </div>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Users className="w-4 h-4 mr-2" />
-                    {distributor.territory}
-                  </div>
+                  {distributor.territory && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Users className="w-4 h-4 mr-2" />
+                      {distributor.territory}
+                    </div>
+                  )}
                   <div className="flex items-center text-sm text-gray-600">
                     <Phone className="w-4 h-4 mr-2" />
                     {distributor.phone}
+                  </div>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Mail className="w-4 h-4 mr-2" />
+                    {distributor.email}
                   </div>
                 </div>
 
                 <div className="border-t pt-4">
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                      <p className="text-xs text-gray-500">Monthly Volume</p>
-                      <p className="font-semibold">${distributor.performance.monthlyVolume.toLocaleString()}</p>
-                      <div className={`flex items-center text-xs ${
-                        volumeChange.isPositive ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {volumeChange.isPositive ? (
-                          <TrendingUp className="w-3 h-3 mr-1" />
-                        ) : (
-                          <TrendingDown className="w-3 h-3 mr-1" />
-                        )}
-                        {volumeChange.value}%
-                      </div>
+                      <p className="text-xs text-gray-500">Sales Volume</p>
+                      <p className="font-semibold">
+                        {distributor.expectedVolume ? `GHS ${distributor.expectedVolume.toLocaleString()}/month` : 'N/A'}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">Rating</p>
+                      <p className="text-xs text-gray-500">Status</p>
                       <div className="flex items-center">
-                        <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                        <span className="font-semibold">{distributor.performance.rating}</span>
+                        <div className={`w-2 h-2 rounded-full mr-2 ${
+                          distributor.status === 'ACTIVE' ? 'bg-green-500' : 
+                          distributor.status === 'SUSPENDED' ? 'bg-red-500' : 'bg-gray-500'
+                        }`} />
+                        <span className="font-semibold capitalize">{distributor.status.toLowerCase()}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Active Routes</span>
-                    <span className="font-medium">{distributor.performance.activeRoutes}</span>
+                    <span className="text-gray-500">Approved</span>
+                    <span className="font-medium">{approvedDate}</span>
                   </div>
+                  
+                  {distributor.interestedProducts && distributor.interestedProducts.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 mb-1">Interested Products</p>
+                      <div className="flex flex-wrap gap-1">
+                        {distributor.interestedProducts.slice(0, 2).map((product, index) => (
+                          <span key={index} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            {product.product.name}
+                          </span>
+                        ))}
+                        {distributor.interestedProducts.length > 2 && (
+                          <span className="text-xs text-gray-500">
+                            +{distributor.interestedProducts.length - 2} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             );
           })}
-        </div>
+          </div>
+        )}
       </div>
     </MainLayout>
   );

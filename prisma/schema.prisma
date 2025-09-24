@@ -53,6 +53,10 @@ model User {
   distributorLeadSMS      DistributorLeadSMS[]
   distributorLeadEmails   DistributorLeadEmail[]
   distributorLeadProducts DistributorLeadProduct[]
+  distributors            Distributor[]
+  distributorSMS          DistributorSMS[]
+  distributorEmails       DistributorEmail[]
+  distributorProducts     DistributorProduct[]
 
   @@map("users")
 }
@@ -148,6 +152,7 @@ model Product {
   movements              StockMovement[]
   leadProducts           LeadProduct[]
   distributorLeadProducts DistributorLeadProduct[]
+  distributorProducts    DistributorProduct[]
 
   @@map("products")
 }
@@ -1219,11 +1224,126 @@ model DistributorLeadProduct {
   @@map("distributor_lead_products")
 }
 
+model Distributor {
+  id                      String                  @id @default(cuid())
+  firstName               String
+  lastName                String
+  email                   String                  @unique
+  phone                   String
+  dateOfBirth             String?
+  businessName            String
+  businessType            String
+  businessRegistrationNumber String?
+  yearsInBusiness         Int?
+  address                 String?
+  city                    String
+  region                  String
+  country                 String                  @default("Ghana")
+  postalCode              String?
+  latitude                Float?
+  longitude               Float?
+  territory               String?
+  expectedVolume          Int?
+  experience              String?
+  investmentCapacity      String?
+  targetMarket            String?
+  notes                   String?
+  // Legacy image fields (to be migrated)
+  profileImage            String?
+  businessLicense         String?
+  taxCertificate          String?
+  status                  DistributorStatus       @default(ACTIVE)
+  approvedBy              String
+  approvedAt              DateTime                @default(now())
+  approvedByUser          User                    @relation(fields: [approvedBy], references: [id])
+  // Relations
+  images                  DistributorImage[]
+  smsMessages             DistributorSMS[]
+  emails                  DistributorEmail[]
+  interestedProducts      DistributorProduct[]
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+
+  @@map("distributors")
+}
+
+model DistributorImage {
+  id                String          @id @default(cuid())
+  distributorId     String
+  fileName          String
+  originalName      String
+  filePath          String
+  fileType          String
+  fileSize          Int
+  imageType         DistributorImageType
+  uploadedAt        DateTime        @default(now())
+  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+
+  @@map("distributor_images")
+}
+
+model DistributorSMS {
+  id                String          @id @default(cuid())
+  distributorId     String
+  to                String
+  message           String
+  type              String          @default("OUTBOUND")
+  status            String          @default("SENT")
+  sentBy            String
+  sentAt            DateTime        @default(now())
+  errorMessage      String?
+  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  sentByUser        User            @relation(fields: [sentBy], references: [id])
+
+  @@map("distributor_sms")
+}
+
+model DistributorEmail {
+  id                String          @id @default(cuid())
+  distributorId     String
+  to                String
+  subject           String
+  content           String
+  type              String          @default("OUTBOUND")
+  status            String          @default("SENT")
+  sentBy            String
+  sentAt            DateTime        @default(now())
+  messageId         String?
+  errorMessage      String?
+  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  sentByUser        User            @relation(fields: [sentBy], references: [id])
+
+  @@map("distributor_emails")
+}
+
+model DistributorProduct {
+  id                String          @id @default(cuid())
+  distributorId     String
+  productId         String
+  quantity          Int             @default(1)
+  notes             String?
+  interestLevel     String          @default("MEDIUM")
+  addedBy           String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  product           Product         @relation(fields: [productId], references: [id])
+  addedByUser       User            @relation(fields: [addedBy], references: [id])
+
+  @@map("distributor_products")
+}
+
 enum DistributorLeadStatus {
   PENDING
   UNDER_REVIEW
   APPROVED
   REJECTED
+}
+
+enum DistributorStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }
 
 enum DistributorImageType {

@@ -112,6 +112,13 @@ export default function SettingsPage() {
 
   const systemSettings = [
     {
+      id: "branding",
+      title: "Branding",
+      description: "Company logo, favicon, and visual identity settings.",
+      icon: Star,
+      href: "/settings/system/branding"
+    },
+    {
       id: "notifications",
       title: "Notifications",
       description: "Email, SMS, and push notification preferences and templates.",

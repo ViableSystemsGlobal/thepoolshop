@@ -2,6 +2,105 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import nodemailer from 'nodemailer';
+
+// Helper function to get setting value
+async function getSettingValue(key: string, defaultValue: string = ''): Promise<string> {
+  try {
+    const setting = await prisma.systemSettings.findUnique({
+      where: { key },
+      select: { value: true }
+    });
+    return setting?.value || defaultValue;
+  } catch (error) {
+    console.error(`Error fetching setting ${key}:`, error);
+    return defaultValue;
+  }
+}
+
+// Send SMS notification
+async function sendSMS(phoneNumber: string, message: string): Promise<boolean> {
+  try {
+    const smsUsername = await getSettingValue('SMS_USERNAME', '');
+    const smsPassword = await getSettingValue('SMS_PASSWORD', '');
+    const smsSenderId = await getSettingValue('SMS_SENDER_ID', 'AdPools');
+
+    if (!smsUsername || !smsPassword) {
+      console.error('SMS credentials not configured');
+      return false;
+    }
+
+    const response = await fetch('https://deywuro.com/api/sms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        username: smsUsername,
+        password: smsPassword,
+        destination: phoneNumber,
+        source: smsSenderId,
+        message: message
+      })
+    });
+
+    const responseText = await response.text();
+    const result = JSON.parse(responseText);
+    
+    if (result.code === 0) {
+      console.log('SMS sent successfully');
+      return true;
+    } else {
+      console.error('SMS failed:', result.message);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error sending SMS:', error);
+    return false;
+  }
+}
+
+// Send Email notification
+async function sendEmail(to: string, subject: string, message: string): Promise<boolean> {
+  try {
+    const smtpHost = await getSettingValue('SMTP_HOST', '');
+    const smtpPort = await getSettingValue('SMTP_PORT', '587');
+    const smtpUsername = await getSettingValue('SMTP_USERNAME', '');
+    const smtpPassword = await getSettingValue('SMTP_PASSWORD', '');
+    const smtpFromAddress = await getSettingValue('SMTP_FROM_ADDRESS', '');
+    const smtpFromName = await getSettingValue('SMTP_FROM_NAME', 'AdPools Group');
+    const smtpEncryption = await getSettingValue('SMTP_ENCRYPTION', 'tls');
+
+    if (!smtpHost || !smtpUsername || !smtpPassword || !smtpFromAddress) {
+      console.error('Email credentials not configured');
+      return false;
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: parseInt(smtpPort),
+      secure: smtpEncryption === 'ssl',
+      auth: {
+        user: smtpUsername,
+        pass: smtpPassword,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"${smtpFromName}" <${smtpFromAddress}>`,
+      to: to,
+      subject: subject,
+      text: message,
+      html: message.replace(/\n/g, '<br>'),
+    });
+
+    console.log('Email sent successfully');
+    return true;
+  } catch (error) {
+    console.error('Error sending email:', error);
+    return false;
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -185,6 +284,24 @@ export async function PUT(
       }
     }
 
+    // Get the current lead to check if status is changing to APPROVED
+    const currentLead = await (prisma as any).distributorLead.findUnique({
+      where: { id },
+      select: { 
+        status: true, 
+        firstName: true, 
+        lastName: true, 
+        businessName: true, 
+        email: true, 
+        phone: true,
+        interestedProducts: {
+          include: {
+            product: true
+          }
+        }
+      }
+    });
+
     // Update the distributor lead in database
     const updatedLead = await (prisma as any).distributorLead.update({
       where: { id },
@@ -217,6 +334,107 @@ export async function PUT(
         status: body.status || undefined
       }
     });
+
+    // Send notifications and create distributor record if status is APPROVED
+    console.log('🔍 Approval check - body.status:', body.status, 'updatedLead.status:', updatedLead.status);
+    if (body.status === 'APPROVED') {
+      console.log('✅ Status is APPROVED, proceeding with distributor creation and notifications');
+      // Check if distributor already exists to avoid duplicates
+      const existingDistributor = await (prisma as any).distributor.findFirst({
+        where: { email: updatedLead.email }
+      });
+
+      if (!existingDistributor) {
+        const contactName = `${updatedLead.firstName} ${updatedLead.lastName}`;
+        const businessName = updatedLead.businessName;
+      
+      // Create distributor record
+      try {
+        const distributor = await (prisma as any).distributor.create({
+          data: {
+            firstName: updatedLead.firstName,
+            lastName: updatedLead.lastName,
+            email: updatedLead.email,
+            phone: updatedLead.phone,
+            dateOfBirth: updatedLead.dateOfBirth,
+            businessName: updatedLead.businessName,
+            businessType: updatedLead.businessType,
+            businessRegistrationNumber: updatedLead.businessRegistrationNumber,
+            yearsInBusiness: updatedLead.yearsInBusiness,
+            address: updatedLead.address,
+            city: updatedLead.city,
+            region: updatedLead.region,
+            country: updatedLead.country,
+            postalCode: updatedLead.postalCode,
+            latitude: updatedLead.latitude,
+            longitude: updatedLead.longitude,
+            territory: updatedLead.territory,
+            expectedVolume: updatedLead.expectedVolume,
+            experience: updatedLead.experience,
+            investmentCapacity: updatedLead.investmentCapacity,
+            targetMarket: updatedLead.targetMarket,
+            notes: updatedLead.notes,
+            profileImage: updatedLead.profileImage,
+            businessLicense: updatedLead.businessLicense,
+            taxCertificate: updatedLead.taxCertificate,
+            status: 'ACTIVE',
+            approvedBy: session.user.id
+          }
+        });
+
+        // Copy interested products to distributor
+        if (currentLead.interestedProducts && currentLead.interestedProducts.length > 0) {
+          await (prisma as any).distributorProduct.createMany({
+            data: currentLead.interestedProducts.map((product: any) => ({
+              distributorId: distributor.id,
+              productId: product.productId,
+              quantity: product.quantity || 1,
+              interestLevel: product.interestLevel || 'MEDIUM',
+              addedBy: session.user.id
+            }))
+          });
+        }
+
+        console.log(`Created distributor record for approved lead ${id}: ${distributor.id}`);
+      } catch (error) {
+        console.error('Error creating distributor record:', error);
+      }
+      
+      // SMS Message
+      const smsMessage = `Congratulations ${contactName}! Your distributor application for ${businessName} has been approved. Welcome to the AdPools Group family! You will receive further instructions via email.`;
+      
+      // Email Message
+      const emailSubject = `Distributor Application Approved - ${businessName}`;
+      const emailMessage = `Dear ${contactName},
+
+Congratulations! We are pleased to inform you that your distributor application for ${businessName} has been approved.
+
+Welcome to the AdPools Group family! As an approved distributor, you will have access to our comprehensive product range and support services.
+
+Next Steps:
+1. You will receive a welcome package with detailed information about our products and services
+2. Our team will contact you within 2 business days to discuss your territory and sales targets
+3. You will receive login credentials for our distributor portal
+4. Training materials and product catalogs will be provided
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+AdPools Group Team`;
+
+      // Send notifications asynchronously (don't wait for them to complete)
+      Promise.all([
+        sendSMS(updatedLead.phone, smsMessage),
+        sendEmail(updatedLead.email, emailSubject, emailMessage)
+      ]).then(([smsSuccess, emailSuccess]) => {
+        console.log(`Notifications sent for approved distributor ${id}: SMS=${smsSuccess}, Email=${emailSuccess}`);
+      }).catch(error => {
+        console.error('Error sending approval notifications:', error);
+      });
+      } else {
+        console.log(`Distributor already exists for ${updatedLead.businessName}, skipping creation`);
+      }
+    }
 
     return NextResponse.json({
       success: true,

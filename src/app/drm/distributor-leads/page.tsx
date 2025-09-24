@@ -352,7 +352,7 @@ export default function DistributorLeadsPage() {
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button
-              onClick={() => router.push('/drm')}
+              onClick={() => router.push('/drm/distributors')}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"

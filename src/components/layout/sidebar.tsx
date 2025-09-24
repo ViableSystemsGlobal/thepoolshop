@@ -61,7 +61,7 @@ const navigation = [
   },
   { 
     name: "DRM", 
-    href: "/drm", 
+    href: null, 
     icon: Handshake,
     badge: null,
     module: "drm",
@@ -69,7 +69,7 @@ const navigation = [
       { name: "Distributor Leads", href: "/drm/distributor-leads", icon: Users, module: "distributor-leads" },
       { name: "Distributors", href: "/drm/distributors", icon: Building, module: "distributors" },
       { name: "Agreements", href: "/drm/agreements", icon: FileText, module: "agreements" },
-      { name: "Routes & Mapping", href: "/drm/routes-mapping", icon: BarChart3, module: "routes-mapping" },
+      { name: "Routes & Mapping", href: "/drm/routes-mapping", icon: MapPin, module: "routes-mapping" },
       { name: "Engagement", href: "/drm/engagement", icon: MessageSquare, module: "engagement" },
     ]
   },
@@ -337,7 +337,7 @@ export default function Sidebar() {
           .map((item) => {
             const hasChildren = item.children && item.children.length > 0;
             const isExpanded = expandedSections.includes(item.name);
-            const isActiveItem = isActive(item.href) || (hasChildren && item.children!.some(child => isActive(child.href)));
+            const isActiveItem = (item.href && isActive(item.href)) || (hasChildren && item.children!.some(child => isActive(child.href)));
 
           return (
             <div key={item.name}>
@@ -366,7 +366,7 @@ export default function Sidebar() {
                 </button>
               ) : (
                 <button
-                  onClick={() => navigateWithLoading(item.href)}
+                  onClick={() => item.href && navigateWithLoading(item.href)}
                   className={cn(
                     "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full text-left",
                     isActiveItem
