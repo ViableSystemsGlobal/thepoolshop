@@ -13,6 +13,7 @@ export interface UserAbilities {
   abilities: string[];
   hasAbility: (resource: string, action: string) => boolean;
   canAccess: (module: string) => boolean;
+  loading: boolean;
 }
 
 // Define module access mappings
@@ -270,13 +271,50 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
 export function useAbilities(): UserAbilities {
   const { data: session } = useSession();
   const [abilities, setAbilities] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (session?.user?.role) {
-      const userRole = session.user.role as string;
-      const userAbilities = ROLE_ABILITIES[userRole] || [];
-      setAbilities(userAbilities);
-    }
+    const fetchAbilities = async () => {
+      // Wait until session is available to avoid flashing no-permission states
+      if (!session) {
+        setLoading(true);
+        return;
+      }
+      if (!session.user?.id) {
+        setLoading(true);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/user/abilities', {
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('🔍 useAbilities - Fetched abilities from database:', data.abilities);
+          setAbilities(data.abilities || []);
+        } else {
+          console.error('Failed to fetch abilities:', response.status);
+          // Fallback to hardcoded abilities if API fails
+          const userRole = session.user.role as string;
+          const userAbilities = ROLE_ABILITIES[userRole] || [];
+          console.log('🔍 useAbilities - Using fallback abilities for role:', userRole);
+          setAbilities(userAbilities);
+        }
+      } catch (error) {
+        console.error('Error fetching abilities:', error);
+        // Fallback to hardcoded abilities if API fails
+        const userRole = session.user.role as string;
+        const userAbilities = ROLE_ABILITIES[userRole] || [];
+        console.log('🔍 useAbilities - Using fallback abilities for role:', userRole);
+        setAbilities(userAbilities);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAbilities();
   }, [session]);
 
   const hasAbility = (resource: string, action: string): boolean => {
@@ -285,6 +323,10 @@ export function useAbilities(): UserAbilities {
   };
 
   const canAccess = (module: string): boolean => {
+    // While abilities are loading, don't hide navigation to avoid flicker
+    if (loading) {
+      return true;
+    }
     const moduleAbilities = MODULE_ACCESS[module as keyof typeof MODULE_ACCESS] || [];
     return moduleAbilities.some(ability => abilities.includes(ability));
   };
@@ -293,5 +335,6 @@ export function useAbilities(): UserAbilities {
     abilities,
     hasAbility,
     canAccess,
+    loading,
   };
 }

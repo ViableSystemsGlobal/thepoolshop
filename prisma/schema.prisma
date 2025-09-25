@@ -1273,12 +1273,15 @@ model Distributor {
   nextCreditReview        DateTime?               // Next scheduled credit review
   
   // Relations
+  zoneId                  String?
+  zone                    Zone?                   @relation(fields: [zoneId], references: [id])
   images                  DistributorImage[]
   smsMessages             DistributorSMS[]
   emails                  DistributorEmail[]
   interestedProducts      DistributorProduct[]
   creditHistory           DistributorCreditHistory[]
   orders                  Order[]
+  deliveries              Delivery[]
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
 
@@ -1419,6 +1422,7 @@ model Order {
   createdBy       String
   distributor     Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
   items           OrderItem[]
+  delivery        Delivery?
   createdByUser   User        @relation(fields: [createdBy], references: [id])
 
   @@map("orders")
@@ -1446,4 +1450,100 @@ enum OrderStatus {
   DELIVERED
   CANCELLED
   RETURNED
+}
+
+enum RouteStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  SCHEDULED
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+model Zone {
+  id            String        @id @default(cuid())
+  name          String
+  description   String?
+  color         String        @default("#3B82F6")
+  boundaries    Json          // GeoJSON polygon coordinates
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Relations
+  distributors  Distributor[]
+  routes        Route[]
+  
+  @@map("zones")
+}
+
+model Driver {
+  id            String        @id @default(cuid())
+  name          String
+  phone         String
+  email         String?
+  licenseNumber String
+  vehicleType   String        // "van", "truck", "motorcycle"
+  vehiclePlate  String
+  capacity      Int           // Max weight in kg
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Relations
+  routes        Route[]
+  deliveries    Delivery[]
+  
+  @@map("drivers")
+}
+
+model Route {
+  id                String        @id @default(cuid())
+  name              String
+  zoneId            String
+  zone              Zone          @relation(fields: [zoneId], references: [id])
+  driverId          String?
+  driver            Driver?       @relation(fields: [driverId], references: [id])
+  waypoints         Json          // Array of {lat, lng, distributorId, order}
+  totalDistance     Float         // Total distance in km
+  estimatedDuration Int           // Estimated duration in minutes
+  status            RouteStatus   @default(PLANNED)
+  scheduledDate     DateTime
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  // Relations
+  deliveries        Delivery[]
+  
+  @@map("routes")
+}
+
+model Delivery {
+  id              String          @id @default(cuid())
+  routeId         String
+  route           Route           @relation(fields: [routeId], references: [id])
+  distributorId   String
+  distributor     Distributor     @relation(fields: [distributorId], references: [id])
+  driverId        String?
+  driver          Driver?         @relation(fields: [driverId], references: [id])
+  orderId         String?         @unique
+  order           Order?          @relation(fields: [orderId], references: [id])
+  scheduledAt     DateTime
+  deliveredAt     DateTime?
+  status          DeliveryStatus  @default(SCHEDULED)
+  notes           String?
+  proofOfDelivery String?         // Photo URL
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  @@map("deliveries")
 }
