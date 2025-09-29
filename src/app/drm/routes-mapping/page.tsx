@@ -11,6 +11,15 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
+import { CreateRouteModal } from '@/components/modals/create-route-modal';
+import { CreateZoneModal } from '@/components/modals/create-zone-modal';
+import { CreateDriverModal } from '@/components/modals/create-driver-modal';
+import { AssignDistributorsToZoneModal } from '@/components/modals/assign-distributors-to-zone-modal';
+import { GenerateRouteModal } from '@/components/modals/generate-route-modal';
+import { EditZoneModal } from '@/components/modals/edit-zone-modal';
+import { ViewZoneDetailsModal } from '@/components/modals/view-zone-details-modal';
+import { DeleteZoneModal } from '@/components/modals/delete-zone-modal';
+import { ViewRouteDetailsModal } from '@/components/modals/view-route-details-modal';
 import { 
   Plus, 
   Search, 
@@ -79,7 +88,6 @@ interface Route {
 export default function RoutesMappingPage() {
   const { data: session, status: authStatus } = useSession();
   const router = useRouter();
-  const { theme } = useTheme();
   const { hasAbility, loading: abilitiesLoading } = useAbilities();
   const { success, error } = useToast();
 
@@ -98,6 +106,14 @@ export default function RoutesMappingPage() {
   const [showCreateZoneModal, setShowCreateZoneModal] = useState(false);
   const [showCreateRouteModal, setShowCreateRouteModal] = useState(false);
   const [showCreateDriverModal, setShowCreateDriverModal] = useState(false);
+  const [showAssignDistributorsModal, setShowAssignDistributorsModal] = useState(false);
+  const [showGenerateRouteModal, setShowGenerateRouteModal] = useState(false);
+  const [showEditZoneModal, setShowEditZoneModal] = useState(false);
+  const [showViewZoneModal, setShowViewZoneModal] = useState(false);
+  const [showDeleteZoneModal, setShowDeleteZoneModal] = useState(false);
+  const [showViewRouteModal, setShowViewRouteModal] = useState(false);
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
 
 
   // Load data
@@ -207,29 +223,32 @@ export default function RoutesMappingPage() {
   });
 
   // AI Recommendations
-  const aiRecommendations = [
-    {
-      id: "optimize-routes",
-      title: "Optimize Route Planning",
-      description: "Use AI to automatically generate optimal delivery routes based on distributor locations and delivery windows.",
-      priority: "high",
-      action: "Optimize Routes"
-    },
-    {
-      id: "zone-analysis",
-      title: "Zone Performance Analysis",
-      description: "Analyze delivery performance by zone to identify areas for improvement and resource allocation.",
-      priority: "medium",
-      action: "View Analytics"
-    },
-    {
-      id: "driver-capacity",
-      title: "Driver Capacity Planning",
-      description: "Ensure driver capacity matches delivery volume to prevent delays and optimize resource utilization.",
-      priority: "medium",
-      action: "Check Capacity"
-    }
-  ];
+    const aiRecommendations = [
+      {
+        id: "optimize-routes",
+        title: "Optimize Route Planning",
+        description: "Use AI to automatically generate optimal delivery routes based on distributor locations and delivery windows.",
+        priority: "high" as const,
+        action: "Optimize Routes",
+        completed: false
+      },
+      {
+        id: "zone-analysis",
+        title: "Zone Performance Analysis",
+        description: "Analyze delivery performance by zone to identify areas for improvement and resource allocation.",
+        priority: "medium" as const,
+        action: "View Analytics",
+        completed: false
+      },
+      {
+        id: "driver-capacity",
+        title: "Driver Capacity Planning",
+        description: "Ensure driver capacity matches delivery volume to prevent delays and optimize resource utilization.",
+        priority: "medium" as const,
+        action: "Check Capacity",
+        completed: false
+      }
+    ];
 
   // Stats calculations
   const totalZones = zones.length;
@@ -286,40 +305,28 @@ export default function RoutesMappingPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {activeTab === 'zones' && hasAbility('routes-mapping.create') && (
+            {activeTab === 'zones' && hasAbility('routes-mapping', 'create') && (
               <Button
                 onClick={() => setShowCreateZoneModal(true)}
-                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-                style={{
-                  backgroundColor: theme.primary,
-                  color: 'white'
-                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Zone
               </Button>
             )}
-            {activeTab === 'routes' && hasAbility('routes-mapping.create') && (
+            {activeTab === 'routes' && (
               <Button
                 onClick={() => setShowCreateRouteModal(true)}
-                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-                style={{
-                  backgroundColor: theme.primary,
-                  color: 'white'
-                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Route
               </Button>
             )}
-            {activeTab === 'drivers' && hasAbility('routes-mapping.create') && (
+            {activeTab === 'drivers' && hasAbility('routes-mapping', 'create') && (
               <Button
                 onClick={() => setShowCreateDriverModal(true)}
-                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-                style={{
-                  backgroundColor: theme.primary,
-                  color: 'white'
-                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Driver
@@ -336,6 +343,9 @@ export default function RoutesMappingPage() {
               title="Routes & Mapping AI"
               subtitle="Smart logistics optimization and route planning"
               recommendations={aiRecommendations}
+              onRecommendationComplete={(id) => {
+                console.log('Recommendation completed:', id);
+              }}
             />
           </div>
 
@@ -577,19 +587,44 @@ export default function RoutesMappingPage() {
                           }
                           items={[
                             {
+                              label: 'Assign Distributors',
+                              icon: <Users className="w-4 h-4" />,
+                              onClick: () => {
+                                setSelectedZone(zone);
+                                setShowAssignDistributorsModal(true);
+                              }
+                            },
+                            {
+                              label: 'Generate Route',
+                              icon: <Route className="w-4 h-4" />,
+                              onClick: () => {
+                                setSelectedZone(zone);
+                                setShowGenerateRouteModal(true);
+                              }
+                            },
+                            {
                               label: 'View Details',
                               icon: <Eye className="w-4 h-4" />,
-                              onClick: () => {/* TODO: View zone details */}
+                              onClick: () => {
+                                setSelectedZone(zone);
+                                setShowViewZoneModal(true);
+                              }
                             },
                             {
                               label: 'Edit Zone',
                               icon: <Edit className="w-4 h-4" />,
-                              onClick: () => {/* TODO: Edit zone */}
+                              onClick: () => {
+                                setSelectedZone(zone);
+                                setShowEditZoneModal(true);
+                              }
                             },
                             {
                               label: 'Delete Zone',
                               icon: <Trash2 className="w-4 h-4" />,
-                              onClick: () => {/* TODO: Delete zone */}
+                              onClick: () => {
+                                setSelectedZone(zone);
+                                setShowDeleteZoneModal(true);
+                              }
                             }
                           ]}
                         />
@@ -645,7 +680,9 @@ export default function RoutesMappingPage() {
                             {
                               label: 'View Route',
                               icon: <Eye className="w-4 h-4" />,
-                              onClick: () => {/* TODO: View route details */}
+                              onClick: () => {
+                                router.push(`/drm/routes-mapping/routes/${route.id}`);
+                              }
                             },
                             {
                               label: 'Edit Route',
@@ -771,6 +808,105 @@ export default function RoutesMappingPage() {
           )}
         </Card>
       </div>
+
+      {/* Modals */}
+      <CreateZoneModal
+        isOpen={showCreateZoneModal}
+        onClose={() => setShowCreateZoneModal(false)}
+        onSuccess={() => {
+          loadZones();
+          setShowCreateZoneModal(false);
+        }}
+      />
+      
+      <CreateRouteModal
+        isOpen={showCreateRouteModal}
+        onClose={() => setShowCreateRouteModal(false)}
+        onSuccess={() => {
+          loadRoutes();
+          setShowCreateRouteModal(false);
+        }}
+      />
+      
+      <CreateDriverModal
+        isOpen={showCreateDriverModal}
+        onClose={() => setShowCreateDriverModal(false)}
+        onSuccess={() => {
+          loadDrivers();
+          setShowCreateDriverModal(false);
+        }}
+      />
+      
+      <AssignDistributorsToZoneModal
+        isOpen={showAssignDistributorsModal}
+        onClose={() => {
+          setShowAssignDistributorsModal(false);
+          setSelectedZone(null);
+        }}
+        onSuccess={() => {
+          loadZones();
+          loadDistributors();
+          setShowAssignDistributorsModal(false);
+          setSelectedZone(null);
+        }}
+        zone={selectedZone}
+      />
+      
+      <GenerateRouteModal
+        isOpen={showGenerateRouteModal}
+        onClose={() => {
+          setShowGenerateRouteModal(false);
+          setSelectedZone(null);
+        }}
+        onSuccess={() => {
+          loadRoutes();
+          setShowGenerateRouteModal(false);
+          setSelectedZone(null);
+        }}
+        zone={selectedZone}
+      />
+      <EditZoneModal
+        isOpen={showEditZoneModal}
+        onClose={() => {
+          setShowEditZoneModal(false);
+          setSelectedZone(null);
+        }}
+        onSuccess={() => {
+          loadZones();
+          setShowEditZoneModal(false);
+          setSelectedZone(null);
+        }}
+        zone={selectedZone}
+      />
+      <ViewZoneDetailsModal
+        isOpen={showViewZoneModal}
+        onClose={() => {
+          setShowViewZoneModal(false);
+          setSelectedZone(null);
+        }}
+        zone={selectedZone}
+      />
+      <DeleteZoneModal
+        isOpen={showDeleteZoneModal}
+        onClose={() => {
+          setShowDeleteZoneModal(false);
+          setSelectedZone(null);
+        }}
+        onSuccess={() => {
+          loadZones();
+          setShowDeleteZoneModal(false);
+          setSelectedZone(null);
+        }}
+        zone={selectedZone}
+      />
+      <ViewRouteDetailsModal
+        isOpen={showViewRouteModal}
+        onClose={() => {
+          setShowViewRouteModal(false);
+          setSelectedRoute(null);
+        }}
+        route={selectedRoute}
+      />
     </MainLayout>
   );
 }

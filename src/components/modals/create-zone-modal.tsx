@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/contexts/toast-context';
-import { useTheme } from '@/contexts/theme-context';
 import { MapPin, Palette } from 'lucide-react';
 
 interface CreateZoneModalProps {
@@ -29,7 +28,6 @@ const ZONE_COLORS = [
 
 export function CreateZoneModal({ isOpen, onClose, onSuccess }: CreateZoneModalProps) {
   const { success, error } = useToast();
-  const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -159,10 +157,6 @@ export function CreateZoneModal({ isOpen, onClose, onSuccess }: CreateZoneModalP
             onClick={handleSubmit}
             disabled={loading || !formData.name.trim()}
             className="bg-blue-600 hover:bg-blue-700 text-white"
-            style={{
-              backgroundColor: theme?.primary || '#2563eb',
-              color: 'white'
-            }}
           >
             {loading ? (
               <>

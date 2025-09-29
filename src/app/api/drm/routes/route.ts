@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const routes = await prisma.route.findMany({
+    const routes = await (prisma as any).route.findMany({
       include: {
         zone: {
           select: {
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify zone exists
-    const zone = await prisma.zone.findUnique({
+    const zone = await (prisma as any).zone.findUnique({
       where: { id: zoneId }
     });
 
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     // Verify driver exists (if provided)
     if (driverId) {
-      const driver = await prisma.driver.findUnique({
+      const driver = await (prisma as any).driver.findUnique({
         where: { id: driverId }
       });
 
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create route
-    const route = await prisma.route.create({
+    const route = await (prisma as any).route.create({
       data: {
         name,
         zoneId,

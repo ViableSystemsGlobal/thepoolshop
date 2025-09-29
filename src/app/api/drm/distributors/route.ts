@@ -11,8 +11,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const zoneId = searchParams.get('zoneId');
+
+    // Build where clause
+    const whereClause: any = {};
+    if (zoneId) {
+      whereClause.zoneId = zoneId;
+    }
+
     // Get all distributors with related data
-    const distributors = await prisma.distributor.findMany({
+    const distributors = await (prisma as any).distributor.findMany({
+      where: whereClause,
       include: {
         approvedByUser: {
           select: {
@@ -101,7 +112,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if email already exists
-    const existingDistributor = await prisma.distributor.findUnique({
+    const existingDistributor = await (prisma as any).distributor.findUnique({
       where: { email }
     });
 
@@ -112,7 +123,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create distributor
-    const distributor = await prisma.distributor.create({
+    const distributor = await (prisma as any).distributor.create({
       data: {
         firstName,
         lastName,
@@ -146,7 +157,7 @@ export async function POST(request: NextRequest) {
     if (interestedProducts && interestedProducts.length > 0) {
       await Promise.all(
         interestedProducts.map((productId: string) =>
-          prisma.distributorProduct.create({
+          (prisma as any).distributorProduct.create({
             data: {
               distributorId: distributor.id,
               productId,
@@ -160,7 +171,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the created distributor with related data
-    const createdDistributor = await prisma.distributor.findUnique({
+    const createdDistributor = await (prisma as any).distributor.findUnique({
       where: { id: distributor.id },
       include: {
         approvedByUser: {

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const drivers = await prisma.driver.findMany({
+    const drivers = await (prisma as any).driver.findMany({
       include: {
         routes: {
           select: {
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if license number already exists
-    const existingDriver = await prisma.driver.findFirst({
+    const existingDriver = await (prisma as any).driver.findFirst({
       where: { licenseNumber }
     });
 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create driver
-    const driver = await prisma.driver.create({
+    const driver = await (prisma as any).driver.create({
       data: {
         name,
         phone,

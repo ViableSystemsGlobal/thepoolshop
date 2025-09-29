@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const zones = await prisma.zone.findMany({
+    const zones = await (prisma as any).zone.findMany({
       include: {
         distributors: {
           select: {
@@ -61,19 +61,19 @@ export async function POST(request: NextRequest) {
     const { name, description, color, boundaries } = body;
 
     // Validate required fields
-    if (!name || !boundaries) {
+    if (!name) {
       return NextResponse.json({ 
-        error: 'Missing required fields: name, boundaries' 
+        error: 'Missing required field: name' 
       }, { status: 400 });
     }
 
     // Create zone
-    const zone = await prisma.zone.create({
+    const zone = await (prisma as any).zone.create({
       data: {
         name,
         description: description || null,
         color: color || '#3B82F6',
-        boundaries: boundaries,
+        boundaries: boundaries || { type: "Polygon", coordinates: [[]] },
         isActive: true
       },
       include: {
