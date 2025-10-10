@@ -21,7 +21,8 @@ async function getSettingValue(key: string, defaultValue: string = ''): Promise<
 async function sendEmailViaSMTP(
   recipient: string, 
   subject: string, 
-  message: string
+  message: string,
+  attachments?: Array<{ filename: string; url: string; contentType: string }>
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     // Get SMTP configuration from database
@@ -51,6 +52,27 @@ async function sendEmailViaSMTP(
       },
     });
 
+    // Prepare attachments if provided
+    let emailAttachments: any[] = [];
+    if (attachments && attachments.length > 0) {
+      for (const attachment of attachments) {
+        try {
+          // Fetch the PDF content from the URL
+          const response = await fetch(attachment.url);
+          if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            emailAttachments.push({
+              filename: attachment.filename,
+              content: Buffer.from(buffer),
+              contentType: attachment.contentType
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching attachment:', error);
+        }
+      }
+    }
+
     // Send email
     const result = await transporter.sendMail({
       from: `"${smtpFromName}" <${smtpFromAddress}>`,
@@ -58,6 +80,7 @@ async function sendEmailViaSMTP(
       subject: subject,
       text: message,
       html: message.replace(/\n/g, '<br>'),
+      attachments: emailAttachments,
     });
 
     console.log('Email sent successfully:', result.messageId);
@@ -83,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { recipients, subject, message, isBulk = false } = body;
+    const { recipients, subject, message, isBulk = false, attachments } = body;
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return NextResponse.json(
@@ -116,7 +139,7 @@ export async function POST(request: NextRequest) {
       try {
         // Handle both string emails and object with email property
         const emailAddress = typeof recipient === 'string' ? recipient : recipient.email;
-        const emailResult = await sendEmailViaSMTP(emailAddress, subject, message);
+        const emailResult = await sendEmailViaSMTP(emailAddress, subject, message, attachments);
         
         // Create email message record
         const emailMessage = await prisma.emailMessage.create({

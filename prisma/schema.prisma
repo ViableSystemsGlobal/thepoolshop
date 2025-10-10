@@ -8,58 +8,64 @@ datasource db {
 }
 
 model User {
-  id                      String               @id @default(cuid())
-  email                   String               @unique
-  name                    String?
-  phone                   String?
-  image                   String?
-  role                    UserRole             @default(SALES_REP)
-  isActive                Boolean              @default(true)
-  lastLoginAt             DateTime?
-  emailVerified           DateTime?
-  phoneVerified           DateTime?
-  preferences             Json?
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
-  password                String?
-  userRoles               UserRoleAssignment[]
-  accounts                Account[]
-  auditLogs               AuditLog[]
-  backorders              Backorder[]
-  emailCampaigns          EmailCampaign[]
-  emailMessages           EmailMessage[]
-  leads                   Lead[]
-  notifications           Notification[]
-  proformas               Proforma[]
-  quotations              Quotation[]
-  createdRecurringTasks   RecurringTask[]      @relation("CreatedRecurringTasks")
-  assignedRecurringTasks  RecurringTask[]      @relation("AssignedRecurringTasks")
-  smsCampaigns            SmsCampaign[]
-  smsMessages             SmsMessage[]
-  taskAssignments         TaskAssignee[]       @relation("TaskAssignments")
-  taskAttachments         TaskAttachment[]     @relation("TaskAttachments")
-  completedChecklistItems TaskChecklistItem[]  @relation("CompletedChecklistItems")
-  taskComments            TaskComment[]        @relation("TaskComments")
-  createdTaskTemplates    TaskTemplate[]       @relation("CreatedTaskTemplates")
-  createdTasks            Task[]               @relation("CreatedTasks")
-  assignedTasks           Task[]               @relation("AssignedTasks")
-  leadComments            LeadComment[]
-  leadFiles               LeadFile[]
-  leadEmails              LeadEmail[]
-  leadSms                 LeadSMS[]
-  leadProducts            LeadProduct[]
-  leadMeetings            LeadMeeting[]
-  distributorLeads        DistributorLead[]
-  distributorLeadSMS      DistributorLeadSMS[]
-  distributorLeadEmails   DistributorLeadEmail[]
-  distributorLeadProducts DistributorLeadProduct[]
-  distributors            Distributor[]
-  distributorSMS          DistributorSMS[]
-  distributorEmails       DistributorEmail[]
-  distributorProducts     DistributorProduct[]
-  creditHistory           DistributorCreditHistory[]
-  creditApprovedDistributors Distributor[] @relation("CreditApprovedBy")
-  orders                  Order[]
+  id                         String                     @id @default(cuid())
+  email                      String                     @unique
+  name                       String?
+  phone                      String?
+  image                      String?
+  role                       UserRole                   @default(SALES_REP)
+  isActive                   Boolean                    @default(true)
+  lastLoginAt                DateTime?
+  emailVerified              DateTime?
+  phoneVerified              DateTime?
+  preferences                Json?
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  password                   String?
+  userRoles                  UserRoleAssignment[]
+  accounts                   Account[]
+  auditLogs                  AuditLog[]
+  backorders                 Backorder[]
+  emailCampaigns             EmailCampaign[]
+  emailMessages              EmailMessage[]
+  leads                      Lead[]
+  notifications              Notification[]
+  proformas                  Proforma[]
+  quotations                 Quotation[]
+  createdRecurringTasks      RecurringTask[]            @relation("CreatedRecurringTasks")
+  assignedRecurringTasks     RecurringTask[]            @relation("AssignedRecurringTasks")
+  smsCampaigns               SmsCampaign[]
+  smsMessages                SmsMessage[]
+  taskAssignments            TaskAssignee[]             @relation("TaskAssignments")
+  taskAttachments            TaskAttachment[]           @relation("TaskAttachments")
+  completedChecklistItems    TaskChecklistItem[]        @relation("CompletedChecklistItems")
+  taskComments               TaskComment[]              @relation("TaskComments")
+  createdTaskTemplates       TaskTemplate[]             @relation("CreatedTaskTemplates")
+  createdTasks               Task[]                     @relation("CreatedTasks")
+  assignedTasks              Task[]                     @relation("AssignedTasks")
+  leadComments               LeadComment[]
+  leadFiles                  LeadFile[]
+  leadEmails                 LeadEmail[]
+  leadSms                    LeadSMS[]
+  leadProducts               LeadProduct[]
+  leadMeetings               LeadMeeting[]
+  distributorLeads           DistributorLead[]
+  distributorLeadSMS         DistributorLeadSMS[]
+  distributorLeadEmails      DistributorLeadEmail[]
+  distributorLeadProducts    DistributorLeadProduct[]
+  distributors               Distributor[]
+  distributorSMS             DistributorSMS[]
+  distributorEmails          DistributorEmail[]
+  distributorProducts        DistributorProduct[]
+  creditHistory              DistributorCreditHistory[]
+  creditApprovedDistributors Distributor[]              @relation("CreditApprovedBy")
+  orders                     Order[]
+  salesOrders                SalesOrder[]               @relation("SalesOrderOwner")
+  invoices                   Invoice[]                  @relation("InvoiceOwner")
+  creditApprovedInvoices     Invoice[]                  @relation("InvoiceCreditApprover")
+  receivedPayments           Payment[]                  @relation("PaymentReceiver")
+  createdReturns             Return[]                   @relation("ReturnCreator")
+  approvedReturns            Return[]                   @relation("ReturnApprover")
 
   @@map("users")
 }
@@ -123,40 +129,43 @@ model Category {
 }
 
 model Product {
-  id                     String            @id @default(cuid())
-  sku                    String            @unique
-  name                   String
-  description            String?
-  images                 String?
-  attributes             Json?
-  uomBase                String            @default("pcs")
-  uomSell                String            @default("pcs")
-  price                  Float?
-  cost                   Float?
-  originalPrice          Float?
-  originalCost           Float?
-  originalPriceCurrency  String?
-  originalCostCurrency   String?
-  exchangeRateAtImport   Float?
-  lastExchangeRateUpdate DateTime?
-  baseCurrency           String            @default("GHS")
-  active                 Boolean           @default(true)
-  categoryId             String
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
-  costPrice              Float?
-  backorders             Backorder[]
-  priceListItems         PriceListItem[]
-  documents              ProductDocument[]
-  category               Category          @relation(fields: [categoryId], references: [id])
-  proformaLines          ProformaLine[]
-  quotationLines         QuotationLine[]
-  stockItems             StockItem[]
-  movements              StockMovement[]
-  leadProducts           LeadProduct[]
+  id                      String                   @id @default(cuid())
+  sku                     String                   @unique
+  name                    String
+  description             String?
+  images                  String?
+  attributes              Json?
+  uomBase                 String                   @default("pcs")
+  uomSell                 String                   @default("pcs")
+  price                   Float?
+  cost                    Float?
+  originalPrice           Float?
+  originalCost            Float?
+  originalPriceCurrency   String?
+  originalCostCurrency    String?
+  exchangeRateAtImport    Float?
+  lastExchangeRateUpdate  DateTime?
+  baseCurrency            String                   @default("GHS")
+  active                  Boolean                  @default(true)
+  categoryId              String
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  costPrice               Float?
+  backorders              Backorder[]
+  priceListItems          PriceListItem[]
+  documents               ProductDocument[]
+  category                Category                 @relation(fields: [categoryId], references: [id])
+  proformaLines           ProformaLine[]
+  quotationLines          QuotationLine[]
+  stockItems              StockItem[]
+  movements               StockMovement[]
+  leadProducts            LeadProduct[]
   distributorLeadProducts DistributorLeadProduct[]
-  distributorProducts    DistributorProduct[]
-  orderItems             OrderItem[]
+  distributorProducts     DistributorProduct[]
+  orderItems              OrderItem[]
+  salesOrderLines         SalesOrderLine[]         @relation("SalesOrderLineProduct")
+  invoiceLines            InvoiceLine[]            @relation("InvoiceLineProduct")
+  returnLines             ReturnLine[]             @relation("ReturnLineProduct")
 
   @@map("products")
 }
@@ -233,6 +242,10 @@ model Account {
   proformas     Proforma[]
   quotations    Quotation[]
   tasks         Task[]
+  salesOrders   SalesOrder[]  @relation("SalesOrderAccount")
+  invoices      Invoice[]     @relation("InvoiceAccount")
+  payments      Payment[]     @relation("PaymentAccount")
+  returns       Return[]      @relation("ReturnAccount")
 
   @@map("accounts")
 }
@@ -253,36 +266,38 @@ model Contact {
 }
 
 model Lead {
-  id                String     @id @default(cuid())
-  firstName         String
-  lastName          String
-  email             String?
-  phone             String?
-  company           String?
-  source            String?
-  status            LeadStatus @default(NEW)
-  score             Int        @default(0)
-  notes             String?
-  subject           String?
-  leadType          String     @default("INDIVIDUAL")
-  assignedTo        String?    // JSON string of User array
-  interestedProducts String?   // JSON string of Product array
-  followUpDate      DateTime?
+  id                 String        @id @default(cuid())
+  firstName          String
+  lastName           String
+  email              String?
+  phone              String?
+  company            String?
+  source             String?
+  status             LeadStatus    @default(NEW)
+  score              Int           @default(0)
+  notes              String?
+  subject            String?
+  leadType           String        @default("INDIVIDUAL")
+  assignedTo         String? // JSON string of User array
+  interestedProducts String? // JSON string of Product array
+  followUpDate       DateTime?
   // Opportunity-specific fields
-  dealValue         Float?
-  probability       Int?       // Win probability percentage
-  expectedCloseDate DateTime?
-  ownerId           String
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  owner             User       @relation(fields: [ownerId], references: [id])
-  tasks             Task[]
-  comments          LeadComment[]
-  files             LeadFile[]
-  emails            LeadEmail[]
-  sms               LeadSMS[]
-  products          LeadProduct[]
-  meetings          LeadMeeting[]
+  dealValue          Float?
+  probability        Int? // Win probability percentage
+  expectedCloseDate  DateTime?
+  ownerId            String
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  owner              User          @relation(fields: [ownerId], references: [id])
+  tasks              Task[]
+  comments           LeadComment[]
+  files              LeadFile[]
+  emails             LeadEmail[]
+  sms                LeadSMS[]
+  products           LeadProduct[]
+  meetings           LeadMeeting[]
+  quotations         Quotation[]
+  invoices           Invoice[]                  @relation("InvoiceLead")
 
   @@map("leads")
 }
@@ -303,23 +318,31 @@ model Opportunity {
 }
 
 model Quotation {
-  id         String          @id @default(cuid())
-  number     String          @unique
-  status     QuotationStatus @default(DRAFT)
-  subject    String
-  validUntil DateTime?
-  notes      String?
-  subtotal   Float           @default(0)
-  tax        Float           @default(0)
-  total      Float           @default(0)
-  accountId  String
-  ownerId    String
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  proformas  Proforma[]
-  lines      QuotationLine[]
-  account    Account         @relation(fields: [accountId], references: [id])
-  owner      User            @relation(fields: [ownerId], references: [id])
+  id            String          @id @default(cuid())
+  number        String          @unique
+  status        QuotationStatus @default(DRAFT)
+  subject       String
+  validUntil    DateTime?
+  notes         String?
+  subtotal      Float           @default(0)
+  tax           Float           @default(0)
+  total         Float           @default(0)
+  taxInclusive  Boolean         @default(false)
+  accountId     String?
+  distributorId String?
+  leadId        String?
+  customerType  CustomerType    @default(STANDARD)
+  ownerId       String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  proformas     Proforma[]
+  lines         QuotationLine[]
+  account       Account?        @relation(fields: [accountId], references: [id])
+  distributor   Distributor?    @relation(fields: [distributorId], references: [id])
+  lead          Lead?           @relation(fields: [leadId], references: [id])
+  owner         User            @relation(fields: [ownerId], references: [id])
+  salesOrders   SalesOrder[]
+  invoices      Invoice[]
 
   @@map("quotations")
 }
@@ -933,13 +956,13 @@ enum ProformaStatus {
 }
 
 model LeadComment {
-  id        String   @id @default(cuid())
-  leadId    String
-  content   String
-  isInternal Boolean @default(false)
-  createdBy String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  leadId     String
+  content    String
+  isInternal Boolean  @default(false)
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   lead          Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   createdByUser User @relation(fields: [createdBy], references: [id])
@@ -977,27 +1000,27 @@ model LeadEmail {
   sentAt      DateTime?
   scheduledAt DateTime?
 
-  lead        Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  sentByUser  User @relation(fields: [sentBy], references: [id])
+  lead       Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sentByUser User @relation(fields: [sentBy], references: [id])
 
   @@map("lead_emails")
 }
 
 model LeadSMS {
-  id            String   @id @default(cuid())
-  leadId        String
-  to            String
-  message       String
-  type          String   @default("OUTBOUND")
-  status        String   @default("PENDING")
-  sentBy        String
-  sentAt        DateTime?
-  scheduledAt   DateTime?
-  externalId    String?
-  errorMessage  String?
+  id           String    @id @default(cuid())
+  leadId       String
+  to           String
+  message      String
+  type         String    @default("OUTBOUND")
+  status       String    @default("PENDING")
+  sentBy       String
+  sentAt       DateTime?
+  scheduledAt  DateTime?
+  externalId   String?
+  errorMessage String?
 
-  lead          Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  sentByUser    User @relation(fields: [sentBy], references: [id])
+  lead       Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sentByUser User @relation(fields: [sentBy], references: [id])
 
   @@map("lead_sms")
 }
@@ -1045,28 +1068,28 @@ model LeadProduct {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  product       Product  @relation(fields: [productId], references: [id])
-  addedByUser   User     @relation(fields: [addedBy], references: [id])
+  lead        Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id])
+  addedByUser User    @relation(fields: [addedBy], references: [id])
 
   @@map("lead_products")
 }
 
 model LeadMeeting {
-  id            String   @id @default(cuid())
-  leadId        String
-  type          String   // CALL, MEETING, VIDEO, DEMO
-  title         String
-  description   String?
-  scheduledAt   DateTime
-  duration      Int      @default(30) // in minutes
-  status        String   @default("SCHEDULED") // SCHEDULED, CONFIRMED, COMPLETED, CANCELLED
-  createdBy     String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(cuid())
+  leadId      String
+  type        String // CALL, MEETING, VIDEO, DEMO
+  title       String
+  description String?
+  scheduledAt DateTime
+  duration    Int      @default(30) // in minutes
+  status      String   @default("SCHEDULED") // SCHEDULED, CONFIRMED, COMPLETED, CANCELLED
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  createdByUser User     @relation(fields: [createdBy], references: [id])
+  lead          Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdByUser User @relation(fields: [createdBy], references: [id])
 
   @@map("lead_meetings")
 }
@@ -1122,48 +1145,48 @@ enum CampaignStatus {
 }
 
 model DistributorLead {
-  id                      String                  @id @default(cuid())
-  firstName               String
-  lastName                String
-  email                   String                  @unique
-  phone                   String
-  dateOfBirth             String?
-  businessName            String
-  businessType            String
+  id                         String                   @id @default(cuid())
+  firstName                  String
+  lastName                   String
+  email                      String                   @unique
+  phone                      String
+  dateOfBirth                String?
+  businessName               String
+  businessType               String
   businessRegistrationNumber String?
-  yearsInBusiness         Int?
-  address                 String?
-  city                    String
-  region                  String
-  country                 String                  @default("Ghana")
-  postalCode              String?
-  latitude                Float?
-  longitude               Float?
-  territory               String?
-  expectedVolume          Int?
-  experience              String?
-  investmentCapacity      String?
-  targetMarket            String?
-  notes                   String?
+  yearsInBusiness            Int?
+  address                    String?
+  city                       String
+  region                     String
+  country                    String                   @default("Ghana")
+  postalCode                 String?
+  latitude                   Float?
+  longitude                  Float?
+  territory                  String?
+  expectedVolume             Int?
+  experience                 String?
+  investmentCapacity         String?
+  targetMarket               String?
+  notes                      String?
   // Legacy image fields (to be migrated)
-  profileImage            String?
-  businessLicense         String?
-  taxCertificate          String?
-  status                  DistributorLeadStatus   @default(PENDING)
-  submittedBy             String
-  submittedByUser         User                    @relation(fields: [submittedBy], references: [id])
-  images                  DistributorLeadImage[]
-  smsMessages             DistributorLeadSMS[]
-  emails                  DistributorLeadEmail[]
-  interestedProducts      DistributorLeadProduct[]
-  createdAt               DateTime                @default(now())
-  updatedAt               DateTime                @updatedAt
+  profileImage               String?
+  businessLicense            String?
+  taxCertificate             String?
+  status                     DistributorLeadStatus    @default(PENDING)
+  submittedBy                String
+  submittedByUser            User                     @relation(fields: [submittedBy], references: [id])
+  images                     DistributorLeadImage[]
+  smsMessages                DistributorLeadSMS[]
+  emails                     DistributorLeadEmail[]
+  interestedProducts         DistributorLeadProduct[]
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
 
   @@map("distributor_leads")
 }
 
 model DistributorLeadImage {
-  id                String          @id @default(cuid())
+  id                String               @id @default(cuid())
   distributorLeadId String
   fileName          String
   originalName      String
@@ -1171,8 +1194,8 @@ model DistributorLeadImage {
   fileType          String
   fileSize          Int
   imageType         DistributorImageType
-  uploadedAt        DateTime        @default(now())
-  distributorLead   DistributorLead @relation(fields: [distributorLeadId], references: [id], onDelete: Cascade)
+  uploadedAt        DateTime             @default(now())
+  distributorLead   DistributorLead      @relation(fields: [distributorLeadId], references: [id], onDelete: Cascade)
 
   @@map("distributor_lead_images")
 }
@@ -1229,146 +1252,148 @@ model DistributorLeadProduct {
 }
 
 model Distributor {
-  id                      String                  @id @default(cuid())
-  firstName               String
-  lastName                String
-  email                   String                  @unique
-  phone                   String
-  dateOfBirth             String?
-  businessName            String
-  businessType            String
+  id                         String            @id @default(cuid())
+  firstName                  String
+  lastName                   String
+  email                      String            @unique
+  phone                      String
+  dateOfBirth                String?
+  businessName               String
+  businessType               String
   businessRegistrationNumber String?
-  yearsInBusiness         Int?
-  address                 String?
-  city                    String
-  region                  String
-  country                 String                  @default("Ghana")
-  postalCode              String?
-  latitude                Float?
-  longitude               Float?
-  territory               String?
-  expectedVolume          Int?
-  experience              String?
-  investmentCapacity      String?
-  targetMarket            String?
-  notes                   String?
+  yearsInBusiness            Int?
+  address                    String?
+  city                       String
+  region                     String
+  country                    String            @default("Ghana")
+  postalCode                 String?
+  latitude                   Float?
+  longitude                  Float?
+  territory                  String?
+  expectedVolume             Int?
+  experience                 String?
+  investmentCapacity         String?
+  targetMarket               String?
+  notes                      String?
   // Legacy image fields (to be migrated)
-  profileImage            String?
-  businessLicense         String?
-  taxCertificate          String?
-  status                  DistributorStatus       @default(ACTIVE)
-  approvedBy              String
-  approvedAt              DateTime                @default(now())
-  approvedByUser          User                    @relation(fields: [approvedBy], references: [id])
-  
+  profileImage               String?
+  businessLicense            String?
+  taxCertificate             String?
+  status                     DistributorStatus @default(ACTIVE)
+  approvedBy                 String
+  approvedAt                 DateTime          @default(now())
+  approvedByUser             User              @relation(fields: [approvedBy], references: [id])
+
   // Credit Management Fields
-  creditLimit             Decimal?                // Maximum credit allowed
-  currentCreditUsed       Decimal?                @default(0) // Currently used credit
-  creditTerms             String?                 // Payment terms (e.g., "Net 30", "Net 60")
-  creditStatus            CreditStatus?           @default(ACTIVE) // Credit status
-  lastCreditReview        DateTime?               // Last time credit was reviewed
-  creditApprovedBy        String?                 // User who approved the credit limit
-  creditApprovedAt        DateTime?               // When credit was approved
-  creditApprovedByUser    User?                   @relation("CreditApprovedBy", fields: [creditApprovedBy], references: [id])
-  nextCreditReview        DateTime?               // Next scheduled credit review
-  
+  creditLimit          Decimal? // Maximum credit allowed
+  currentCreditUsed    Decimal?      @default(0) // Currently used credit
+  creditTerms          String? // Payment terms (e.g., "Net 30", "Net 60")
+  creditStatus         CreditStatus? @default(ACTIVE) // Credit status
+  lastCreditReview     DateTime? // Last time credit was reviewed
+  creditApprovedBy     String? // User who approved the credit limit
+  creditApprovedAt     DateTime? // When credit was approved
+  creditApprovedByUser User?         @relation("CreditApprovedBy", fields: [creditApprovedBy], references: [id])
+  nextCreditReview     DateTime? // Next scheduled credit review
+
   // Relations
-  zoneId                  String?
-  zone                    Zone?                   @relation(fields: [zoneId], references: [id])
-  images                  DistributorImage[]
-  smsMessages             DistributorSMS[]
-  emails                  DistributorEmail[]
-  interestedProducts      DistributorProduct[]
-  creditHistory           DistributorCreditHistory[]
-  orders                  Order[]
-  deliveries              Delivery[]
-  createdAt               DateTime                @default(now())
-  updatedAt               DateTime                @updatedAt
+  zoneId             String?
+  zone               Zone?                      @relation(fields: [zoneId], references: [id])
+  images             DistributorImage[]
+  smsMessages        DistributorSMS[]
+  emails             DistributorEmail[]
+  interestedProducts DistributorProduct[]
+  creditHistory      DistributorCreditHistory[]
+  orders             Order[]
+  deliveries         Delivery[]
+  quotations         Quotation[]
+  invoices           Invoice[]                  @relation("InvoiceDistributor")
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
 
   @@map("distributors")
 }
 
 model DistributorImage {
-  id                String          @id @default(cuid())
-  distributorId     String
-  fileName          String
-  originalName      String
-  filePath          String
-  fileType          String
-  fileSize          Int
-  imageType         DistributorImageType
-  uploadedAt        DateTime        @default(now())
-  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  id            String               @id @default(cuid())
+  distributorId String
+  fileName      String
+  originalName  String
+  filePath      String
+  fileType      String
+  fileSize      Int
+  imageType     DistributorImageType
+  uploadedAt    DateTime             @default(now())
+  distributor   Distributor          @relation(fields: [distributorId], references: [id], onDelete: Cascade)
 
   @@map("distributor_images")
 }
 
 model DistributorSMS {
-  id                String          @id @default(cuid())
-  distributorId     String
-  to                String
-  message           String
-  type              String          @default("OUTBOUND")
-  status            String          @default("SENT")
-  sentBy            String
-  sentAt            DateTime        @default(now())
-  errorMessage      String?
-  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
-  sentByUser        User            @relation(fields: [sentBy], references: [id])
+  id            String      @id @default(cuid())
+  distributorId String
+  to            String
+  message       String
+  type          String      @default("OUTBOUND")
+  status        String      @default("SENT")
+  sentBy        String
+  sentAt        DateTime    @default(now())
+  errorMessage  String?
+  distributor   Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  sentByUser    User        @relation(fields: [sentBy], references: [id])
 
   @@map("distributor_sms")
 }
 
 model DistributorEmail {
-  id                String          @id @default(cuid())
-  distributorId     String
-  to                String
-  subject           String
-  content           String
-  type              String          @default("OUTBOUND")
-  status            String          @default("SENT")
-  sentBy            String
-  sentAt            DateTime        @default(now())
-  messageId         String?
-  errorMessage      String?
-  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
-  sentByUser        User            @relation(fields: [sentBy], references: [id])
+  id            String      @id @default(cuid())
+  distributorId String
+  to            String
+  subject       String
+  content       String
+  type          String      @default("OUTBOUND")
+  status        String      @default("SENT")
+  sentBy        String
+  sentAt        DateTime    @default(now())
+  messageId     String?
+  errorMessage  String?
+  distributor   Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  sentByUser    User        @relation(fields: [sentBy], references: [id])
 
   @@map("distributor_emails")
 }
 
 model DistributorProduct {
-  id                String          @id @default(cuid())
-  distributorId     String
-  productId         String
-  quantity          Int             @default(1)
-  notes             String?
-  interestLevel     String          @default("MEDIUM")
-  addedBy           String
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
-  product           Product         @relation(fields: [productId], references: [id])
-  addedByUser       User            @relation(fields: [addedBy], references: [id])
+  id            String      @id @default(cuid())
+  distributorId String
+  productId     String
+  quantity      Int         @default(1)
+  notes         String?
+  interestLevel String      @default("MEDIUM")
+  addedBy       String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  distributor   Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  product       Product     @relation(fields: [productId], references: [id])
+  addedByUser   User        @relation(fields: [addedBy], references: [id])
 
   @@map("distributor_products")
 }
 
 model DistributorCreditHistory {
-  id                String          @id @default(cuid())
-  distributorId     String
-  action            String          // CREDIT_LIMIT_SET, CREDIT_LIMIT_INCREASED, CREDIT_LIMIT_DECREASED, CREDIT_USED, PAYMENT_RECEIVED, CREDIT_REVIEWED
-  previousLimit     Decimal?        // Previous credit limit
-  newLimit          Decimal?        // New credit limit
-  previousUsed      Decimal?        // Previous credit used
-  newUsed           Decimal?        // New credit used
-  amount            Decimal?        // Amount involved in the action
-  reason            String?         // Reason for the change
-  notes             String?         // Additional notes
-  performedBy       String          // User who performed the action
-  performedAt       DateTime        @default(now())
-  distributor       Distributor     @relation(fields: [distributorId], references: [id], onDelete: Cascade)
-  performedByUser   User            @relation(fields: [performedBy], references: [id])
+  id              String      @id @default(cuid())
+  distributorId   String
+  action          String // CREDIT_LIMIT_SET, CREDIT_LIMIT_INCREASED, CREDIT_LIMIT_DECREASED, CREDIT_USED, PAYMENT_RECEIVED, CREDIT_REVIEWED
+  previousLimit   Decimal? // Previous credit limit
+  newLimit        Decimal? // New credit limit
+  previousUsed    Decimal? // Previous credit used
+  newUsed         Decimal? // New credit used
+  amount          Decimal? // Amount involved in the action
+  reason          String? // Reason for the change
+  notes           String? // Additional notes
+  performedBy     String // User who performed the action
+  performedAt     DateTime    @default(now())
+  distributor     Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  performedByUser User        @relation(fields: [performedBy], references: [id])
 
   @@map("distributor_credit_history")
 }
@@ -1429,15 +1454,15 @@ model Order {
 }
 
 model OrderItem {
-  id          String  @id @default(cuid())
-  orderId     String
-  productId   String
-  quantity    Int
-  unitPrice   Decimal
-  totalPrice  Decimal
-  notes       String?
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product @relation(fields: [productId], references: [id])
+  id         String  @id @default(cuid())
+  orderId    String
+  productId  String
+  quantity   Int
+  unitPrice  Decimal
+  totalPrice Decimal
+  notes      String?
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product @relation(fields: [productId], references: [id])
 
   @@map("order_items")
 }
@@ -1468,82 +1493,360 @@ enum DeliveryStatus {
 }
 
 model Zone {
-  id            String        @id @default(cuid())
-  name          String
-  description   String?
-  color         String        @default("#3B82F6")
-  boundaries    Json          // GeoJSON polygon coordinates
-  isActive      Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String   @default("#3B82F6")
+  boundaries  Json // GeoJSON polygon coordinates
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   // Relations
-  distributors  Distributor[]
-  routes        Route[]
-  
+  distributors Distributor[]
+  routes       Route[]
+
   @@map("zones")
 }
 
 model Driver {
-  id            String        @id @default(cuid())
+  id            String   @id @default(cuid())
   name          String
   phone         String
   email         String?
   licenseNumber String
-  vehicleType   String        // "van", "truck", "motorcycle"
+  vehicleType   String // "van", "truck", "motorcycle"
   vehiclePlate  String
-  capacity      Int           // Max weight in kg
-  isActive      Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
+  capacity      Int // Max weight in kg
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
   // Relations
-  routes        Route[]
-  deliveries    Delivery[]
-  
+  routes     Route[]
+  deliveries Delivery[]
+
   @@map("drivers")
 }
 
 model Route {
-  id                String        @id @default(cuid())
+  id                String      @id @default(cuid())
   name              String
   zoneId            String
-  zone              Zone          @relation(fields: [zoneId], references: [id])
+  zone              Zone        @relation(fields: [zoneId], references: [id])
   driverId          String?
-  driver            Driver?       @relation(fields: [driverId], references: [id])
-  waypoints         Json          // Array of {lat, lng, distributorId, order}
-  totalDistance     Float         // Total distance in km
-  estimatedDuration Int           // Estimated duration in minutes
-  status            RouteStatus   @default(PLANNED)
+  driver            Driver?     @relation(fields: [driverId], references: [id])
+  waypoints         Json // Array of {lat, lng, distributorId, order}
+  totalDistance     Float // Total distance in km
+  estimatedDuration Int // Estimated duration in minutes
+  status            RouteStatus @default(PLANNED)
   scheduledDate     DateTime
   startedAt         DateTime?
   completedAt       DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
   // Relations
-  deliveries        Delivery[]
-  
+  deliveries Delivery[]
+
   @@map("routes")
 }
 
 model Delivery {
-  id              String          @id @default(cuid())
+  id              String         @id @default(cuid())
   routeId         String
-  route           Route           @relation(fields: [routeId], references: [id])
+  route           Route          @relation(fields: [routeId], references: [id])
   distributorId   String
-  distributor     Distributor     @relation(fields: [distributorId], references: [id])
+  distributor     Distributor    @relation(fields: [distributorId], references: [id])
   driverId        String?
-  driver          Driver?         @relation(fields: [driverId], references: [id])
-  orderId         String?         @unique
-  order           Order?          @relation(fields: [orderId], references: [id])
+  driver          Driver?        @relation(fields: [driverId], references: [id])
+  orderId         String?        @unique
+  order           Order?         @relation(fields: [orderId], references: [id])
   scheduledAt     DateTime
   deliveredAt     DateTime?
-  status          DeliveryStatus  @default(SCHEDULED)
+  status          DeliveryStatus @default(SCHEDULED)
   notes           String?
-  proofOfDelivery String?         // Photo URL
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  
+  proofOfDelivery String? // Photo URL
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
   @@map("deliveries")
+}
+
+// Sales Module Models
+
+model SalesOrder {
+  id          String           @id @default(cuid())
+  number      String           @unique
+  quotationId String?
+  invoiceId   String?
+  accountId   String
+  status      SalesOrderStatus @default(PENDING)
+
+  // Financials
+  subtotal Float
+  tax      Float
+  discount Float @default(0)
+  total    Float
+
+  // Fulfillment
+  deliveryAddress String?
+  deliveryDate    DateTime?
+  deliveryNotes   String?
+  deliveredAt     DateTime?
+
+  // Metadata
+  notes     String?
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  quotation Quotation?       @relation(fields: [quotationId], references: [id])
+  invoice   Invoice?         @relation(fields: [invoiceId], references: [id])
+  account   Account          @relation("SalesOrderAccount", fields: [accountId], references: [id])
+  owner     User             @relation("SalesOrderOwner", fields: [ownerId], references: [id])
+  lines     SalesOrderLine[]
+  returns   Return[]
+
+  @@map("sales_orders")
+}
+
+model SalesOrderLine {
+  id           String   @id @default(cuid())
+  salesOrderId String
+  productId    String
+  description  String?
+  quantity     Float
+  unitPrice    Float
+  discount     Float    @default(0)
+  tax          Float    @default(0)
+  lineTotal    Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product    Product    @relation("SalesOrderLineProduct", fields: [productId], references: [id])
+
+  @@map("sales_order_lines")
+}
+
+model Invoice {
+  id          String  @id @default(cuid())
+  number      String  @unique
+  subject     String
+  quotationId String?
+  accountId   String?
+  distributorId String?
+  leadId      String?
+
+  // Status tracking
+  status           InvoiceStatus @default(DRAFT)
+  paymentStatus    PaymentStatus @default(UNPAID)
+  creditApproved   Boolean       @default(false)
+  creditApprovedBy String?
+  creditApprovedAt DateTime?
+
+  // Dates
+  issueDate DateTime  @default(now())
+  dueDate   DateTime
+  paidDate  DateTime?
+
+  // Financials
+  subtotal     Float
+  tax          Float
+  discount     Float @default(0)
+  total        Float
+  amountPaid   Float @default(0)
+  amountDue    Float
+  taxInclusive Boolean @default(false)
+
+  // Terms
+  paymentTerms String?
+  customerType CustomerType @default(STANDARD)
+
+  notes     String?
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  quotation      Quotation?          @relation(fields: [quotationId], references: [id])
+  account        Account?            @relation("InvoiceAccount", fields: [accountId], references: [id])
+  distributor    Distributor?        @relation("InvoiceDistributor", fields: [distributorId], references: [id])
+  lead           Lead?               @relation("InvoiceLead", fields: [leadId], references: [id])
+  owner          User                @relation("InvoiceOwner", fields: [ownerId], references: [id])
+  creditApprover User?               @relation("InvoiceCreditApprover", fields: [creditApprovedBy], references: [id])
+  lines          InvoiceLine[]
+  salesOrders    SalesOrder[]
+  payments       PaymentAllocation[]
+
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  productId   String
+  productName String?  // Cache product name for performance
+  sku         String?  // Cache SKU for performance
+  description String?
+  quantity    Float
+  unitPrice   Float
+  discount    Float    @default(0)
+  taxes       String?  // JSON string of tax objects: [{name, rate, amount}]
+  lineTotal   Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product @relation("InvoiceLineProduct", fields: [productId], references: [id])
+
+  @@map("invoice_lines")
+}
+
+model Payment {
+  id        String @id @default(cuid())
+  number    String @unique
+  accountId String
+
+  // Payment details
+  amount     Float
+  method     PaymentMethod
+  reference  String?
+  receiptUrl String?
+
+  // Metadata
+  notes      String?
+  receivedBy String
+  receivedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  account     Account             @relation("PaymentAccount", fields: [accountId], references: [id])
+  receiver    User                @relation("PaymentReceiver", fields: [receivedBy], references: [id])
+  allocations PaymentAllocation[]
+
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id        String   @id @default(cuid())
+  paymentId String
+  invoiceId String
+  amount    Float
+  notes     String?
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, invoiceId])
+  @@map("payment_allocations")
+}
+
+model Return {
+  id           String       @id @default(cuid())
+  number       String       @unique
+  salesOrderId String
+  accountId    String
+  reason       ReturnReason
+  status       ReturnStatus @default(PENDING)
+
+  // Financials
+  subtotal     Float
+  tax          Float
+  total        Float
+  refundAmount Float   @default(0)
+  refundMethod String?
+
+  notes       String?
+  createdBy   String
+  approvedBy  String?
+  approvedAt  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  salesOrder SalesOrder   @relation(fields: [salesOrderId], references: [id])
+  account    Account      @relation("ReturnAccount", fields: [accountId], references: [id])
+  creator    User         @relation("ReturnCreator", fields: [createdBy], references: [id])
+  approver   User?        @relation("ReturnApprover", fields: [approvedBy], references: [id])
+  lines      ReturnLine[]
+
+  @@map("returns")
+}
+
+model ReturnLine {
+  id        String   @id @default(cuid())
+  returnId  String
+  productId String
+  quantity  Float
+  unitPrice Float
+  lineTotal Float
+  reason    String?
+  createdAt DateTime @default(now())
+
+  return  Return  @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  product Product @relation("ReturnLineProduct", fields: [productId], references: [id])
+
+  @@map("return_lines")
+}
+
+enum CustomerType {
+  STANDARD // Prepay required
+  CREDIT // Can buy on credit
+}
+
+enum SalesOrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  READY_TO_SHIP
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  OVERDUE
+  VOID
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CREDIT_CARD
+  CHECK
+  OTHER
+}
+
+enum ReturnReason {
+  DAMAGED
+  DEFECTIVE
+  WRONG_ITEM
+  CUSTOMER_REQUEST
+  QUALITY_ISSUE
+  OTHER
+}
+
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+  COMPLETED
+  CANCELLED
 }
