@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,8 @@ import {
   Building,
   Globe,
   Bell,
-  Shield
+  Shield,
+  MessageCircle
 } from "lucide-react";
 import Link from "next/link";
 
@@ -41,8 +42,27 @@ export default function SystemSettingsPage() {
   const [previewColor, setPreviewColor] = useState(themeColor);
   const [originalColor, setOriginalColor] = useState(themeColor);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingChatBackground, setIsUploadingChatBackground] = useState(false);
+  const [chatBackground, setChatBackground] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("AdPools Group");
   const [description, setDescription] = useState("A practical, single-tenant system for sales and distribution management");
+
+  // Load chat background on mount
+  useEffect(() => {
+    const loadChatBackground = async () => {
+      try {
+        const response = await fetch('/api/settings/branding');
+        if (response.ok) {
+          const data = await response.json();
+          setChatBackground(data.chatButtonBackground || null);
+        }
+      } catch (error) {
+        console.error('Error loading chat background:', error);
+      }
+    };
+
+    loadChatBackground();
+  }, []);
 
   // Use preview color when in preview mode, otherwise use current theme
   const currentColor = previewMode ? previewColor : themeColor;
@@ -123,6 +143,81 @@ export default function SystemSettingsPage() {
   const removeLogo = () => {
     setCustomLogo(null);
     success("Logo Removed", "The default logo will be shown.");
+  };
+
+  const handleChatBackgroundUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showError("Invalid File", "Please select an image file");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      showError("File Too Large", "Please select an image smaller than 2MB");
+      return;
+    }
+
+    setIsUploadingChatBackground(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const result = e.target?.result as string;
+        setChatBackground(result);
+        
+        // Save to database
+        try {
+          const response = await fetch('/api/settings/branding', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chatButtonBackground: result,
+            }),
+          });
+
+          if (response.ok) {
+            success("Background Updated", "Chat button background has been successfully updated.");
+          } else {
+            showError("Save Failed", "Failed to save the background to database.");
+          }
+        } catch (error) {
+          showError("Save Failed", "Failed to save the background.");
+        }
+        
+        setIsUploadingChatBackground(false);
+      };
+      reader.onerror = () => {
+        showError("Upload Failed", "Failed to process the image.");
+        setIsUploadingChatBackground(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      showError("Upload Failed", "Failed to upload the image.");
+      setIsUploadingChatBackground(false);
+    }
+  };
+
+  const removeChatBackground = async () => {
+    try {
+      const response = await fetch('/api/settings/branding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatButtonBackground: null,
+        }),
+      });
+
+      if (response.ok) {
+        setChatBackground(null);
+        success("Background Removed", "The default gradient will be shown.");
+      } else {
+        showError("Remove Failed", "Failed to remove the background.");
+      }
+    } catch (error) {
+      showError("Remove Failed", "Failed to remove the background.");
+    }
   };
 
   return (
@@ -314,6 +409,77 @@ export default function SystemSettingsPage() {
 
               <div className="text-xs text-gray-500">
                 Supported formats: PNG, JPG, GIF, SVG. Maximum file size: 2MB.
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Chat Button Background */}
+        <Card className="border border-gray-200">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Globe className="h-5 w-5 text-gray-600" />
+              <span>AI Chat Button Background</span>
+            </CardTitle>
+            <CardDescription>
+              Upload a custom background image for the floating chat button. Recommended size: 56x56px or larger.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Current Background Preview */}
+              <div className="flex items-center space-x-4">
+                <div className="text-sm font-medium text-gray-700">Current Background:</div>
+                <div className="flex items-center space-x-2">
+                  <div 
+                    className="h-14 w-14 rounded-full border border-gray-200 flex items-center justify-center"
+                    style={{
+                      background: chatBackground 
+                        ? `url(${chatBackground}) center/cover` 
+                        : `linear-gradient(135deg, var(--color-${theme.primary}-500, #6366f1), var(--color-${theme.primary}-600, #4f46e5))`,
+                    }}
+                  >
+                    {!chatBackground && (
+                      <MessageCircle className="h-6 w-6 text-white" />
+                    )}
+                  </div>
+                  <span className="text-sm text-gray-600">
+                    {chatBackground ? "Custom Background" : "Default Gradient"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Upload Controls */}
+              <div className="flex items-center space-x-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleChatBackgroundUpload}
+                  className="hidden"
+                  id="chat-background-upload"
+                  disabled={isUploadingChatBackground}
+                />
+                <label
+                  htmlFor="chat-background-upload"
+                  className={`inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer ${isUploadingChatBackground ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {isUploadingChatBackground ? 'Uploading...' : 'Upload Background'}
+                </label>
+                
+                {chatBackground && (
+                  <Button
+                    variant="outline"
+                    onClick={removeChatBackground}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    Remove Background
+                  </Button>
+                )}
+              </div>
+
+              <div className="text-xs text-gray-500">
+                Supported formats: PNG, JPG, GIF. Maximum file size: 2MB. For best results, use a square image.
               </div>
             </div>
           </CardContent>
