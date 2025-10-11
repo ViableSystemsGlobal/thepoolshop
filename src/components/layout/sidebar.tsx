@@ -36,6 +36,7 @@ import {
   Mail,
   CheckSquare,
   Calendar,
+  Printer,
 } from "lucide-react";
 
 const navigation = [
@@ -94,9 +95,11 @@ const navigation = [
     module: "inventory",
     children: [
       { name: "All Products", href: "/products", icon: Package, module: "products" },
+      { name: "Product Labels", href: "/products/labels", icon: Printer, module: "products" },
       { name: "Price Lists", href: "/price-lists", icon: FileText, module: "price-lists" },
       { name: "Stock Overview", href: "/inventory/stock", icon: BarChart3, module: "inventory" },
       { name: "Stock Movements", href: "/inventory/stock-movements", icon: BarChart3, module: "inventory" },
+      { name: "Physical Count", href: "/inventory/stocktake", icon: CheckSquare, module: "inventory" },
       { name: "Warehouses", href: "/warehouses", icon: Building, module: "warehouses" },
       { name: "Backorders", href: "/backorders", icon: Package, module: "backorders" },
     ]
@@ -276,6 +279,11 @@ export default function Sidebar() {
     if (href === "/tasks") {
       // Only match if we're exactly on /tasks, not on /tasks/my or other sub-routes
       return pathname === "/tasks";
+    }
+    
+    // Special case for /products - only match exact /products, not /products/labels
+    if (href === "/products") {
+      return pathname === "/products";
     }
     
     // For other child routes, only match if it's a direct child (not a grandchild)

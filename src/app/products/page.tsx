@@ -14,7 +14,7 @@ import { AddCategoryModal } from "@/components/modals/add-category-modal";
 import { EditProductModal } from "@/components/modals/edit-product-modal";
 import { ConfirmDeleteModal } from "@/components/modals/confirm-delete-modal";
 import { StockAdjustmentModal } from "@/components/modals/stock-adjustment-modal";
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/components/ui/dropdown-menu-custom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
@@ -22,6 +22,7 @@ import { useApiLoading } from "@/hooks/use-api-loading";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { DataTable } from "@/components/ui/data-table";
 import { GRNGenerationModal } from "@/components/modals/grn-generation-modal";
+import { BarcodeDisplay } from "@/components/ui/barcode-display";
 import { 
   Plus, 
   Search, 
@@ -37,7 +38,10 @@ import {
   Archive,
   History,
   FileText,
-  BarChart3
+  BarChart3,
+  QrCode,
+  Copy as CopyIcon,
+  Image
 } from "lucide-react";
 
 // TypeScript interfaces for API data
@@ -84,6 +88,8 @@ interface Product {
   updatedAt: string;
   category?: Category;
   stockItems?: StockItem[];
+  barcode?: string;
+  barcodeType?: string;
 }
 
 // Mock data for now
@@ -157,6 +163,17 @@ export default function ProductsPage() {
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [isAdmin, setIsAdmin] = useState(false); // This should come from user context
+
+  // Helper function to copy barcode to clipboard
+  const copyBarcodeToClipboard = async (barcode: string) => {
+    try {
+      await navigator.clipboard.writeText(barcode);
+      success('Barcode copied to clipboard');
+    } catch (error) {
+      showError('Failed to copy barcode');
+    }
+  };
+
   const [filters, setFilters] = useState({
     priceRange: { min: '', max: '' },
     stockRange: { min: '', max: '' },
@@ -970,6 +987,46 @@ export default function ProductsPage() {
                 )
               },
               {
+                key: 'barcode',
+                label: 'Barcode',
+                render: (product) => (
+                  <div className="flex items-center gap-2">
+                    {product.barcode ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <BarcodeDisplay
+                          value={product.barcode}
+                          type={product.barcodeType || 'EAN13'}
+                          width={120}
+                          height={30}
+                          className="h-8 w-20"
+                        />
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => product.barcode && copyBarcodeToClipboard(product.barcode)}
+                            title="Copy barcode"
+                            className="h-5 w-5 p-0"
+                          >
+                            <CopyIcon className="h-3 w-3" />
+                          </Button>
+                          <span className="text-xs text-gray-500 bg-gray-100 px-1 py-0.5 rounded">
+                            {product.barcodeType || 'EAN13'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="h-8 w-20 border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
+                          <Image className="h-4 w-4 text-gray-400" />
+                        </div>
+                        <span className="text-xs text-gray-400 italic">No barcode</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              },
+              {
                 key: 'status',
                 label: 'Status',
                 render: (product) => (
@@ -986,78 +1043,62 @@ export default function ProductsPage() {
                 key: 'actions',
                 label: 'Actions',
                 render: (product) => (
-                  <div className="flex items-center -space-x-1">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleViewProduct(product)}
-                      title="View Product Details"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleAddStock(product)}
-                      title="Add Stock"
-                      className="text-green-600 hover:text-green-700"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleEditProduct(product)}
-                      title="Edit Product"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-red-600 hover:text-red-700"
-                      onClick={() => handleDeleteProduct(product)}
-                      title="Delete Product"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                    <div className="relative">
-                      <DropdownMenu
-                        trigger={
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            title="More Actions"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        }
-                        items={[
-                          {
-                            label: "Duplicate Product",
-                            icon: <Copy className="h-4 w-4" />,
-                            onClick: () => handleDuplicateProduct(product)
-                          },
-                          {
-                            label: "Export Product",
-                            icon: <Download className="h-4 w-4" />,
-                            onClick: () => handleExportProduct(product)
-                          },
-                          {
-                            label: "View History",
-                            icon: <History className="h-4 w-4" />,
-                            onClick: () => handleViewHistory(product)
-                          },
-                          {
-                            label: "Archive Product",
-                            icon: <Archive className="h-4 w-4" />,
-                            onClick: () => handleArchiveProduct(product),
-                            className: "text-amber-600 hover:text-amber-700"
-                          }
-                        ]}
-                      />
-                    </div>
-                  </div>
+                  <DropdownMenu
+                    trigger={
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        title="Product Actions"
+                        className="h-8 w-8 p-0"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    }
+                    items={[
+                      {
+                        label: "View Details",
+                        icon: <Eye className="h-4 w-4" />,
+                        onClick: () => handleViewProduct(product)
+                      },
+                      {
+                        label: "Edit Product",
+                        icon: <Edit className="h-4 w-4" />,
+                        onClick: () => handleEditProduct(product)
+                      },
+                      {
+                        label: "Add Stock",
+                        icon: <Plus className="h-4 w-4" />,
+                        onClick: () => handleAddStock(product)
+                      },
+                      {
+                        label: "Duplicate Product",
+                        icon: <Copy className="h-4 w-4" />,
+                        onClick: () => handleDuplicateProduct(product)
+                      },
+                      {
+                        label: "Export Product",
+                        icon: <Download className="h-4 w-4" />,
+                        onClick: () => handleExportProduct(product)
+                      },
+                      {
+                        label: "View History",
+                        icon: <History className="h-4 w-4" />,
+                        onClick: () => handleViewHistory(product)
+                      },
+                      {
+                        label: "Archive Product",
+                        icon: <Archive className="h-4 w-4" />,
+                        onClick: () => handleArchiveProduct(product),
+                        className: "text-amber-600 hover:text-amber-700"
+                      },
+                      {
+                        label: "Delete Product",
+                        icon: <Trash2 className="h-4 w-4" />,
+                        onClick: () => handleDeleteProduct(product),
+                        className: "text-red-600 hover:text-red-700"
+                      }
+                    ]}
+                  />
                 )
               }
             ]}

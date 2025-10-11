@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { generateBarcode, validateBarcode, detectBarcodeType } from "@/lib/barcode-utils";
 
 // Helper function to parse CSV content with flexible column mapping
 function parseCSV(content: string): any[] {
@@ -25,7 +26,11 @@ function parseCSV(content: string): any[] {
       'Import Currency': 'import_currency', 'import_currency': 'import_currency', 'currency': 'import_currency',
       'UOM Base': 'uom_base', 'uom_base': 'uom_base', 'unit_base': 'uom_base',
       'UOM Sell': 'uom_sell', 'uom_sell': 'uom_sell', 'unit_sell': 'uom_sell',
-      'Active': 'active', 'active': 'active'
+      'Active': 'active', 'active': 'active',
+      'Barcode': 'barcode', 'barcode': 'barcode', 'product_barcode': 'barcode',
+      'Supplier Barcode': 'supplier_barcode', 'supplier_barcode': 'supplier_barcode',
+      'Supplier Name': 'supplier_name', 'supplier_name': 'supplier_name',
+      'Supplier SKU': 'supplier_sku', 'supplier_sku': 'supplier_sku'
     };
     
     const rows = [];
@@ -146,10 +151,48 @@ export async function POST(request: NextRequest) {
 
           // Map CSV columns to product data using normalized field names
           const costPrice = parseFloat(row.cost || '0') || 0;
+          const productSku = row.sku || `IMP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          // Handle barcode logic
+          let primaryBarcode = null;
+          let barcodeType = 'EAN13';
+          
+          if (row.barcode?.trim()) {
+            // User provided a barcode
+            primaryBarcode = row.barcode.trim();
+            barcodeType = detectBarcodeType(primaryBarcode);
+            
+            // Validate
+            if (!validateBarcode(primaryBarcode, barcodeType as any)) {
+              console.warn(`Invalid barcode for ${row.name}: ${primaryBarcode}`);
+              primaryBarcode = null;
+            }
+          }
+          
+          if (!primaryBarcode) {
+            // Generate barcode from SKU
+            primaryBarcode = generateBarcode(productSku, 'EAN13');
+          }
+          
+          // Check for duplicate barcode
+          if (primaryBarcode) {
+            const existingBarcode = await prisma.product.findUnique({
+              where: { barcode: primaryBarcode }
+            });
+            
+            if (existingBarcode) {
+              console.warn(`Duplicate barcode ${primaryBarcode}, generating new one`);
+              primaryBarcode = generateBarcode(`${productSku}-${Date.now()}`, 'EAN13');
+            }
+          }
+          
           const productData = {
             name: row.name || `Imported Product ${Date.now()}`,
-            sku: row.sku || `IMP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            sku: productSku,
             description: row.description || "Imported from bulk upload",
+            barcode: primaryBarcode,
+            barcodeType: primaryBarcode ? barcodeType : null,
+            generateBarcode: !row.barcode,
             price: parseFloat(row.price || '0') || 0,
             cost: costPrice,
             originalPrice: parseFloat(row.price || '0') || 0,
@@ -165,6 +208,29 @@ export async function POST(request: NextRequest) {
           const product = await prisma.product.create({
             data: productData
           });
+          
+          // If supplier barcode is different from primary, add as additional
+          if (row.supplier_barcode?.trim() && row.supplier_barcode !== primaryBarcode) {
+            try {
+              const supplierBarcodeType = detectBarcodeType(row.supplier_barcode);
+              
+              if (validateBarcode(row.supplier_barcode, supplierBarcodeType as any)) {
+                await prisma.productBarcode.create({
+                  data: {
+                    productId: product.id,
+                    barcode: row.supplier_barcode.trim(),
+                    barcodeType: supplierBarcodeType,
+                    source: row.supplier_name || 'Supplier',
+                    description: 'Supplier provided barcode',
+                    isPrimary: false,
+                    isActive: true
+                  }
+                });
+              }
+            } catch (err) {
+              console.error('Error adding supplier barcode:', err);
+            }
+          }
 
           // Create stock item for the product
           const initialQuantity = parseFloat(row.quantity || '0') || 0;

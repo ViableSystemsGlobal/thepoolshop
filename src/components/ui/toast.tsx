@@ -95,7 +95,8 @@ export function ToastComponent({ toast, onDismiss, theme }: ToastProps) {
     };
   };
 
-  const styles = getToastStyles()[toast.type];
+  const allStyles = getToastStyles();
+  const styles = allStyles[toast.type] || allStyles.info; // Fallback to info if type unknown
 
   return (
     <div

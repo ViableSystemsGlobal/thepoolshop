@@ -1,0 +1,6 @@
+name,sku,barcode,supplier_barcode,supplier_name,supplier_sku,description,price,cost,category,quantity,reorder_point,uom_base,uom_sell,active,import_currency
+Pool Pump 1HP,PUMP-001,,6901234567890,China Pool Co,XYZ-100,High efficiency pool pump,299.99,150.00,Pumps,10,5,pcs,pcs,true,USD
+Filter Cartridge,FILTER-001,2001234567891,8801234567890,Taiwan Filters Ltd,TF-500,Replacement cartridge,49.99,25.00,Filters,50,20,pcs,pcs,true,USD
+Pool Cleaner,CLEANER-001,,,USA Pool Clean,PC-AUTO,Automatic pool cleaner,899.99,450.00,Cleaners,5,2,pcs,pcs,true,USD
+Chlorine Tablets,CHEM-001,,,China Chemicals,CC-CL50,50lb bucket chlorine,89.99,45.00,Chemicals,25,10,bucket,bucket,true,USD
+

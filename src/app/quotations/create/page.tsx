@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomerSearch } from "@/components/ui/customer-search";
+import { BarcodeScanner } from "@/components/barcode-scanner";
 import { 
   ArrowLeft,
   Plus,
@@ -210,6 +211,15 @@ export default function CreateQuotationPage() {
     setLines([...lines, newLine]);
     setShowProductSearch(false);
     setProductSearchTerm("");
+  };
+
+  const handleBarcodeScan = (barcode: string, product: any) => {
+    if (product) {
+      addLineItem(product);
+      setShowProductSearch(false);
+    } else {
+      showError(`Product not found: ${barcode}`);
+    }
   };
 
   const updateLineItem = (id: string, field: string, value: any) => {
@@ -683,13 +693,21 @@ export default function CreateQuotationPage() {
                 {/* Product Search */}
                 {showProductSearch && (
                   <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                    <div className="relative mb-3">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                      <Input
-                        placeholder="Search products..."
-                        value={productSearchTerm}
-                        onChange={(e) => setProductSearchTerm(e.target.value)}
-                        className="pl-10"
+                    <div className="flex gap-2 mb-3">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                        <Input
+                          placeholder="Search products..."
+                          value={productSearchTerm}
+                          onChange={(e) => setProductSearchTerm(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <BarcodeScanner
+                        onScan={handleBarcodeScan}
+                        autoLookup={true}
+                        title="Scan Product"
+                        description="Scan product barcode to add to quotation"
                       />
                     </div>
                     <div className="max-h-60 overflow-y-auto space-y-1">

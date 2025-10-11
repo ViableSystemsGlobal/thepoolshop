@@ -10,6 +10,7 @@ import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol
 import { EditProductModal } from "@/components/modals/edit-product-modal";
 import { AddProductToPriceListFromProductModal } from "@/components/modals/add-product-to-price-list-from-product-modal";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { BarcodeDisplay } from "@/components/barcode-display";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
 import { 
@@ -41,7 +42,8 @@ import {
   Square,
   FolderOpen,
   Plus,
-  Building
+  Building,
+  HelpCircle
 } from "lucide-react";
 
 interface Category {
@@ -97,8 +99,11 @@ interface Product {
   categoryId: string;
   createdAt: string;
   updatedAt: string;
+  barcode?: string | null;
+  barcodeType?: string | null;
   category?: Category;
   stockItems?: StockItem[];
+  additionalBarcodes?: any[];
 }
 
 export default function ProductDetailsPage() {
@@ -114,7 +119,7 @@ export default function ProductDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'pricing' | 'warehouses'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'pricing' | 'warehouses' | 'barcodes'>('overview');
   const [documents, setDocuments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
@@ -187,6 +192,51 @@ export default function ProductDetailsPage() {
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
+    }
+  };
+
+  const handleLinkSupplierBarcode = async (barcode: string, source: string) => {
+    try {
+      const response = await fetch('/api/products/barcode/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product?.id,
+          barcode: barcode.trim(),
+          source,
+          description: `${source} variant`,
+          isPrimary: false
+        })
+      });
+
+      if (response.ok) {
+        success('Supplier barcode linked successfully');
+        window.location.reload();
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to link barcode');
+      }
+    } catch (error) {
+      console.error('Error linking barcode:', error);
+      showError('Failed to link supplier barcode');
+    }
+  };
+
+  const handleRemoveSupplierBarcode = async (barcodeId: string) => {
+    try {
+      const response = await fetch(`/api/products/barcode/${barcodeId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        success('Supplier barcode removed');
+        window.location.reload();
+      } else {
+        showError('Failed to remove barcode');
+      }
+    } catch (error) {
+      console.error('Error removing barcode:', error);
+      showError('Failed to remove supplier barcode');
     }
   };
 
@@ -821,12 +871,23 @@ export default function ProductDetailsPage() {
               <Package className="h-4 w-4 inline mr-2" />
               Warehouses
             </button>
+            <button
+              onClick={() => setActiveTab('barcodes')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'barcodes'
+                  ? `border-${theme.primary} text-${theme.primaryText}`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Hash className="h-4 w-4 inline mr-2" />
+              Barcodes
+            </button>
           </nav>
         </div>
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Product Image and Basic Info */}
           <div className="lg:col-span-1">
             <Card>
@@ -957,6 +1018,53 @@ export default function ProductDetailsPage() {
                   </div>
                 </div>
 
+                {/* Barcode Information */}
+                {product.barcode && (
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                      <Hash className="h-4 w-4 mr-2" />
+                      Barcode Information
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-500">Barcode</span>
+                        <span className="text-sm text-gray-900 font-mono">{product.barcode}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-500">Type</span>
+                        <span className="text-sm text-gray-900">{product.barcodeType || 'EAN13'}</span>
+                      </div>
+                      
+                      {/* Barcode Display */}
+                      <div className="mt-4">
+                        <BarcodeDisplay
+                          value={product.barcode}
+                          format={(product.barcodeType as any) || 'EAN13'}
+                          height={80}
+                          width={2}
+                          fontSize={16}
+                          showActions={true}
+                          productName={product.name}
+                          productSku={product.sku}
+                          price={product.price}
+                        />
+                      </div>
+                      
+                      {product.additionalBarcodes && product.additionalBarcodes.length > 0 && (
+                        <div className="mt-4 border-t pt-4">
+                          <p className="text-xs font-medium text-gray-600 mb-2">Additional Barcodes:</p>
+                          {product.additionalBarcodes.map((ab: any) => (
+                            <div key={ab.id} className="text-xs text-gray-500 flex justify-between items-center py-1">
+                              <span>{ab.source || 'Supplier'}: {ab.barcode}</span>
+                              <span className="text-gray-400">{ab.barcodeType}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* System Information */}
                 <div className="border-t pt-4">
                   <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
@@ -987,7 +1095,7 @@ export default function ProductDetailsPage() {
           </div>
 
           {/* Product Details */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-1 space-y-6">
             {/* Pricing Information */}
             <Card>
               <CardHeader>
@@ -1630,6 +1738,152 @@ export default function ProductDetailsPage() {
                 </Card>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Barcodes Tab */}
+        {activeTab === 'barcodes' && (
+          <div className="space-y-6">
+            {/* Primary Barcode */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Hash className="h-5 w-5 mr-2" />
+                  Primary Barcode
+                </CardTitle>
+                <CardDescription>
+                  Your internal barcode used across all operations
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {product?.barcode ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Barcode Number</label>
+                        <p className="text-lg font-mono font-semibold">{product.barcode}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Type</label>
+                        <p className="text-lg">{product.barcodeType || 'EAN13'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t pt-4">
+                      <BarcodeDisplay
+                        value={product.barcode}
+                        format={(product.barcodeType as any) || 'EAN13'}
+                        height={100}
+                        width={2}
+                        fontSize={20}
+                        showActions={true}
+                        productName={product.name}
+                        productSku={product.sku}
+                        price={product.price}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Hash className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">No barcode assigned</p>
+                    <p className="text-sm text-gray-400 mt-2">Edit product to add a barcode</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Supplier Barcodes */}
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="flex items-center">
+                      <Building className="h-5 w-5 mr-2" />
+                      Supplier Barcodes
+                    </CardTitle>
+                    <CardDescription>
+                      Additional barcodes from different suppliers (all point to this product)
+                    </CardDescription>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const barcode = prompt('Enter supplier barcode:');
+                      if (barcode) {
+                        const source = prompt('Supplier name:') || 'Supplier';
+                        handleLinkSupplierBarcode(barcode, source);
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Link Supplier Barcode
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {product?.additionalBarcodes && product.additionalBarcodes.length > 0 ? (
+                  <div className="space-y-3">
+                    {product.additionalBarcodes.map((barcode: any) => (
+                      <div key={barcode.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-semibold text-gray-900">{barcode.source || 'Supplier'}</span>
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
+                                {barcode.barcodeType}
+                              </span>
+                            </div>
+                            <p className="font-mono text-sm text-gray-700">{barcode.barcode}</p>
+                            {barcode.description && (
+                              <p className="text-xs text-gray-500 mt-1">{barcode.description}</p>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (confirm('Remove this supplier barcode mapping?')) {
+                                handleRemoveSupplierBarcode(barcode.id);
+                              }
+                            }}
+                          >
+                            <X className="h-4 w-4 text-gray-400 hover:text-red-600" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Building className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">No supplier barcodes linked</p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Link supplier barcodes so you can scan either your barcode or theirs
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Barcode Usage Guide */}
+            <Card className="bg-blue-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="text-blue-900 flex items-center">
+                  <HelpCircle className="h-5 w-5 mr-2" />
+                  How Multiple Barcodes Work
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-blue-900">
+                <div className="space-y-2">
+                  <p>✓ Your primary barcode is always used for internal operations</p>
+                  <p>✓ Supplier barcodes let you scan products in their original packaging</p>
+                  <p>✓ All barcodes (yours + suppliers) point to this same product</p>
+                  <p>✓ When receiving stock, you can scan either barcode - both work!</p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>

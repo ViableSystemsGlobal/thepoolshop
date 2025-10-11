@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { NotificationService, SystemNotificationTriggers } from "@/lib/notification-service";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { generateBarcode, validateBarcode, detectBarcodeType } from "@/lib/barcode-utils";
 
 // GET /api/products - List all products
 export async function GET(request: NextRequest) {
@@ -126,6 +127,11 @@ export async function POST(request: NextRequest) {
       name,
       description,
       categoryId,
+      barcode: providedBarcode,
+      barcodeType: providedBarcodeType,
+      generateBarcode: shouldGenerateBarcode = true,
+      supplierBarcode,
+      supplierName,
       price,
       cost,
       costPrice,
@@ -167,12 +173,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Handle barcode generation/validation
+    let finalBarcode = providedBarcode?.trim() || null;
+    let finalBarcodeType = providedBarcodeType || 'EAN13';
+
+    if (!finalBarcode && shouldGenerateBarcode) {
+      // Generate barcode from SKU
+      finalBarcode = generateBarcode(sku, finalBarcodeType as any);
+      
+      // Ensure uniqueness
+      let attempts = 0;
+      while (attempts < 5) {
+        const existingBarcode = await prisma.product.findUnique({
+          where: { barcode: finalBarcode as string }
+        });
+        
+        if (!existingBarcode) break;
+        
+        // Add timestamp to ensure uniqueness
+        finalBarcode = generateBarcode(`${sku}-${Date.now()}`, finalBarcodeType as any);
+        attempts++;
+      }
+    }
+
+    // Validate barcode if provided
+    if (finalBarcode) {
+      const detectedType = detectBarcodeType(finalBarcode);
+      finalBarcodeType = providedBarcodeType || detectedType;
+      
+      if (!validateBarcode(finalBarcode, finalBarcodeType as any)) {
+        return NextResponse.json(
+          { error: 'Invalid barcode format' },
+          { status: 400 }
+        );
+      }
+      
+      // Check for duplicates
+      const duplicateBarcode = await prisma.product.findUnique({
+        where: { barcode: finalBarcode }
+      });
+      
+      if (duplicateBarcode) {
+        return NextResponse.json(
+          { error: 'Barcode already exists on another product' },
+          { status: 400 }
+        );
+      }
+    }
+
     const product = await prisma.product.create({
       data: {
         sku,
         name,
         description,
         categoryId,
+        barcode: finalBarcode,
+        barcodeType: finalBarcode ? finalBarcodeType : null,
+        generateBarcode: shouldGenerateBarcode,
         price: price ? parseFloat(price) : 0,
         cost: cost ? parseFloat(cost) : 0,
         costPrice: costPrice ? parseFloat(costPrice) : (cost ? parseFloat(cost) : 0),
@@ -190,8 +247,29 @@ export async function POST(request: NextRequest) {
       },
       include: {
         category: true,
+        additionalBarcodes: true,
       },
     });
+
+    // After product creation, handle supplier barcode if provided
+    if (supplierBarcode && supplierBarcode !== finalBarcode) {
+      try {
+        await prisma.productBarcode.create({
+          data: {
+            productId: product.id,
+            barcode: supplierBarcode,
+            barcodeType: detectBarcodeType(supplierBarcode),
+            source: supplierName || 'Supplier',
+            description: 'Supplier barcode',
+            isPrimary: false,
+            isActive: true
+          }
+        });
+      } catch (error) {
+        console.error('Error creating supplier barcode:', error);
+        // Don't fail the entire request if supplier barcode fails
+      }
+    }
 
     // Get the default warehouse (Main Warehouse)
     const defaultWarehouse = await prisma.warehouse.findFirst({

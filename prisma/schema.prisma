@@ -66,6 +66,7 @@ model User {
   receivedPayments           Payment[]                  @relation("PaymentReceiver")
   createdReturns             Return[]                   @relation("ReturnCreator")
   approvedReturns            Return[]                   @relation("ReturnApprover")
+  createdStocktakes          StocktakeSession[]         @relation("StocktakeCreator")
 
   @@map("users")
 }
@@ -151,6 +152,9 @@ model Product {
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   costPrice               Float?
+  barcode                 String?                  @unique
+  barcodeType             BarcodeType?             @default(EAN13)
+  generateBarcode         Boolean                  @default(true)
   backorders              Backorder[]
   priceListItems          PriceListItem[]
   documents               ProductDocument[]
@@ -166,6 +170,9 @@ model Product {
   salesOrderLines         SalesOrderLine[]         @relation("SalesOrderLineProduct")
   invoiceLines            InvoiceLine[]            @relation("InvoiceLineProduct")
   returnLines             ReturnLine[]             @relation("ReturnLineProduct")
+  additionalBarcodes      ProductBarcode[]
+  suppliers               ProductSupplier[]
+  stocktakeItems          StocktakeItem[]
 
   @@map("products")
 }
@@ -324,6 +331,7 @@ model Quotation {
   subject       String
   validUntil    DateTime?
   notes         String?
+  currency      String          @default("GHS")
   subtotal      Float           @default(0)
   tax           Float           @default(0)
   total         Float           @default(0)
@@ -414,9 +422,10 @@ model StockItem {
   warehouseId  String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
-  product      Product         @relation(fields: [productId], references: [id])
-  warehouse    Warehouse?      @relation(fields: [warehouseId], references: [id])
-  movements    StockMovement[]
+  product        Product         @relation(fields: [productId], references: [id])
+  warehouse      Warehouse?      @relation(fields: [warehouseId], references: [id])
+  movements      StockMovement[]
+  stocktakeItems StocktakeItem[]
 
   @@unique([productId, warehouseId])
   @@map("stock_items")
@@ -437,6 +446,7 @@ model Warehouse {
   fromMovements    StockMovement[] @relation("FromWarehouse")
   toMovements      StockMovement[] @relation("ToWarehouse")
   currentMovements StockMovement[] @relation("CurrentWarehouse")
+  stocktakeSessions StocktakeSession[]
 
   @@map("warehouses")
 }
@@ -1653,6 +1663,7 @@ model Invoice {
   paidDate  DateTime?
 
   // Financials
+  currency     String  @default("GHS")
   subtotal     Float
   tax          Float
   discount     Float @default(0)
@@ -1847,6 +1858,104 @@ enum ReturnStatus {
   APPROVED
   REJECTED
   REFUNDED
+  COMPLETED
+  CANCELLED
+}
+
+model ProductBarcode {
+  id          String      @id @default(cuid())
+  productId   String
+  barcode     String      @unique
+  barcodeType BarcodeType @default(EAN13)
+  source      String?
+  description String?
+  isPrimary   Boolean     @default(false)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@index([productId])
+  @@map("product_barcodes")
+}
+
+model ProductSupplier {
+  id              String   @id @default(cuid())
+  productId       String
+  supplierName    String
+  supplierSku     String?
+  supplierBarcode String?
+  cost            Float?
+  leadTime        Int?
+  moq             Int?
+  isPreferred     Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@index([productId])
+  @@map("product_suppliers")
+}
+
+enum BarcodeType {
+  EAN13
+  EAN8
+  UPCA
+  UPCE
+  CODE128
+  CODE39
+  ITF14
+  QR
+  DATAMATRIX
+  CUSTOM
+}
+
+model StocktakeSession {
+  id            String            @id @default(cuid())
+  sessionNumber String            @unique
+  name          String
+  warehouseId   String
+  status        StocktakeStatus   @default(IN_PROGRESS)
+  notes         String?
+  createdBy     String
+  startedAt     DateTime          @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  
+  warehouse       Warehouse         @relation(fields: [warehouseId], references: [id])
+  createdByUser   User              @relation("StocktakeCreator", fields: [createdBy], references: [id])
+  items           StocktakeItem[]
+  
+  @@map("stocktake_sessions")
+}
+
+model StocktakeItem {
+  id                  String           @id @default(cuid())
+  stocktakeSessionId  String
+  productId           String
+  stockItemId         String
+  systemQuantity      Float
+  countedQuantity     Float
+  variance            Float
+  notes               String?
+  scannedBarcode      String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  
+  stocktakeSession StocktakeSession @relation(fields: [stocktakeSessionId], references: [id], onDelete: Cascade)
+  product          Product          @relation(fields: [productId], references: [id])
+  stockItem        StockItem        @relation(fields: [stockItemId], references: [id])
+  
+  @@unique([stocktakeSessionId, productId])
+  @@index([stocktakeSessionId])
+  @@map("stocktake_items")
+}
+
+enum StocktakeStatus {
+  IN_PROGRESS
   COMPLETED
   CANCELLED
 }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
+import { BarcodeScanner } from "@/components/barcode-scanner";
 import { 
   X, 
   Package, 
@@ -139,6 +140,25 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
       }
     } catch (error) {
       console.error('Error fetching warehouses:', error);
+    }
+  };
+
+  const handleBarcodeScan = (barcode: string, product: any) => {
+    if (product) {
+      // Product found - auto-fill form
+      setSelectedProduct(product);
+      setProductSearch(product.name);
+      setFormData(prev => ({
+        ...prev,
+        productId: product.id,
+        // Auto-select warehouse if product has stock in a specific warehouse
+        warehouseId: product.stockItems?.[0]?.warehouseId || prev.warehouseId
+      }));
+      setShowProductDropdown(false);
+      success(`✓ Product selected: ${product.name}`);
+    } else {
+      // Product not found
+      showError(`Barcode not found in system: ${barcode}`);
     }
   };
 
@@ -389,22 +409,23 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Product *
             </label>
-            <div className="relative">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  value={productSearch}
-                  onChange={(e) => {
-                    setProductSearch(e.target.value);
-                    if (!e.target.value) {
-                      setSelectedProduct(null);
-                      setFormData(prev => ({ ...prev, productId: "" }));
-                    }
-                  }}
-                  placeholder="Search for a product by name or SKU..."
-                  className="pl-10"
-                  required
-                />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    value={productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value);
+                      if (!e.target.value) {
+                        setSelectedProduct(null);
+                        setFormData(prev => ({ ...prev, productId: "" }));
+                      }
+                    }}
+                    placeholder="Search for a product by name or SKU..."
+                    className="pl-10"
+                    required
+                  />
               </div>
               
               {showProductDropdown && filteredProducts.length > 0 && (
@@ -416,7 +437,7 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
                       className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
                     >
                       <div className="font-medium text-gray-900">{product.name}</div>
-                      <div className="text-sm text-gray-500">{product.sku}</div>
+                      <div className="text-sm text-gray-500">SKU: {product.sku}</div>
                       {product.stockItems && product.stockItems.length > 0 && (
                         <div className="text-xs text-gray-400">
                           Available Stock: {getTotalAvailableStock(product)} {product.uomBase}
@@ -426,6 +447,15 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
                   ))}
                 </div>
               )}
+              </div>
+              
+              {/* Barcode Scanner Button */}
+              <BarcodeScanner
+                onScan={handleBarcodeScan}
+                autoLookup={true}
+                title="Scan Product Barcode"
+                description="Scan the product barcode to auto-fill details"
+              />
             </div>
           </div>
 
