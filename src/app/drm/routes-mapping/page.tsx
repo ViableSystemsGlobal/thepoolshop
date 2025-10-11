@@ -40,7 +40,7 @@ import {
   Download,
   Upload
 } from 'lucide-react';
-import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
 
 interface Zone {
   id: string;

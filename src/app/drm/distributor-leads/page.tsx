@@ -32,7 +32,7 @@ import {
   ArrowLeft,
   TrendingUp
 } from 'lucide-react';
-import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
 
 interface DistributorLead {
   id: string;
@@ -547,7 +547,11 @@ export default function DistributorLeadsPage() {
                   const applicationDate = lead.applicationDate || lead.createdAt || new Date().toISOString();
                   
                   return (
-                    <tr key={lead.id} className="hover:bg-gray-50">
+                    <tr 
+                      key={lead.id} 
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handleViewClick(lead)}
+                    >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10">
@@ -603,7 +607,7 @@ export default function DistributorLeadsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(applicationDate).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu
                         trigger={
                           <Button variant="ghost" size="sm">

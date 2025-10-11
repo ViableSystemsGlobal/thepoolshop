@@ -38,7 +38,7 @@ import SimpleCreateTaskModal from '@/components/modals/simple-create-task-modal'
 import EditTaskModal from '@/components/modals/edit-task-modal';
 import TaskSlideout from '@/components/task-slideout';
 import TaskCalendar from '@/components/task-calendar';
-import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
 
 interface User {
   id: string;

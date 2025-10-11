@@ -6,7 +6,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
 import { useToast } from '@/contexts/toast-context';
 import { useTheme } from '@/contexts/theme-context';
 import { 

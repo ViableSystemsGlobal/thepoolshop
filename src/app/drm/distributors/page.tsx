@@ -35,7 +35,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
-import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
 import AddDistributorModal from '@/components/modals/add-distributor-modal';
 import EditDistributorModal from '@/components/modals/edit-distributor-modal';
 import { ExportDistributorsModal } from '@/components/modals/export-distributors-modal';
