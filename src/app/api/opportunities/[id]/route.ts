@@ -25,7 +25,7 @@ export async function GET(
         id,
         ownerId: userId,
         status: {
-          in: ['QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'] as any
+          in: ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'] as any
         },
       },
       include: {
@@ -77,7 +77,7 @@ export async function PUT(
         id,
         ownerId: userId,
         status: {
-          in: ['QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'] as any
+          in: ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'] as any
         },
       },
     });
@@ -172,7 +172,7 @@ export async function DELETE(
         id,
         ownerId: userId,
         status: {
-          in: ['QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'] as any
+          in: ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'] as any
         },
       },
     });
