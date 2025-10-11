@@ -120,6 +120,10 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
     return colorMap[theme.primary] || 'bg-blue-600 hover:bg-blue-700';
   };
 
+  const handleViewMovement = (movement: StockMovement) => {
+    router.push(`/products/${movement.product.id}`);
+  };
+
   const [aiRecommendations, setAiRecommendations] = useState([
     {
       id: '1',
@@ -522,6 +526,7 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
             enableSelection={true}
             selectedItems={selectedMovements}
             onSelectionChange={setSelectedMovements}
+            onRowClick={handleViewMovement}
             bulkActions={
               <div className="flex gap-2">
                 <Button

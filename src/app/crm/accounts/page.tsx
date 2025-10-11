@@ -167,6 +167,10 @@ export default function AccountsPage() {
     );
   };
 
+  const handleViewAccount = (account: Account) => {
+    router.push(`/crm/accounts/${account.id}`);
+  };
+
   const handleAddAccount = async (accountData: {
     name: string;
     type: string;
@@ -426,6 +430,7 @@ export default function AccountsPage() {
             enableSelection={true}
             selectedItems={selectedAccounts}
             onSelectionChange={setSelectedAccounts}
+            onRowClick={handleViewAccount}
             bulkActions={
               <div className="flex gap-2">
                 <Button

@@ -160,6 +160,10 @@ export default function ContactsPage() {
     success('Recommendation completed! Great job!');
   };
 
+  const handleViewContact = (contact: Contact) => {
+    router.push(`/crm/contacts/${contact.id}`);
+  };
+
   const handleBulkDelete = async () => {
     if (selectedContacts.length === 0) return;
     
@@ -319,6 +323,7 @@ export default function ContactsPage() {
               enableSelection={true}
               selectedItems={selectedContacts}
               onSelectionChange={setSelectedContacts}
+              onRowClick={handleViewContact}
               bulkActions={
                 <div className="flex gap-2">
                   <Button

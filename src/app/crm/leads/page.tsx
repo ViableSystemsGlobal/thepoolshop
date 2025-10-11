@@ -658,6 +658,7 @@ export default function LeadsPage() {
             enableSelection={true}
             selectedItems={selectedLeads}
             onSelectionChange={setSelectedLeads}
+            onRowClick={handleRowClick}
             bulkActions={
               <div className="flex gap-2">
                 <select

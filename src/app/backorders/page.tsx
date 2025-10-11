@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,7 @@ interface BackorderSummary {
 }
 
 export default function BackordersPage() {
+  const router = useRouter();
   const { getThemeClasses } = useTheme();
   const { success, error: showError } = useToast();
   const theme = getThemeClasses();
@@ -151,6 +153,10 @@ export default function BackordersPage() {
       completed: false
     }
   ];
+
+  const handleViewProduct = (backorder: Backorder) => {
+    router.push(`/products/${backorder.productId}`);
+  };
 
   const handleRecommendationComplete = (id: string) => {
     success(`Recommendation "${id}" marked as completed!`);
@@ -449,6 +455,7 @@ export default function BackordersPage() {
           <CardContent>
             <DataTable
               data={filteredBackorders}
+              onRowClick={handleViewProduct}
               columns={[
                 {
                   key: 'order',

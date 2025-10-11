@@ -45,6 +45,11 @@ export default function WarehousesPage() {
   const router = useRouter();
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
+  
+  const handleViewWarehouse = (warehouse: Warehouse) => {
+    router.push(`/warehouses/${warehouse.id}`);
+  };
+  
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -99,10 +104,6 @@ export default function WarehousesPage() {
 
   const handleWarehouseSuccess = () => {
     fetchWarehouses();
-  };
-
-  const handleViewWarehouse = (warehouse: Warehouse) => {
-    router.push(`/warehouses/${warehouse.id}`);
   };
 
   const handleEditWarehouse = (warehouse: Warehouse) => {
@@ -270,6 +271,7 @@ export default function WarehousesPage() {
               enableSelection={true}
               selectedItems={selectedWarehouses}
               onSelectionChange={setSelectedWarehouses}
+              onRowClick={handleViewWarehouse}
               bulkActions={
                 <div className="flex gap-2">
                   <Button

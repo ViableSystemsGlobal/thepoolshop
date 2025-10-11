@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,6 +76,7 @@ interface Category {
 }
 
 export default function StockPage() {
+  const router = useRouter();
   const { currency, changeCurrency } = useCurrency();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -114,6 +116,10 @@ export default function StockPage() {
       completed: false,
     },
   ]);
+
+  const handleViewProduct = (product: Product) => {
+    router.push(`/products/${product.id}`);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -450,6 +456,7 @@ export default function StockPage() {
               enableSelection={true}
               selectedItems={selectedStockItems}
               onSelectionChange={setSelectedStockItems}
+              onRowClick={handleViewProduct}
               getRowClassName={getRowClassName}
               bulkActions={
                 <div className="flex gap-2">
