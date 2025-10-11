@@ -887,73 +887,99 @@ export default function ProductDetailsPage() {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Product Image and Basic Info */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Package className="h-5 w-5 mr-2" />
-                  Product Overview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Product Image */}
-                <div className="aspect-square rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden relative group">
-                  {images.length > 0 ? (
-                    <>
-                      <img
-                        src={images[currentImageIndex]}
-                        alt={product.name}
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                          if (nextElement) {
-                            nextElement.style.display = 'flex';
-                          }
-                        }}
-                      />
-                      {/* Navigation Arrows - Only show if multiple images */}
-                      {images.length > 1 && (
-                        <>
-                          <button
-                            onClick={prevImage}
-                            className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={nextImage}
-                            className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </button>
-                          {/* Image Counter */}
-                          <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                            {currentImageIndex + 1} / {images.length}
-                          </div>
-                        </>
-                      )}
-                    </>
-                  ) : null}
-                  <div className={`h-full w-full flex items-center justify-center ${images.length > 0 ? 'hidden' : 'flex'}`}>
-                    <Package className="h-16 w-16 text-gray-400" />
+          <div className="flex gap-6 h-screen overflow-hidden">
+            {/* LEFT SIDE - Fixed Product Identity */}
+            <div className="w-96 flex-shrink-0 space-y-6 overflow-y-auto pr-2">
+              {/* Product Image */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Package className="h-5 w-5 mr-2" />
+                    Product Image
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="aspect-square rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden relative group">
+                    {images.length > 0 ? (
+                      <>
+                        <img
+                          src={images[currentImageIndex]}
+                          alt={product.name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (nextElement) {
+                              nextElement.style.display = 'flex';
+                            }
+                          }}
+                        />
+                        {/* Navigation Arrows - Only show if multiple images */}
+                        {images.length > 1 && (
+                          <>
+                            <button
+                              onClick={prevImage}
+                              className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={nextImage}
+                              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                            {/* Image Counter */}
+                            <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                              {currentImageIndex + 1} / {images.length}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : null}
+                    <div className={`h-full w-full flex items-center justify-center ${images.length > 0 ? 'hidden' : 'flex'}`}>
+                      <Package className="h-16 w-16 text-gray-400" />
+                    </div>
                   </div>
-                </div>
 
-                {/* Status Badges */}
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
-                    product.active
-                      ? `bg-${theme.primaryBg} text-${theme.primaryText}`
-                      : "bg-gray-100 text-gray-800"
-                  }`}>
-                    {product.active ? 'Active' : 'Inactive'}
-                  </span>
-                  
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                  {/* Download Images Button */}
+                  {images.length > 0 && (
+                    <div className="mt-4 flex justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadImages}
+                        className="flex items-center w-full"
+                        title="Download product images"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Images
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Product Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <FileText className="h-5 w-5 mr-2" />
+                    Product Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Status Badges */}
+                  <div className="flex flex-col gap-3">
+                    <span className={`inline-flex px-3 py-2 text-sm font-semibold rounded-full text-center ${
+                      product.active
+                        ? `bg-${theme.primaryBg} text-${theme.primaryText}`
+                        : "bg-gray-100 text-gray-800"
+                    }`}>
+                      {product.active ? 'Active' : 'Inactive'}
+                    </span>
+                    
+                    <span className={`inline-flex px-3 py-2 text-sm font-semibold rounded-full text-center ${
                       stockStatus === 'out-of-stock'
                         ? "bg-red-100 text-red-800"
                         : stockStatus === 'low-stock'
@@ -963,69 +989,189 @@ export default function ProductDetailsPage() {
                       {stockStatus === 'out-of-stock' ? 'Out of Stock' : 
                        stockStatus === 'low-stock' ? 'Low Stock' : 'In Stock'}
                     </span>
-                    
-                    {/* Download Images Button - Show if product has images */}
-                    {images.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleDownloadImages}
-                        className="flex items-center text-xs px-2 py-1 h-6"
-                        title="Download product images"
-                      >
-                        <Download className="h-3 w-3 mr-1" />
-                        Images
-                      </Button>
-                    )}
                   </div>
-                </div>
 
-                {/* Description */}
-                {product.description && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Description</h4>
-                    <p className="text-sm text-gray-600">{product.description}</p>
+                  {/* Description */}
+                  {product.description && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Description</h4>
+                      <p className="text-sm text-gray-600 leading-relaxed">{product.description}</p>
+                    </div>
+                  )}
+
+                  {/* Quick Info */}
+                  <div className="border-t pt-4 space-y-3">
+                    <div>
+                      <span className="text-xs font-medium text-gray-500">Category</span>
+                      <p className="text-sm text-gray-900">{product.category?.name || 'Uncategorized'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium text-gray-500">SKU</span>
+                      <p className="text-sm text-gray-900 font-mono">{product.sku}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium text-gray-500">Units</span>
+                      <p className="text-sm text-gray-900">{product.uomBase} / {product.uomSell}</p>
+                    </div>
                   </div>
-                )}
+                </CardContent>
+              </Card>
+            </div>
 
-                {/* Basic Information */}
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                    <FileText className="h-4 w-4 mr-2" />
+            {/* RIGHT SIDE - Scrollable Detailed Information */}
+            <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+              {/* Basic Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <FileText className="h-5 w-5 mr-2" />
                     Basic Information
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Category</span>
-                      <span className="text-sm text-gray-900">{product.category?.name || 'Uncategorized'}</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Product ID</span>
+                        <p className="text-sm text-gray-900 font-mono">{product.id}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Category</span>
+                        <p className="text-sm text-gray-900">{product.category?.name || 'Uncategorized'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Base Unit</span>
+                        <p className="text-sm text-gray-900">{product.uomBase}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Selling Unit</span>
+                        <p className="text-sm text-gray-900">{product.uomSell}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Base Unit</span>
-                      <span className="text-sm text-gray-900">{product.uomBase}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Selling Unit</span>
-                      <span className="text-sm text-gray-900">{product.uomSell}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Selling Currency</span>
-                      <span className="text-sm text-gray-900">{product.originalPriceCurrency || product.baseCurrency || 'GHS'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Cost Currency</span>
-                      <span className="text-sm text-gray-900">{product.originalCostCurrency || product.importCurrency || 'USD'}</span>
+                    <div className="space-y-4">
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Selling Currency</span>
+                        <p className="text-sm text-gray-900">{product.originalPriceCurrency || product.baseCurrency || 'GHS'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Cost Currency</span>
+                        <p className="text-sm text-gray-900">{product.originalCostCurrency || product.importCurrency || 'USD'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Created</span>
+                        <p className="text-sm text-gray-900">
+                          {new Date(product.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Last Updated</span>
+                        <p className="text-sm text-gray-900">
+                          {new Date(product.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                {/* Barcode Information */}
-                {product.barcode && (
-                  <div className="border-t pt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                      <Hash className="h-4 w-4 mr-2" />
+              {/* Pricing Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <DollarSign className="h-5 w-5 mr-2" />
+                    Pricing Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center p-6 bg-gray-50 rounded-lg">
+                      <div className="text-3xl font-bold text-gray-900">
+                        {formatCurrencyWithSymbol(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-2">Selling Price</div>
+                      {product.originalPriceCurrency && product.originalPriceCurrency !== currency && (
+                        <div className="text-xs text-gray-500 mt-2">
+                          Original: {formatCurrencyWithSymbol(product.price || 0, product.originalPriceCurrency || 'GHS', product.originalPriceCurrency || 'GHS')}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-center p-6 bg-gray-50 rounded-lg">
+                      <div className="text-3xl font-bold text-gray-900">
+                        {formatCurrencyWithSymbol(product.cost || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-2">Cost Price</div>
+                      {product.originalCostCurrency && product.originalCostCurrency !== currency && (
+                        <div className="text-xs text-gray-500 mt-2">
+                          Original: {formatCurrencyWithSymbol(product.cost || 0, product.originalCostCurrency || 'USD', product.originalCostCurrency || 'USD')}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-center p-6 bg-gray-50 rounded-lg">
+                      <div className={`text-3xl font-bold flex items-center justify-center ${
+                        profitMargin > 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {profitMargin > 0 ? <TrendingUp className="h-6 w-6 mr-2" /> : <TrendingDown className="h-6 w-6 mr-2" />}
+                        {profitMargin.toFixed(1)}%
+                      </div>
+                      <div className="text-sm text-gray-600 mt-2">Profit Margin</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Stock Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Package className="h-5 w-5 mr-2" />
+                    Stock Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center p-6 bg-gray-50 rounded-lg">
+                      <div className="text-3xl font-bold text-gray-900">
+                        {totalStock.quantity}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-2">Total Quantity</div>
+                    </div>
+                    
+                    <div className="text-center p-6 bg-gray-50 rounded-lg">
+                      <div className="text-3xl font-bold text-gray-900">
+                        {totalStock.reserved}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-2">Reserved</div>
+                    </div>
+                    
+                    <div className="text-center p-6 bg-gray-50 rounded-lg">
+                      <div className={`text-3xl font-bold ${
+                        totalStock.available === 0
+                          ? "text-red-600"
+                          : totalStock.available < 20
+                            ? "text-amber-600"
+                            : "text-green-600"
+                      }`}>
+                        {totalStock.available}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-2">Available</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Barcode Information */}
+              {product.barcode && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Hash className="h-5 w-5 mr-2" />
                       Barcode Information
-                    </h4>
-                    <div className="space-y-4">
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-500">Barcode</span>
                         <span className="text-sm text-gray-900 font-mono">{product.barcode}</span>
@@ -1036,11 +1182,11 @@ export default function ProductDetailsPage() {
                       </div>
                       
                       {/* Barcode Display */}
-                      <div className="mt-4">
+                      <div className="flex justify-center">
                         <BarcodeDisplay
                           value={product.barcode}
                           format={(product.barcodeType as any) || 'EAN13'}
-                          height={80}
+                          height={100}
                           width={2}
                           fontSize={16}
                           showActions={true}
@@ -1051,173 +1197,53 @@ export default function ProductDetailsPage() {
                       </div>
                       
                       {product.additionalBarcodes && product.additionalBarcodes.length > 0 && (
-                        <div className="mt-4 border-t pt-4">
-                          <p className="text-xs font-medium text-gray-600 mb-2">Additional Barcodes:</p>
-                          {product.additionalBarcodes.map((ab: any) => (
-                            <div key={ab.id} className="text-xs text-gray-500 flex justify-between items-center py-1">
-                              <span>{ab.source || 'Supplier'}: {ab.barcode}</span>
-                              <span className="text-gray-400">{ab.barcodeType}</span>
-                            </div>
-                          ))}
+                        <div className="border-t pt-6">
+                          <h4 className="text-sm font-medium text-gray-700 mb-4">Additional Barcodes</h4>
+                          <div className="space-y-3">
+                            {product.additionalBarcodes.map((ab: any) => (
+                              <div key={ab.id} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg">
+                                <span className="text-sm text-gray-900">{ab.source || 'Supplier'}: {ab.barcode}</span>
+                                <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">{ab.barcodeType}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
+                  </CardContent>
+                </Card>
+              )}
 
-                {/* System Information */}
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    System Information
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Product ID</span>
-                      <span className="text-sm text-gray-900 font-mono">{product.id}</span>
+              {/* Stock Movements */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center text-lg">
+                        <TrendingUp className="h-5 w-5 mr-2" />
+                        Stock Movements
+                      </CardTitle>
+                      <CardDescription>
+                        Recent stock movements for this product
+                      </CardDescription>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Created</span>
-                      <span className="text-sm text-gray-900">
-                        {new Date(product.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">Last Updated</span>
-                      <span className="text-sm text-gray-900">
-                        {new Date(product.updatedAt).toLocaleDateString()}
-                      </span>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/products/${product.id}/stock-movements`)}
+                      className="flex items-center"
+                    >
+                      View All Movements
+                      <ArrowRight className="h-4 w-4 ml-1" />
+                    </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent>
+                  <StockMovementsSummary productId={product.id} />
+                </CardContent>
+              </Card>
+            </div>
           </div>
-
-          {/* Product Details */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Pricing Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <DollarSign className="h-5 w-5 mr-2" />
-                  Pricing Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {formatCurrencyWithSymbol(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      Selling Price
-                      {product.originalPriceCurrency && product.originalPriceCurrency !== currency && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Original: {formatCurrencyWithSymbol(product.price || 0, product.originalPriceCurrency || 'GHS', product.originalPriceCurrency || 'GHS')}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {formatCurrencyWithSymbol(product.cost || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      Cost Price
-                      {product.originalCostCurrency && product.originalCostCurrency !== currency && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Original: {formatCurrencyWithSymbol(product.cost || 0, product.originalCostCurrency || 'USD', product.originalCostCurrency || 'USD')}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className={`text-2xl font-bold flex items-center justify-center ${
-                      profitMargin > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {profitMargin > 0 ? <TrendingUp className="h-5 w-5 mr-1" /> : <TrendingDown className="h-5 w-5 mr-1" />}
-                      {profitMargin.toFixed(1)}%
-                    </div>
-                    <div className="text-sm text-gray-600">Profit Margin</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Stock Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Package className="h-5 w-5 mr-2" />
-                  Stock Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {totalStock.quantity}
-                    </div>
-                    <div className="text-sm text-gray-600">Total Quantity</div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {totalStock.reserved}
-                    </div>
-                    <div className="text-sm text-gray-600">Reserved</div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className={`text-2xl font-bold ${
-                      totalStock.available === 0
-                        ? "text-red-600"
-                        : totalStock.available < 20
-                          ? "text-amber-600"
-                          : "text-green-600"
-                    }`}>
-                      {totalStock.available}
-                    </div>
-                    <div className="text-sm text-gray-600">Available</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Stock Movements */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center text-lg">
-                      <TrendingUp className="h-5 w-5 mr-2" />
-                      Stock Movements
-                    </CardTitle>
-                    <CardDescription>
-                      Recent stock movements for this product
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/products/${product.id}/stock-movements`)}
-                    className="flex items-center"
-                  >
-                    View All Movements
-                    <ArrowRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <StockMovementsSummary productId={product.id} />
-              </CardContent>
-            </Card>
-
-          </div>
-        </div>
         )}
 
         {activeTab === 'documents' && (

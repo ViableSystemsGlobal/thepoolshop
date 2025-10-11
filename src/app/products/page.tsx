@@ -827,6 +827,7 @@ export default function ProductsPage() {
             enableSelection={true}
             selectedItems={selectedProducts}
             onSelectionChange={setSelectedProducts}
+            onRowClick={handleViewProduct}
             itemsPerPage={itemsPerPage}
             currentPage={currentPage}
             totalPages={totalPages}
