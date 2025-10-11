@@ -49,6 +49,10 @@ export default function OpportunitiesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [currency, setCurrency] = useState('GHS');
   const [exchangeRate, setExchangeRate] = useState(1);
+  const handleViewOpportunity = (opportunity: Opportunity) => {
+    router.push(`/crm/opportunities/${opportunity.id}`);
+  };
+
   const [aiRecommendations, setAiRecommendations] = useState([
     {
       id: '1',
@@ -395,7 +399,11 @@ export default function OpportunitiesPage() {
                     {opportunities.map((opportunity) => {
                       const stageInfo = getStageInfo(opportunity.status);
                       return (
-                        <tr key={opportunity.id} className="hover:bg-gray-50">
+                        <tr 
+                          key={opportunity.id} 
+                          className="hover:bg-gray-50 cursor-pointer"
+                          onClick={() => handleViewOpportunity(opportunity)}
+                        >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
                               <div className="text-sm font-medium text-gray-900">
@@ -418,7 +426,7 @@ export default function OpportunitiesPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {opportunity.probability ? `${opportunity.probability}%` : '-'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu
                               items={[
                                 {
