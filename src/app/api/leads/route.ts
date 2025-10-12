@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { NotificationService, SystemNotificationTriggers } from '@/lib/notification-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     // }
 
     // const userId = (session.user as any).id;
-    const userId = 'cmfjxkd1e00068orj9n9w6ild'; // Hardcoded for testing
+    const userId = 'cmfpufpb500008zi346h5hntw'; // Hardcoded for testing - System Administrator
     console.log('🔍 Leads API: User ID:', userId);
     
     if (!userId) {
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
     // }
 
     // const userId = (session.user as any).id;
-    const userId = 'cmfjxkd1e00068orj9n9w6ild'; // Hardcoded for testing
+    const userId = 'cmfpufpb500008zi346h5hntw'; // Hardcoded for testing - System Administrator
     console.log('User ID:', userId);
     
     // if (!userId) {
@@ -222,6 +223,14 @@ export async function POST(request: NextRequest) {
       })() : null,
     };
 
+    // Send notifications for lead creation
+    try {
+      await sendLeadNotifications(lead, parsedLead, userId);
+    } catch (notificationError) {
+      console.error('Error sending lead notifications:', notificationError);
+      // Don't fail the request if notifications fail
+    }
+
     return NextResponse.json(parsedLead, { status: 201 });
   } catch (error) {
     console.error('Error creating lead:', error);
@@ -233,5 +242,127 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to create lead' },
       { status: 500 }
     );
+  }
+}
+
+// Helper function to send lead creation notifications
+async function sendLeadNotifications(lead: any, parsedLead: any, creatorId: string) {
+  try {
+    console.log('🚀 Starting to send lead notifications...');
+    console.log('Lead details:', { 
+      name: `${lead.firstName} ${lead.lastName}`, 
+      email: lead.email, 
+      phone: lead.phone,
+      assignedTo: parsedLead.assignedTo,
+      ownerId: lead.ownerId 
+    });
+    
+    const leadName = `${lead.firstName} ${lead.lastName}`;
+    const leadEmail = lead.email || '';
+    const creator = await prisma.user.findUnique({
+      where: { id: creatorId },
+      select: { name: true, email: true }
+    });
+    const creatorName = creator?.name || creator?.email || 'Unknown User';
+    console.log('Creator:', creatorName);
+
+    // 1. Notify assigned users
+    if (parsedLead.assignedTo && Array.isArray(parsedLead.assignedTo) && parsedLead.assignedTo.length > 0) {
+      for (const assignedUser of parsedLead.assignedTo) {
+        try {
+          // Extract user ID from the object
+          const assignedUserId = typeof assignedUser === 'string' ? assignedUser : assignedUser.id;
+          
+          const trigger = SystemNotificationTriggers.leadAssigned(
+            leadName,
+            leadEmail,
+            creatorName,
+            lead.source || ''
+          );
+          // Add phone number to trigger data for SMS
+          if (lead.phone) {
+            trigger.data = { ...trigger.data, phone: lead.phone };
+          }
+          await NotificationService.sendToUser(assignedUserId, trigger);
+          console.log(`Lead assignment notification sent to user ${assignedUserId}`);
+        } catch (error) {
+          console.error(`Error sending assignment notification:`, error);
+        }
+      }
+    }
+
+    // 2. Notify admins about new lead creation
+    const adminTrigger = SystemNotificationTriggers.leadCreated(
+      leadName,
+      leadEmail,
+      creatorName,
+      parsedLead.assignedTo
+    );
+    // Add phone number to trigger data for SMS
+    if (lead.phone) {
+      adminTrigger.data = { ...adminTrigger.data, phone: lead.phone };
+    }
+    await NotificationService.sendToAdmins(adminTrigger);
+    console.log('Lead creation notification sent to admins');
+
+    // 3. Notify lead owner if different from creator
+    if (lead.ownerId !== creatorId) {
+      try {
+        const trigger = SystemNotificationTriggers.leadOwnerNotification(
+          leadName,
+          leadEmail,
+          creatorName,
+          {
+            company: lead.company,
+            source: lead.source,
+            status: lead.status
+          }
+        );
+        // Add phone number to trigger data for SMS
+        if (lead.phone) {
+          trigger.data = { ...trigger.data, phone: lead.phone };
+        }
+        await NotificationService.sendToUser(lead.ownerId, trigger);
+        console.log(`Lead owner notification sent to user ${lead.ownerId}`);
+      } catch (error) {
+        console.error(`Error sending owner notification to user ${lead.ownerId}:`, error);
+      }
+    }
+
+    // 4. Send welcome email to lead if they provided email
+    if (lead.email) {
+      try {
+        // Extract the first assigned user's ID
+        const firstAssignedUserId = parsedLead.assignedTo && parsedLead.assignedTo.length > 0
+          ? (typeof parsedLead.assignedTo[0] === 'string' ? parsedLead.assignedTo[0] : parsedLead.assignedTo[0].id)
+          : null;
+        
+        const assignedUser = firstAssignedUserId 
+          ? await prisma.user.findUnique({
+              where: { id: firstAssignedUserId },
+              select: { name: true }
+            })
+          : null;
+
+        const companyName = 'AD Pools Group'; // This could be made configurable
+        const trigger = SystemNotificationTriggers.leadWelcome(
+          leadName,
+          companyName,
+          assignedUser?.name || undefined
+        );
+
+        // Send directly to lead's email
+        if (lead.email) {
+          await NotificationService.sendToEmail(lead.email, trigger);
+        }
+        console.log(`Welcome email sent to lead ${lead.email}`);
+      } catch (error) {
+        console.error(`Error sending welcome email to lead ${lead.email}:`, error);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in sendLeadNotifications:', error);
+    throw error;
   }
 }

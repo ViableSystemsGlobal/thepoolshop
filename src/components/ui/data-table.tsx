@@ -204,7 +204,7 @@ export function DataTable<T extends { id?: string }>({
                   </td>
                 )}
                 {columns.map((column) => (
-                  <td key={column.key} className="px-6 py-4 whitespace-nowrap">
+                  <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {column.render ? column.render(item) : (item as any)[column.key]}
                   </td>
                 ))}

@@ -31,6 +31,7 @@ export class NotificationService {
           id: true,
           email: true,
           name: true,
+          phone: true,
           preferences: true
         }
       });
@@ -84,7 +85,8 @@ export class NotificationService {
         return;
       }
 
-      await (prisma as any).notification.create({
+      // Create notification record
+      const notification = await (prisma as any).notification.create({
         data: {
           userId: recipientId,
           type: trigger.type,
@@ -94,6 +96,42 @@ export class NotificationService {
           status: 'PENDING',
           data: trigger.data ? JSON.stringify(trigger.data) : null,
           scheduledAt: trigger.scheduledAt || null
+        }
+      });
+
+      // Send notifications through each channel immediately
+      for (const channel of allowedChannels) {
+        console.log(`📤 Processing channel: ${channel} for user ${recipientId}`);
+        console.log(`User has email: ${!!user.email}, phone: ${!!user.phone}`);
+        
+        if (channel === 'EMAIL' && user.email) {
+          try {
+            await this.sendEmailNotification(user.email, trigger, notification.id);
+          } catch (error) {
+            console.error(`❌ Email failed for user ${recipientId}:`, error);
+          }
+        } else if (channel === 'SMS' && user.phone) {
+          console.log(`📱 Attempting to send SMS to ${user.phone}`);
+          try {
+            await this.sendSMSNotification(user.phone, trigger, notification.id);
+          } catch (error) {
+            console.error(`❌ SMS failed for user ${recipientId}:`, error);
+            console.error('SMS Error details:', error);
+          }
+        } else if (channel === 'IN_APP') {
+          // In-app notifications are handled by the notification record creation above
+          console.log(`In-app notification created for user ${recipientId}`);
+        } else {
+          console.log(`⚠️ Skipping channel ${channel} - missing contact info`);
+        }
+      }
+
+      // Update notification status to SENT
+      await (prisma as any).notification.update({
+        where: { id: notification.id },
+        data: { 
+          status: 'SENT',
+          sentAt: new Date()
         }
       });
 
@@ -193,6 +231,190 @@ export class NotificationService {
    */
   static async sendToFinanceOfficers(trigger: NotificationTrigger): Promise<void> {
     await this.sendToRole('FINANCE_OFFICER', trigger);
+  }
+
+  /**
+   * Send notification directly to an email address
+   */
+  static async sendToEmail(email: string, trigger: NotificationTrigger): Promise<void> {
+    try {
+      // For external emails (like welcome emails to leads), we don't create a notification record
+      // Just send the email directly
+      console.log(`Sending email directly to ${email}`);
+      
+      // Send email immediately
+      await this.sendEmailNotification(email, trigger, 'direct-email');
+      
+      console.log(`✅ Email sent successfully to ${email}`);
+    } catch (error) {
+      console.error(`Error sending email notification to ${email}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send email notification using SMTP
+   */
+  private static async sendEmailNotification(email: string, trigger: NotificationTrigger, notificationId: string): Promise<void> {
+    try {
+      // Check if this specific notification type is enabled
+      // For CUSTOM types, check the actual notification type from data
+      const actualType = trigger.data?.notificationType || trigger.type;
+      const emailTypeEnabled = await this.getSettingValue(`EMAIL_${actualType}`, 'false');
+      if (emailTypeEnabled !== 'true') {
+        console.log(`Email notifications for ${actualType} are disabled`);
+        return;
+      }
+
+      // Get SMTP configuration from database
+      const smtpHost = await this.getSettingValue('SMTP_HOST', '');
+      const smtpPort = await this.getSettingValue('SMTP_PORT', '587');
+      const smtpUsername = await this.getSettingValue('SMTP_USERNAME', '');
+      const smtpPassword = await this.getSettingValue('SMTP_PASSWORD', '');
+      const smtpFromAddress = await this.getSettingValue('SMTP_FROM_ADDRESS', '');
+      const smtpFromName = await this.getSettingValue('SMTP_FROM_NAME', 'AdPools Group');
+      const smtpEncryption = await this.getSettingValue('SMTP_ENCRYPTION', 'tls');
+
+      if (!smtpHost || !smtpUsername || !smtpPassword || !smtpFromAddress) {
+        console.log('SMTP configuration not found, skipping email notification');
+        return;
+      }
+
+      console.log('Sending email to:', email);
+      console.log('SMTP Config:', { smtpHost, smtpPort, smtpUsername, smtpFromAddress });
+
+      // Use nodemailer with standard configuration (same as communication system)
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: parseInt(smtpPort),
+        secure: smtpEncryption === 'ssl',
+        auth: {
+          user: smtpUsername,
+          pass: smtpPassword,
+        },
+      });
+
+      const result = await transporter.sendMail({
+        from: `"${smtpFromName}" <${smtpFromAddress}>`,
+        to: email,
+        subject: trigger.title,
+        text: trigger.message,
+        html: trigger.message.replace(/\n/g, '<br>'),
+      });
+
+      console.log(`✅ Email notification sent successfully to ${email}: ${result.messageId}`);
+    } catch (error) {
+      console.error('❌ Error sending email notification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send SMS notification using configured provider
+   */
+  private static async sendSMSNotification(phone: string, trigger: NotificationTrigger, notificationId: string): Promise<void> {
+    try {
+      // Check if this specific notification type is enabled
+      // For CUSTOM types, check the actual notification type from data
+      const actualType = trigger.data?.notificationType || trigger.type;
+      const smsTypeEnabled = await this.getSettingValue(`SMS_${actualType}`, 'false');
+      if (smsTypeEnabled !== 'true') {
+        console.log(`SMS notifications for ${actualType} are disabled`);
+        return;
+      }
+
+      // Get SMS configuration
+      const smsEnabled = await this.getSettingValue('SMS_ENABLED', 'false');
+      const smsProvider = await this.getSettingValue('SMS_PROVIDER', 'deywuro');
+      
+      if (smsEnabled !== 'true') {
+        console.log('SMS notifications disabled');
+        return;
+      }
+
+      if (smsProvider === 'deywuro') {
+        await this.sendSMSViaDeywuro(phone, trigger.message, notificationId);
+      } else {
+        console.log(`SMS provider ${smsProvider} not implemented`);
+      }
+
+      console.log(`✅ SMS notification sent successfully to ${phone}`);
+    } catch (error) {
+      console.error('❌ Error sending SMS notification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send SMS via Deywuro provider
+   */
+  private static async sendSMSViaDeywuro(phone: string, message: string, notificationId: string): Promise<void> {
+    try {
+      const smsUsername = await this.getSettingValue('SMS_USERNAME', '');
+      const smsPassword = await this.getSettingValue('SMS_PASSWORD', '');
+      const smsSenderId = await this.getSettingValue('SMS_SENDER_ID', 'AdPools');
+
+      if (!smsUsername || !smsPassword) {
+        console.log('SMS credentials not configured');
+        return;
+      }
+
+      console.log('Sending SMS to:', phone);
+      console.log('SMS Config:', { smsUsername, smsSenderId, messageLength: message.length });
+
+      // Use the same working endpoint and format as the communication system
+      const response = await fetch('https://deywuro.com/api/sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          username: smsUsername,
+          password: smsPassword,
+          destination: phone,
+          source: smsSenderId,
+          message: message
+        })
+      });
+
+      const responseText = await response.text();
+      console.log('Deywuro SMS Response Status:', response.status);
+      console.log('Deywuro SMS Response Text:', responseText);
+
+      // Try to parse as JSON
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        // If it's not JSON, it might be an HTML error page
+        throw new Error(`SMS provider returned non-JSON response: ${response.status} - ${responseText.substring(0, 100)}...`);
+      }
+
+      if (result.code === 0) {
+        console.log(`SMS sent via Deywuro: ${result.messageId || 'Success'}`);
+      } else {
+        throw new Error(`SMS failed: ${result.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error sending SMS via Deywuro:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get setting value from database
+   */
+  private static async getSettingValue(key: string, defaultValue: string = ''): Promise<string> {
+    try {
+      const setting = await (prisma as any).systemSettings.findUnique({
+        where: { key }
+      });
+      return setting?.value || defaultValue;
+    } catch (error) {
+      console.error(`Error getting setting ${key}:`, error);
+      return defaultValue;
+    }
   }
 
   /**
@@ -406,5 +628,38 @@ export const SystemNotificationTriggers = {
     message: `${alertType}: ${description}`,
     channels: ['IN_APP', 'EMAIL'],
     data: { alertType, description }
+  }),
+
+  // Lead notifications (temporarily using CUSTOM type until migration)
+  leadCreated: (leadName: string, leadEmail: string, creatorName: string, assignedTo?: string[]) => ({
+    type: 'CUSTOM',
+    title: 'New Lead Created',
+    message: `New lead "${leadName}" has been created by ${creatorName}${assignedTo ? ` and assigned to ${assignedTo.length} user(s)` : ''}`,
+    channels: ['IN_APP', 'EMAIL', 'SMS'],
+    data: { leadName, leadEmail, creatorName, assignedTo, phone: '', notificationType: 'LEAD_CREATED' }
+  }),
+
+  leadAssigned: (leadName: string, leadEmail: string, assignedByName: string, leadSource?: string) => ({
+    type: 'CUSTOM',
+    title: 'Lead Assigned to You',
+    message: `You have been assigned to lead "${leadName}"${leadEmail ? ` (${leadEmail})` : ''} by ${assignedByName}${leadSource ? ` from ${leadSource}` : ''}`,
+    channels: ['IN_APP', 'EMAIL', 'SMS'],
+    data: { leadName, leadEmail, assignedByName, leadSource, phone: '', notificationType: 'LEAD_ASSIGNED' }
+  }),
+
+  leadOwnerNotification: (leadName: string, leadEmail: string, creatorName: string, leadDetails: any) => ({
+    type: 'CUSTOM',
+    title: 'Lead Added to Your Account',
+    message: `Lead "${leadName}"${leadEmail ? ` (${leadEmail})` : ''} has been added to your account by ${creatorName}`,
+    channels: ['IN_APP', 'EMAIL'],
+    data: { leadName, leadEmail, creatorName, leadDetails, phone: '', notificationType: 'LEAD_OWNER_NOTIFICATION' }
+  }),
+
+  leadWelcome: (leadName: string, companyName: string, assignedUserName?: string) => ({
+    type: 'CUSTOM',
+    title: `Welcome to ${companyName}`,
+    message: `Hello ${leadName}, thank you for your interest in our products. We'll be in touch soon${assignedUserName ? ` - your dedicated contact is ${assignedUserName}` : ''}.`,
+    channels: ['EMAIL'],
+    data: { leadName, companyName, assignedUserName, notificationType: 'LEAD_WELCOME' }
   })
 };

@@ -106,13 +106,16 @@ export function SourceSelect({ label, value, onChange, placeholder, disabled }: 
     (e: React.KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
+        e.stopPropagation();
         const maxIndex = isCreating ? filteredSources.length : filteredSources.length - 1;
         setHighlightedIndex((prev) => (prev < maxIndex ? prev + 1 : prev));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
+        e.stopPropagation();
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
+        e.stopPropagation();
         if (isCreating && newSourceName.trim()) {
           handleCreateSource();
         } else if (highlightedIndex !== -1 && filteredSources[highlightedIndex]) {
@@ -120,6 +123,7 @@ export function SourceSelect({ label, value, onChange, placeholder, disabled }: 
         }
       } else if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         setIsOpen(false);
         setIsCreating(false);
         setNewSourceName('');
@@ -196,7 +200,11 @@ export function SourceSelect({ label, value, onChange, placeholder, disabled }: 
               {!isCreating ? (
                 <div
                   className="cursor-pointer p-2 text-sm hover:bg-gray-100 border-b border-gray-200 flex items-center gap-2 text-blue-600"
-                  onClick={() => setIsCreating(true)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsCreating(true);
+                  }}
                 >
                   <Plus className="w-4 h-4" />
                   Create new source
@@ -214,9 +222,11 @@ export function SourceSelect({ label, value, onChange, placeholder, disabled }: 
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
+                          e.stopPropagation();
                           handleCreateSource();
                         } else if (e.key === 'Escape') {
                           e.preventDefault();
+                          e.stopPropagation();
                           setIsCreating(false);
                           setNewSourceName('');
                         }
@@ -224,20 +234,28 @@ export function SourceSelect({ label, value, onChange, placeholder, disabled }: 
                     />
                     <Button
                       size="sm"
-                      onClick={handleCreateSource}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleCreateSource();
+                      }}
                       disabled={!newSourceName.trim()}
                       className="h-8 px-2"
+                      type="button"
                     >
                       <Plus className="w-3 h-3" />
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setIsCreating(false);
                         setNewSourceName('');
                       }}
                       className="h-8 px-2"
+                      type="button"
                     >
                       <X className="w-3 h-3" />
                     </Button>

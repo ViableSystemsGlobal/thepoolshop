@@ -24,7 +24,10 @@ import {
   Users,
   DollarSign,
   FileText,
-  MessageCircle
+  MessageCircle,
+  UserPlus,
+  UserCheck,
+  User
 } from 'lucide-react';
 
 // Template interfaces
@@ -117,6 +120,123 @@ const DEFAULT_EMAIL_TEMPLATES: NotificationTemplate[] = [
 </div>
     `.trim(),
     variables: ['recipientName', 'orderNumber', 'customerName', 'totalAmount', 'currency', 'itemCount', 'orderDate']
+  },
+  {
+    id: 'lead_created',
+    name: 'Lead Created Notification',
+    subject: 'New Lead Created: {{leadName}}',
+    body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #3498db;">New Lead Created</h2>
+  <p>Hello {{recipientName}},</p>
+  
+  <p>A new lead has been created by {{creatorName}}:</p>
+  
+  <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <strong>Lead Name:</strong> {{leadName}}<br>
+    <strong>Email:</strong> {{leadEmail}}<br>
+    <strong>Phone:</strong> {{leadPhone}}<br>
+    <strong>Company:</strong> {{leadCompany}}<br>
+    <strong>Source:</strong> {{leadSource}}<br>
+    <strong>Status:</strong> {{leadStatus}}<br>
+    <strong>Created By:</strong> {{creatorName}}
+  </div>
+  
+  <p>Please review and follow up with this lead as soon as possible.</p>
+  
+  <p>Best regards,<br>
+  AdPools Group CRM System</p>
+</div>
+    `.trim(),
+    variables: ['recipientName', 'leadName', 'leadEmail', 'leadPhone', 'leadCompany', 'leadSource', 'leadStatus', 'creatorName']
+  },
+  {
+    id: 'lead_assigned',
+    name: 'Lead Assigned Notification',
+    subject: 'Lead Assigned to You: {{leadName}}',
+    body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #e67e22;">Lead Assigned to You</h2>
+  <p>Hello {{recipientName}},</p>
+  
+  <p>You have been assigned to a new lead by {{assignedByName}}:</p>
+  
+  <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #e67e22;">
+    <strong>Lead Name:</strong> {{leadName}}<br>
+    <strong>Email:</strong> {{leadEmail}}<br>
+    <strong>Phone:</strong> {{leadPhone}}<br>
+    <strong>Company:</strong> {{leadCompany}}<br>
+    <strong>Source:</strong> {{leadSource}}<br>
+    <strong>Assigned By:</strong> {{assignedByName}}
+  </div>
+  
+  <p>Please contact this lead promptly to begin the sales process.</p>
+  
+  <p>Best regards,<br>
+  AdPools Group CRM System</p>
+</div>
+    `.trim(),
+    variables: ['recipientName', 'leadName', 'leadEmail', 'leadPhone', 'leadCompany', 'leadSource', 'assignedByName']
+  },
+  {
+    id: 'lead_owner_notification',
+    name: 'Lead Owner Notification',
+    subject: 'Lead Added to Your Account: {{leadName}}',
+    body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #9b59b6;">Lead Added to Your Account</h2>
+  <p>Hello {{recipientName}},</p>
+  
+  <p>A new lead has been added to your account by {{creatorName}}:</p>
+  
+  <div style="background: #f4f0f7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <strong>Lead Name:</strong> {{leadName}}<br>
+    <strong>Email:</strong> {{leadEmail}}<br>
+    <strong>Phone:</strong> {{leadPhone}}<br>
+    <strong>Company:</strong> {{leadCompany}}<br>
+    <strong>Source:</strong> {{leadSource}}<br>
+    <strong>Status:</strong> {{leadStatus}}<br>
+    <strong>Added By:</strong> {{creatorName}}
+  </div>
+  
+  <p>This lead is now part of your account and you can manage it from your CRM dashboard.</p>
+  
+  <p>Best regards,<br>
+  AdPools Group CRM System</p>
+</div>
+    `.trim(),
+    variables: ['recipientName', 'leadName', 'leadEmail', 'leadPhone', 'leadCompany', 'leadSource', 'leadStatus', 'creatorName']
+  },
+  {
+    id: 'lead_welcome',
+    name: 'Lead Welcome Email',
+    subject: 'Welcome to AdPools Group - Thank You for Your Interest!',
+    body: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #27ae60;">Welcome to AdPools Group!</h2>
+  <p>Hello {{leadName}},</p>
+  
+  <p>Thank you for your interest in our products and services. We're excited to have you as a potential customer!</p>
+  
+  <div style="background: #f0fff4; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <p><strong>What happens next?</strong></p>
+    <ul style="margin: 10px 0; padding-left: 20px;">
+      <li>Our team will review your inquiry</li>
+      <li>We'll contact you within 24 hours</li>
+      <li>We'll provide you with detailed information about our products</li>
+      <li>We'll answer any questions you may have</li>
+    </ul>
+  </div>
+  
+  <p>If you have any immediate questions, please don't hesitate to contact us.</p>
+  
+  <p>We look forward to working with you!</p>
+  
+  <p>Best regards,<br>
+  <strong>AdPools Group Team</strong></p>
+</div>
+    `.trim(),
+    variables: ['leadName', 'assignedUserName']
   }
 ];
 
@@ -139,6 +259,30 @@ const DEFAULT_SMS_TEMPLATES: NotificationTemplate[] = [
     name: 'New Order Notification',
     body: 'New Order #{{orderNumber}} received from {{customerName}} for {{currency}}{{totalAmount}}. {{itemCount}} items.',
     variables: ['orderNumber', 'customerName', 'totalAmount', 'currency', 'itemCount']
+  },
+  {
+    id: 'lead_created',
+    name: 'Lead Created Notification',
+    body: 'New lead created: {{leadName}} ({{leadEmail}}) by {{creatorName}}. Company: {{leadCompany}}. Source: {{leadSource}}.',
+    variables: ['leadName', 'leadEmail', 'creatorName', 'leadCompany', 'leadSource']
+  },
+  {
+    id: 'lead_assigned',
+    name: 'Lead Assigned Notification',
+    body: 'Lead assigned to you: {{leadName}} ({{leadEmail}}) by {{assignedByName}}. Company: {{leadCompany}}. Source: {{leadSource}}. Please contact promptly.',
+    variables: ['leadName', 'leadEmail', 'assignedByName', 'leadCompany', 'leadSource']
+  },
+  {
+    id: 'lead_owner_notification',
+    name: 'Lead Owner Notification',
+    body: 'New lead added to your account: {{leadName}} ({{leadEmail}}) by {{creatorName}}. Company: {{leadCompany}}. Status: {{leadStatus}}.',
+    variables: ['leadName', 'leadEmail', 'creatorName', 'leadCompany', 'leadStatus']
+  },
+  {
+    id: 'lead_welcome',
+    name: 'Lead Welcome SMS',
+    body: 'Welcome to AdPools Group! Thank you for your interest. We will contact you within 24 hours.',
+    variables: ['assignedUserName']
   }
 ];
 
@@ -199,6 +343,34 @@ const NOTIFICATION_TYPES = [
     description: 'System backup completion notifications',
     icon: Settings,
     category: 'System'
+  },
+  {
+    id: 'lead_created',
+    name: 'Lead Created',
+    description: 'When a new lead is created',
+    icon: UserPlus,
+    category: 'Leads'
+  },
+  {
+    id: 'lead_assigned',
+    name: 'Lead Assigned',
+    description: 'When a lead is assigned to you',
+    icon: UserCheck,
+    category: 'Leads'
+  },
+  {
+    id: 'lead_owner_notification',
+    name: 'Lead Owner Notification',
+    description: 'When a lead is added to your account',
+    icon: User,
+    category: 'Leads'
+  },
+  {
+    id: 'lead_welcome',
+    name: 'Lead Welcome Email',
+    description: 'Welcome email sent to new leads',
+    icon: Mail,
+    category: 'Leads'
   }
 ];
 

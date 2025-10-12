@@ -197,15 +197,18 @@ model ProductDocument {
 }
 
 model PriceList {
-  id            String          @id @default(cuid())
-  name          String
-  channel       String          @default("direct")
-  currency      String          @default("USD")
-  effectiveFrom DateTime        @default(now())
-  effectiveTo   DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  items         PriceListItem[]
+  id               String          @id @default(cuid())
+  name             String
+  channel          String          @default("direct")
+  currency         String          @default("USD")
+  calculationType  String          @default("DISCOUNT") // "MARKUP" or "DISCOUNT"
+  basePrice        String          @default("SELLING")  // "COST" or "SELLING"
+  percentage       Float           @default(0)          // e.g., 15.0 for 15%
+  effectiveFrom    DateTime        @default(now())
+  effectiveTo      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  items            PriceListItem[]
 
   @@map("price_lists")
 }
@@ -221,7 +224,7 @@ model PriceListItem {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   product      Product   @relation(fields: [productId], references: [id])
-  priceList    PriceList @relation(fields: [priceListId], references: [id])
+  priceList    PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
 
   @@unique([productId, priceListId])
   @@map("price_list_items")
@@ -898,6 +901,10 @@ enum NotificationType {
   USER_INVITED
   PASSWORD_RESET
   SECURITY_ALERT
+  LEAD_CREATED
+  LEAD_ASSIGNED
+  LEAD_OWNER_NOTIFICATION
+  LEAD_WELCOME
   CUSTOM
 }
 
