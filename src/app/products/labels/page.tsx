@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarcodeDisplay } from '@/components/barcode-display';
 import { Printer, Download, CheckSquare, Square, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/contexts/toast-context';
+import { useTheme } from '@/contexts/theme-context';
 import Link from 'next/link';
 
 interface Product {
@@ -20,11 +21,27 @@ interface Product {
 }
 
 export default function ProductLabelsPage() {
+  const { getThemeClasses } = useTheme();
+  const theme = getThemeClasses();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'withBarcode' | 'withoutBarcode'>('withBarcode');
   const { success, error: showError } = useToast();
+
+  const getButtonBackgroundClasses = () => {
+    const colorMap: { [key: string]: string } = {
+      'purple-600': 'bg-purple-600 hover:bg-purple-700',
+      'blue-600': 'bg-blue-600 hover:bg-blue-700',
+      'green-600': 'bg-green-600 hover:bg-green-700',
+      'orange-600': 'bg-orange-600 hover:bg-orange-700',
+      'red-600': 'bg-red-600 hover:bg-red-700',
+      'indigo-600': 'bg-indigo-600 hover:bg-indigo-700',
+      'pink-600': 'bg-pink-600 hover:bg-pink-700',
+      'teal-600': 'bg-teal-600 hover:bg-teal-700',
+    };
+    return colorMap[theme.primary] || 'bg-blue-600 hover:bg-blue-700';
+  };
   
   useEffect(() => {
     fetchProducts();
@@ -203,7 +220,7 @@ export default function ProductLabelsPage() {
             <Button
               onClick={printSelected}
               disabled={selectedProducts.size === 0}
-              className="gap-2"
+              className={`gap-2 text-white ${getButtonBackgroundClasses()}`}
             >
               <Printer className="h-4 w-4" />
               Print {selectedProducts.size > 0 ? `(${selectedProducts.size})` : 'Selected'}

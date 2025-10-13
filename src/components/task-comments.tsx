@@ -13,7 +13,7 @@ import {
   MoreVertical,
   User
 } from 'lucide-react';
-import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
 
 interface TaskComment {
   id: string;

@@ -424,6 +424,18 @@ export async function GET(
               <span class="total-label">Subtotal:</span>
               <span class="total-value">GH₵${quotation.subtotal.toFixed(2)}</span>
             </div>
+            ${(() => {
+              const totalDiscount = quotation.lines.reduce((sum: number, line: any) => {
+                const discountAmount = (line.unitPrice * line.quantity * line.discount) / 100;
+                return sum + discountAmount;
+              }, 0);
+              return totalDiscount > 0 ? `
+                <div class="total-row">
+                  <span class="total-label">Discount:</span>
+                  <span class="total-value" style="color: #059669;">-GH₵${totalDiscount.toFixed(2)}</span>
+                </div>
+              ` : '';
+            })()}
             <div class="total-row">
               <span class="total-label">Tax:</span>
               <span class="total-value">GH₵${quotation.tax.toFixed(2)}</span>

@@ -377,7 +377,7 @@ export default function ContactsPage() {
                   )
                 },
                 {
-                  key: 'contact',
+                  key: 'contactInfo',
                   label: 'Contact Info',
                   render: (contact) => (
                     <div className="text-sm">

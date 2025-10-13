@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, TrendingUp, FileBarChart, CheckCircle, XCircle, DollarSign, Calendar } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, TrendingUp, FileBarChart, CheckCircle, XCircle, DollarSign, Calendar, CheckSquare, Square, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
+import { ConfirmationModal } from '@/components/modals/confirmation-modal';
 
 interface Opportunity {
   id: string;
@@ -47,8 +48,36 @@ export default function OpportunitiesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  
+  // Bulk actions state
+  const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
+  const [isAllSelected, setIsAllSelected] = useState(false);
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
   const [currency, setCurrency] = useState('GHS');
-  const [exchangeRate, setExchangeRate] = useState(1);
+  const [baseCurrency, setBaseCurrency] = useState('GHS');
+  const [availableCurrencies, setAvailableCurrencies] = useState<any[]>([]);
+  
+  // Simple currency conversion rates (hardcoded for now)
+  const exchangeRates: Record<string, Record<string, number>> = {
+    'GHS': { 'USD': 0.08, 'EUR': 0.07, 'GBP': 0.06 },
+    'USD': { 'GHS': 12.5, 'EUR': 0.85, 'GBP': 0.75 },
+    'EUR': { 'GHS': 14.7, 'USD': 1.18, 'GBP': 0.88 },
+    'GBP': { 'GHS': 16.7, 'USD': 1.33, 'EUR': 1.14 }
+  };
   const handleViewOpportunity = (opportunity: Opportunity) => {
     router.push(`/crm/opportunities/${opportunity.id}`);
   };
@@ -90,9 +119,16 @@ export default function OpportunitiesPage() {
   useEffect(() => {
     if (session?.user) {
       fetchOpportunities();
-      fetchExchangeRate();
+      fetchCurrencySettings();
     }
-  }, [session, searchTerm, statusFilter]);
+  }, [session]);
+
+  // Reset pagination when search or filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedOpportunities(new Set());
+    setIsAllSelected(false);
+  }, [searchTerm, statusFilter]);
 
   const fetchOpportunities = async () => {
     try {
@@ -124,9 +160,18 @@ export default function OpportunitiesPage() {
     return stages.find(stage => stage.key === status) || { key: status, label: status, color: 'bg-gray-100 text-gray-800' };
   };
 
-  const formatCurrency = (amount?: number) => {
+  const formatCurrencyAmount = (amount?: number) => {
     if (!amount) return `${currency} 0`;
-    const convertedAmount = currency === 'USD' ? amount * exchangeRate : amount;
+    
+    // Convert from base currency to selected currency
+    let convertedAmount = amount;
+    if (baseCurrency !== currency) {
+      const rate = exchangeRates[baseCurrency]?.[currency];
+      if (rate) {
+        convertedAmount = amount * rate;
+      }
+    }
+    
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currency,
@@ -153,15 +198,162 @@ export default function OpportunitiesPage() {
     }).length;
   };
 
-  const fetchExchangeRate = async () => {
+  // Filter and pagination helper functions
+  const getFilteredOpportunities = () => {
+    return opportunities.filter(opp => {
+      const matchesSearch = !searchTerm || 
+        `${opp.firstName} ${opp.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        opp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        opp.company?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = !statusFilter || opp.status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
+  };
+
+  const getPaginatedOpportunities = () => {
+    const filtered = getFilteredOpportunities();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = () => {
+    const filtered = getFilteredOpportunities();
+    return Math.ceil(filtered.length / itemsPerPage);
+  };
+
+  // Bulk action helper functions
+  const showConfirmation = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmationModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm
+    });
+  };
+
+  const closeConfirmation = () => {
+    setConfirmationModal({
+      isOpen: false,
+      title: '',
+      message: '',
+      onConfirm: () => {}
+    });
+  };
+
+  const handleSelectAll = () => {
+    const paginatedOpps = getPaginatedOpportunities();
+    if (isAllSelected) {
+      setSelectedOpportunities(new Set());
+      setIsAllSelected(false);
+    } else {
+      const newSelected = new Set(selectedOpportunities);
+      paginatedOpps.forEach(opp => newSelected.add(opp.id));
+      setSelectedOpportunities(newSelected);
+      setIsAllSelected(true);
+    }
+  };
+
+  const handleSelectOpportunity = (opportunityId: string) => {
+    const newSelected = new Set(selectedOpportunities);
+    if (newSelected.has(opportunityId)) {
+      newSelected.delete(opportunityId);
+    } else {
+      newSelected.add(opportunityId);
+    }
+    setSelectedOpportunities(newSelected);
+    
+    // Update isAllSelected based on current page
+    const paginatedOpps = getPaginatedOpportunities();
+    const allPaginatedSelected = paginatedOpps.every(opp => newSelected.has(opp.id));
+    setIsAllSelected(allPaginatedSelected);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedOpportunities.size === 0) return;
+    
+    showConfirmation(
+      'Delete Opportunities',
+      `Are you sure you want to delete ${selectedOpportunities.size} opportunity(ies)? This action cannot be undone.`,
+      async () => {
+        try {
+          const deletePromises = Array.from(selectedOpportunities).map(id =>
+            fetch(`/api/opportunities/${id}`, { method: 'DELETE' })
+          );
+          
+          await Promise.all(deletePromises);
+          
+          // Refresh opportunities
+          await fetchOpportunities();
+          
+          // Clear selection
+          setSelectedOpportunities(new Set());
+          setIsAllSelected(false);
+          
+          success(`Successfully deleted ${selectedOpportunities.size} opportunity(ies)`);
+        } catch (err) {
+          console.error('Error deleting opportunities:', err);
+          error('Failed to delete opportunities');
+        } finally {
+          closeConfirmation();
+        }
+      }
+    );
+  };
+
+  const handleBulkStatusUpdate = (newStatus: string) => {
+    if (selectedOpportunities.size === 0) return;
+    
+    showConfirmation(
+      'Update Opportunity Status',
+      `Are you sure you want to update ${selectedOpportunities.size} opportunity(ies) to ${newStatus}?`,
+      async () => {
+        try {
+          const updatePromises = Array.from(selectedOpportunities).map(id =>
+            fetch(`/api/opportunities/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: newStatus })
+            })
+          );
+          
+          await Promise.all(updatePromises);
+          
+          // Refresh opportunities
+          await fetchOpportunities();
+          
+          // Clear selection
+          setSelectedOpportunities(new Set());
+          setIsAllSelected(false);
+          
+          success(`Successfully updated ${selectedOpportunities.size} opportunity(ies) to ${newStatus}`);
+        } catch (err) {
+          console.error('Error updating opportunities:', err);
+          error('Failed to update opportunities');
+        } finally {
+          closeConfirmation();
+        }
+      }
+    );
+  };
+
+  const fetchCurrencySettings = async () => {
     try {
-      const response = await fetch('/api/currency/convert?from=GHS&to=USD&amount=1');
+      const response = await fetch('/api/settings/currency');
       if (response.ok) {
         const data = await response.json();
-        setExchangeRate(data.rate || 1);
+        setBaseCurrency(data.baseCurrency || 'GHS');
+        setAvailableCurrencies(data.currencies || []);
+        
+        // Set initial currency to base currency
+        if (!currency || currency === 'GHS') {
+          setCurrency(data.baseCurrency || 'GHS');
+        }
       }
     } catch (err) {
-      console.error('Error fetching exchange rate:', err);
+      console.error('Error fetching currency settings:', err);
     }
   };
 
@@ -215,8 +407,18 @@ export default function OpportunitiesPage() {
                 onChange={(e) => setCurrency(e.target.value)}
                 className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               >
-                <option value="GHS">GHS</option>
-                <option value="USD">USD</option>
+                {availableCurrencies.length > 0 ? (
+                  availableCurrencies.map((curr) => (
+                    <option key={curr.id} value={curr.code}>
+                      {curr.code} - {curr.name}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="GHS">GHS - Ghana Cedi</option>
+                    <option value="USD">USD - US Dollar</option>
+                  </>
+                )}
               </select>
             </div>
             <Button
@@ -267,7 +469,7 @@ export default function OpportunitiesPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Pipeline Value</p>
-                  <p className="text-xl font-bold text-blue-600">{formatCurrency(calculatePipelineValue())}</p>
+                  <p className="text-xl font-bold text-blue-600">{formatCurrencyAmount(calculatePipelineValue())}</p>
                 </div>
                 <div className="p-2 rounded-full bg-blue-100">
                   <DollarSign className="w-5 h-5 text-blue-600" />
@@ -380,6 +582,76 @@ export default function OpportunitiesPage() {
             </Card>
           )}
 
+          {/* Bulk Actions Bar */}
+          {selectedOpportunities.size > 0 && (
+            <Card>
+              <div className="p-4 bg-blue-50 border-l-4 border-blue-400">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm font-medium text-blue-800">
+                      {selectedOpportunities.size} opportunity(ies) selected
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <DropdownMenu
+                      trigger={
+                        <Button variant="outline" size="sm">
+                          Update Status
+                          <ChevronDown className="w-4 h-4 ml-2" />
+                        </Button>
+                      }
+                      items={[
+                        {
+                          label: 'New Opportunity',
+                          onClick: () => handleBulkStatusUpdate('NEW_OPPORTUNITY')
+                        },
+                        {
+                          label: 'Quote Sent',
+                          onClick: () => handleBulkStatusUpdate('QUOTE_SENT')
+                        },
+                        {
+                          label: 'Negotiation',
+                          onClick: () => handleBulkStatusUpdate('NEGOTIATION')
+                        },
+                        {
+                          label: 'Contract Signed',
+                          onClick: () => handleBulkStatusUpdate('CONTRACT_SIGNED')
+                        },
+                        {
+                          label: 'Won',
+                          onClick: () => handleBulkStatusUpdate('WON')
+                        },
+                        {
+                          label: 'Lost',
+                          onClick: () => handleBulkStatusUpdate('LOST')
+                        }
+                      ]}
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleBulkDelete}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        setSelectedOpportunities(new Set());
+                        setIsAllSelected(false);
+                      }}
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* Opportunities Table */}
           {opportunities.length > 0 && (
             <Card>
@@ -387,6 +659,18 @@ export default function OpportunitiesPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <button
+                          onClick={handleSelectAll}
+                          className="flex items-center justify-center w-4 h-4"
+                        >
+                          {isAllSelected ? (
+                            <CheckSquare className="h-4 w-4 text-blue-600" />
+                          ) : (
+                            <Square className="h-4 w-4 text-gray-400" />
+                          )}
+                        </button>
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stage</th>
@@ -396,7 +680,7 @@ export default function OpportunitiesPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {opportunities.map((opportunity) => {
+                    {getPaginatedOpportunities().map((opportunity) => {
                       const stageInfo = getStageInfo(opportunity.status);
                       return (
                         <tr 
@@ -404,6 +688,18 @@ export default function OpportunitiesPage() {
                           className="hover:bg-gray-50 cursor-pointer"
                           onClick={() => handleViewOpportunity(opportunity)}
                         >
+                          <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleSelectOpportunity(opportunity.id)}
+                              className="flex items-center justify-center w-4 h-4"
+                            >
+                              {selectedOpportunities.has(opportunity.id) ? (
+                                <CheckSquare className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Square className="h-4 w-4 text-gray-400" />
+                              )}
+                            </button>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
                               <div className="text-sm font-medium text-gray-900">
@@ -421,7 +717,7 @@ export default function OpportunitiesPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {formatCurrency(opportunity.dealValue)}
+                            {formatCurrencyAmount(opportunity.dealValue)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {opportunity.probability ? `${opportunity.probability}%` : '-'}
@@ -465,6 +761,58 @@ export default function OpportunitiesPage() {
                   </tbody>
                 </table>
               </div>
+              
+              {/* Pagination Controls */}
+              {getTotalPages() > 1 && (
+                <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                  <div className="flex items-center text-sm text-gray-700">
+                    <span>
+                      Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, getFilteredOpportunities().length)} of {getFilteredOpportunities().length} results
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: Math.min(5, getTotalPages()) }, (_, i) => {
+                        const pageNum = i + 1;
+                        const isActive = pageNum === currentPage;
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={isActive ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={isActive ? `bg-${theme.primary} text-white` : ''}
+                            style={isActive ? {
+                              backgroundColor: theme.primary,
+                              color: 'white'
+                            } : {}}
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, getTotalPages()))}
+                      disabled={currentPage === getTotalPages()}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
@@ -511,6 +859,15 @@ export default function OpportunitiesPage() {
           </Card>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        title={confirmationModal.title}
+        message={confirmationModal.message}
+        onConfirm={confirmationModal.onConfirm}
+        onClose={closeConfirmation}
+      />
     </MainLayout>
   );
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/components/ui/dropdown-menu-custom";
 import { useTheme } from "@/contexts/theme-context";
 import { DollarSign, ChevronDown } from "lucide-react";
 

@@ -35,6 +35,10 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess, initialData }: A
     name: "",
     channel: "retail",
     currency: "GHS",
+    calculationType: "DISCOUNT",
+    basePrice: "SELLING",
+    percentage: 0,
+    includeInactive: false,
     effectiveFrom: new Date().toISOString().split('T')[0],
     effectiveTo: "",
   });
@@ -77,7 +81,13 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess, initialData }: A
   // Update form data when initialData changes
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData);
+      setFormData({
+        ...initialData,
+        calculationType: "DISCOUNT",
+        basePrice: "SELLING",
+        percentage: 0,
+        includeInactive: false,
+      });
     }
   }, [initialData]);
 
@@ -99,7 +109,12 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess, initialData }: A
       });
 
           if (response.ok) {
-            success("Price List Created", `"${formData.name}" has been successfully created.`);
+            const data = await response.json();
+            const productCount = data._count?.items || 0;
+            success(
+              "Price List Created", 
+              `"${formData.name}" has been successfully created with ${productCount} products at ${formData.percentage}% ${formData.calculationType.toLowerCase()}.`
+            );
             onSuccess();
             onClose();
             // Reset form
@@ -107,6 +122,10 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess, initialData }: A
               name: "",
               channel: "retail",
               currency: "GHS",
+              calculationType: "DISCOUNT",
+              basePrice: "SELLING",
+              percentage: 0,
+              includeInactive: false,
               effectiveFrom: new Date().toISOString().split('T')[0],
               effectiveTo: "",
             });
@@ -197,9 +216,111 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess, initialData }: A
               </div>
             </div>
 
+            {/* Price Calculation */}
+            <div className="space-y-4 bg-blue-50 p-4 rounded-lg">
+              <h3 className="text-lg font-medium text-blue-900">Price Calculation</h3>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Calculation Type *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('calculationType', 'DISCOUNT')}
+                    className={`p-3 border-2 rounded-lg transition-all ${
+                      formData.calculationType === 'DISCOUNT'
+                        ? `border-${theme.primary} bg-${theme.primaryBg} text-${theme.primaryText}`
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="font-medium">Discount</div>
+                    <div className="text-xs mt-1 opacity-75">Reduce from price</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('calculationType', 'MARKUP')}
+                    className={`p-3 border-2 rounded-lg transition-all ${
+                      formData.calculationType === 'MARKUP'
+                        ? `border-${theme.primary} bg-${theme.primaryBg} text-${theme.primaryText}`
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="font-medium">Markup</div>
+                    <div className="text-xs mt-1 opacity-75">Add to price</div>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Base Price *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('basePrice', 'SELLING')}
+                    className={`p-3 border-2 rounded-lg transition-all ${
+                      formData.basePrice === 'SELLING'
+                        ? `border-${theme.primary} bg-${theme.primaryBg} text-${theme.primaryText}`
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="font-medium">Selling Price</div>
+                    <div className="text-xs mt-1 opacity-75">Customer price</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('basePrice', 'COST')}
+                    className={`p-3 border-2 rounded-lg transition-all ${
+                      formData.basePrice === 'COST'
+                        ? `border-${theme.primary} bg-${theme.primaryBg} text-${theme.primaryText}`
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="font-medium">Cost Price</div>
+                    <div className="text-xs mt-1 opacity-75">Your cost</div>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Percentage (%) *
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={formData.percentage}
+                  onChange={(e) => handleInputChange('percentage', parseFloat(e.target.value) || 0)}
+                  placeholder="e.g., 15"
+                  className={getFocusRingClasses()}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.calculationType === 'DISCOUNT' ? 'Discount' : 'Markup'} percentage to apply to all products
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="includeInactive"
+                  checked={formData.includeInactive}
+                  onChange={(e) => handleInputChange('includeInactive', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <label htmlFor="includeInactive" className="text-sm text-gray-700">
+                  Include inactive products
+                </label>
+              </div>
+            </div>
+
             {/* Currency & Pricing */}
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Currency & Pricing</h3>
+              <h3 className="text-lg font-medium">Currency</h3>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

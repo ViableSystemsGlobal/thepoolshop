@@ -434,7 +434,11 @@ export default function PriceListsPage() {
                   </tr>
                 ) : (
                   filteredPriceLists.map((priceList) => (
-                  <tr key={priceList.id} className="hover:bg-gray-50">
+                  <tr 
+                    key={priceList.id} 
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => handleViewPriceList(priceList.id)}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 rounded-lg bg-gray-200 flex items-center justify-center">
@@ -484,7 +488,7 @@ export default function PriceListsPage() {
                         }
                       })()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center space-x-2">
                         <Button 
                           variant="ghost" 

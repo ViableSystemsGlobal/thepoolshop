@@ -18,7 +18,7 @@ import {
   MoreVertical,
   X
 } from 'lucide-react';
-import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
 
 interface TaskAttachment {
   id: string;

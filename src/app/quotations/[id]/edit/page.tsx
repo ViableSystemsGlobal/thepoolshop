@@ -117,7 +117,7 @@ export default function EditQuotationPage() {
   const [notes, setNotes] = useState('');
   const [customerId, setCustomerId] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('');
-  const [customerType, setCustomerType] = useState<'account' | 'distributor'>('account');
+  const [customerType, setCustomerType] = useState<'account' | 'distributor' | 'lead'>('account');
   const [lines, setLines] = useState<LineItem[]>([]);
   const [globalTaxes, setGlobalTaxes] = useState<TaxItem[]>(DEFAULT_TAXES);
   const [taxInclusive, setTaxInclusive] = useState(false);
@@ -186,6 +186,11 @@ export default function EditQuotationPage() {
         setCustomerId(data.distributor.id);
         setCustomerName(data.distributor.businessName);
         setCustomerType('distributor');
+      } else if (data.lead) {
+        // Handle lead customers
+        setCustomerId(data.lead.id);
+        setCustomerName(`${data.lead.firstName} ${data.lead.lastName}`.trim());
+        setCustomerType('lead'); // Set as lead type
       }
       
       // Set lines with initialized taxes and product info
@@ -282,14 +287,13 @@ export default function EditQuotationPage() {
         taxInclusive,
         accountId: customerType === 'account' ? customerId : undefined,
         distributorId: customerType === 'distributor' ? customerId : undefined,
+        leadId: customerType === 'lead' ? customerId : undefined,
         customerType: quotation?.customerType || 'STANDARD',
         lines: lines.map(line => ({
           ...line,
           lineTotal: line.quantity * line.unitPrice * (1 - line.discount / 100)
         }))
       };
-      
-      console.log('📤 Sending payload:', payload);
       
       const response = await fetch(`/api/quotations/${params.id}`, {
         method: 'PUT',
@@ -298,8 +302,6 @@ export default function EditQuotationPage() {
         },
         body: JSON.stringify(payload),
       });
-      
-      console.log('📥 Response status:', response.status, response.statusText);
       
       if (!response.ok) {
         let errorData;

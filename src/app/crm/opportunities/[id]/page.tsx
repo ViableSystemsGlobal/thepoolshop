@@ -9,6 +9,29 @@ import { Card } from '@/components/ui/card';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { MainLayout } from '@/components/layout/main-layout';
+import { AIRecommendationCard } from '@/components/ai-recommendation-card';
+import { AddLeadTaskModal } from '@/components/modals/add-lead-task-modal';
+import { AddLeadCommentModal } from '@/components/modals/add-lead-comment-modal';
+import { AddLeadFileModal } from '@/components/modals/add-lead-file-modal';
+import { AddLeadEmailModal } from '@/components/modals/add-lead-email-modal';
+import { AddLeadSMSModal } from '@/components/modals/add-lead-sms-modal';
+import AddLeadProductModal from '@/components/modals/add-lead-product-modal';
+import AddLeadUserModal from '@/components/modals/add-lead-user-modal';
+import AddLeadMeetingModal from '@/components/modals/add-lead-meeting-modal';
+import TaskSlideout from '@/components/task-slideout';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  sku?: string;
+  description?: string;
+}
 
 interface Opportunity {
   id: string;
@@ -21,8 +44,8 @@ interface Opportunity {
   subject?: string;
   source?: string;
   status: string;
-  assignedTo?: any[];
-  interestedProducts?: any[];
+  assignedTo?: User[];
+  interestedProducts?: Product[];
   followUpDate?: string;
   notes?: string;
   dealValue?: number;
@@ -35,22 +58,96 @@ interface Opportunity {
     name: string;
     email: string;
   };
+  quotations?: Array<{
+    id: string;
+    number: string;
+    subject: string;
+    status: string;
+    total: number;
+    createdAt: string;
+    lines: Array<{
+      id: string;
+      quantity: number;
+      unitPrice: number;
+      lineTotal: number;
+      product: {
+        id: string;
+        name: string;
+        sku: string;
+      };
+    }>;
+  }>;
 }
 
 export default function OpportunityDetailsPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const params = useParams();
-  const { theme } = useTheme();
+  const { getThemeClasses } = useTheme();
+  const theme = getThemeClasses();
   const { success, error } = useToast();
   
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showAddCommentModal, setShowAddCommentModal] = useState(false);
+  const [showAddFileModal, setShowAddFileModal] = useState(false);
+  const [showAddEmailModal, setShowAddEmailModal] = useState(false);
+  const [showAddSMSModal, setShowAddSMSModal] = useState(false);
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [showAddMeetingModal, setShowAddMeetingModal] = useState(false);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [smsHistory, setSmsHistory] = useState<any[]>([]);
+  const [emailHistory, setEmailHistory] = useState<any[]>([]);
+  const [comments, setComments] = useState<any[]>([]);
+  const [files, setFiles] = useState<any[]>([]);
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [assignedUsers, setAssignedUsers] = useState<any[]>([]);
+  const [sources, setSources] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [showAllActivities, setShowAllActivities] = useState(false);
   const [metrics, setMetrics] = useState({
     totalInteractions: 0,
     conversionProbability: 0,
-    lastActivity: 'No activity',
+    lastActivity: 'Never'
   });
+  const [currency, setCurrency] = useState('GHS');
+  const [baseCurrency, setBaseCurrency] = useState('GHS');
+  const [availableCurrencies, setAvailableCurrencies] = useState<any[]>([]);
+  
+  // Simple currency conversion rates (hardcoded for now)
+  const exchangeRates: Record<string, Record<string, number>> = {
+    'GHS': { 'USD': 0.08, 'EUR': 0.07, 'GBP': 0.06 },
+    'USD': { 'GHS': 12.5, 'EUR': 0.85, 'GBP': 0.75 },
+    'EUR': { 'GHS': 14.7, 'USD': 1.18, 'GBP': 0.88 },
+    'GBP': { 'GHS': 16.7, 'USD': 1.33, 'EUR': 1.14 }
+  };
+  const [aiRecommendations, setAiRecommendations] = useState([
+    {
+      id: '1',
+      title: 'Follow up on opportunity',
+      description: 'This opportunity needs attention. Schedule a follow-up call.',
+      priority: 'high' as const,
+      completed: false,
+    },
+    {
+      id: '2',
+      title: 'Send proposal',
+      description: 'Prepare and send a detailed proposal to move forward.',
+      priority: 'medium' as const,
+      completed: false,
+    },
+    {
+      id: '3',
+      title: 'Close the deal',
+      description: 'High probability opportunity - focus on closing this month.',
+      priority: 'high' as const,
+      completed: false,
+    },
+  ]);
 
   // Pipeline stages configuration
   const pipelineStages = [
@@ -70,6 +167,36 @@ export default function OpportunityDetailsPage() {
       fetchOpportunity();
     }
   }, [session, params.id]);
+
+  // Fetch related data after opportunity is loaded
+  useEffect(() => {
+    if (opportunity?.id) {
+      fetchOpportunityData();
+    }
+  }, [opportunity?.id]);
+
+  // Fetch currency settings
+  useEffect(() => {
+    fetchCurrencySettings();
+  }, []);
+
+  const fetchCurrencySettings = async () => {
+    try {
+      const response = await fetch('/api/settings/currency');
+      if (response.ok) {
+        const data = await response.json();
+        setBaseCurrency(data.baseCurrency || 'GHS');
+        setAvailableCurrencies(data.currencies || []);
+        
+        // Set initial currency to base currency
+        if (!currency || currency === 'GHS') {
+          setCurrency(data.baseCurrency || 'GHS');
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching currency settings:', error);
+    }
+  };
 
   const fetchOpportunity = async () => {
     try {
@@ -94,6 +221,95 @@ export default function OpportunityDetailsPage() {
     }
   };
 
+  const fetchOpportunityData = async () => {
+    if (!opportunity?.id) return;
+
+    try {
+      // Fetch email history
+      const emailResponse = await fetch(`/api/lead-emails?leadId=${opportunity.id}`, {
+        credentials: 'include',
+      });
+      if (emailResponse.ok) {
+        const emailData = await emailResponse.json();
+        setEmailHistory(emailData.emails || []);
+      }
+
+      // Fetch SMS history
+      const smsResponse = await fetch(`/api/lead-sms?leadId=${opportunity.id}`, {
+        credentials: 'include',
+      });
+      if (smsResponse.ok) {
+        const smsData = await smsResponse.json();
+        setSmsHistory(smsData.sms || []);
+      }
+
+      // Fetch tasks
+      const tasksResponse = await fetch(`/api/lead-tasks?leadId=${opportunity.id}`, {
+        credentials: 'include',
+      });
+      if (tasksResponse.ok) {
+        const tasksData = await tasksResponse.json();
+        setTasks(tasksData.tasks || []);
+      }
+
+      // Fetch comments
+      const commentsResponse = await fetch(`/api/lead-comments?leadId=${opportunity.id}`, {
+        credentials: 'include',
+      });
+      if (commentsResponse.ok) {
+        const commentsData = await commentsResponse.json();
+        setComments(commentsData.comments || []);
+      }
+
+      // Fetch files
+      const filesResponse = await fetch(`/api/lead-files?leadId=${opportunity.id}`, {
+        credentials: 'include',
+      });
+      if (filesResponse.ok) {
+        const filesData = await filesResponse.json();
+        setFiles(filesData.files || []);
+      }
+
+      // Fetch meetings
+      const meetingsResponse = await fetch(`/api/lead-meetings?leadId=${opportunity.id}`, {
+        credentials: 'include',
+      });
+      if (meetingsResponse.ok) {
+        const meetingsData = await meetingsResponse.json();
+        setMeetings(meetingsData.meetings || []);
+      }
+
+      // Fetch products
+      const productsResponse = await fetch(`/api/leads/${opportunity.id}/products`, {
+        credentials: 'include',
+      });
+      if (productsResponse.ok) {
+        const productsData = await productsResponse.json();
+        setProducts(productsData.products || []);
+      }
+
+      // Fetch assigned users
+      const usersResponse = await fetch(`/api/lead-users?leadId=${opportunity.id}`, {
+        credentials: 'include',
+      });
+      if (usersResponse.ok) {
+        const usersData = await usersResponse.json();
+        setAssignedUsers(usersData.users || []);
+      }
+
+      // Fetch activities
+      const activitiesResponse = await fetch(`/api/lead-activities?leadId=${opportunity.id}`, {
+        credentials: 'include',
+      });
+      if (activitiesResponse.ok) {
+        const activitiesData = await activitiesResponse.json();
+        setActivities(activitiesData.activities || []);
+      }
+    } catch (err) {
+      console.error('Error fetching opportunity data:', err);
+    }
+  };
+
   const updateMetrics = (opp: Opportunity) => {
     if (!opp) return;
     
@@ -109,11 +325,22 @@ export default function OpportunityDetailsPage() {
     });
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrencyAmount = (amount?: number) => {
+    if (!amount) return `${currency} 0`;
+    
+    // Convert from base currency to selected currency
+    let convertedAmount = amount;
+    if (baseCurrency !== currency) {
+      const rate = exchangeRates[baseCurrency]?.[currency];
+      if (rate) {
+        convertedAmount = amount * rate;
+      }
+    }
+    
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+      currency: currency,
+    }).format(convertedAmount);
   };
 
   const formatDate = (dateString: string) => {
@@ -122,6 +349,79 @@ export default function OpportunityDetailsPage() {
 
   const getStageInfo = (status: string) => {
     return pipelineStages.find(stage => stage.key === status) || pipelineStages[0];
+  };
+
+  const handleRecommendationComplete = (id: string) => {
+    setAiRecommendations(prev => 
+      prev.map(rec => 
+        rec.id === id ? { ...rec, completed: true } : rec
+      )
+    );
+    success('Recommendation completed! Great job!');
+  };
+
+  const handleTaskClick = (task: any) => {
+    setSelectedTask(task);
+  };
+
+  const handleAddEmail = async (emailData: any) => {
+    try {
+      const response = await fetch('/api/lead-emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(emailData),
+      });
+
+      if (response.ok) {
+        success('Email sent successfully!');
+        // Refresh email history
+        const emailResponse = await fetch(`/api/lead-emails?leadId=${opportunity?.id}`, {
+          credentials: 'include',
+        });
+        if (emailResponse.ok) {
+          const data = await emailResponse.json();
+          setEmailHistory(data.emails || []);
+        }
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to send email');
+      }
+    } catch (err) {
+      error('Failed to send email');
+    }
+  };
+
+  const handleAddSMS = async (smsData: any) => {
+    try {
+      const response = await fetch('/api/lead-sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(smsData),
+      });
+
+      if (response.ok) {
+        success('SMS sent successfully!');
+        // Refresh SMS history
+        const smsResponse = await fetch(`/api/lead-sms?leadId=${opportunity?.id}`, {
+          credentials: 'include',
+        });
+        if (smsResponse.ok) {
+          const data = await smsResponse.json();
+          setSmsHistory(data.sms || []);
+        }
+      } else {
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to send SMS');
+      }
+    } catch (err) {
+      error('Failed to send SMS');
+    }
   };
 
   if (!session?.user) {
@@ -203,6 +503,28 @@ export default function OpportunityDetailsPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              {/* Currency Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Currency:</span>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  {availableCurrencies.length > 0 ? (
+                    availableCurrencies.map((curr) => (
+                      <option key={curr.id} value={curr.code}>
+                        {curr.code} - {curr.name}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="GHS">GHS - Ghana Cedi</option>
+                      <option value="USD">USD - US Dollar</option>
+                    </>
+                  )}
+                </select>
+              </div>
               <Button
                 variant="outline"
                 onClick={() => console.log('Edit opportunity')}
@@ -213,7 +535,7 @@ export default function OpportunityDetailsPage() {
               </Button>
               <Button
                 className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white border-0"
-                onClick={() => router.push(`/quotations?opportunityId=${opportunity.id}`)}
+                onClick={() => router.push(`/quotations/create?leadId=${opportunity.id}&leadName=${encodeURIComponent(`${opportunity.firstName} ${opportunity.lastName}`)}&leadEmail=${opportunity.email || ''}&leadPhone=${opportunity.phone || ''}&leadCompany=${opportunity.company || ''}`)}
               >
                 <FileBarChart className="w-4 h-4" />
                 Create Quote
@@ -230,213 +552,801 @@ export default function OpportunityDetailsPage() {
           </div>
         </div>
 
-        {/* Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="p-6">
+        {/* AI Recommendation and Metrics Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* AI Recommendation Card - Left Side */}
+          <div className="lg:col-span-2">
+            <AIRecommendationCard
+              title="Opportunity Intelligence"
+              subtitle="AI-powered insights for this opportunity"
+              recommendations={aiRecommendations}
+              onRecommendationComplete={handleRecommendationComplete}
+            />
+          </div>
+
+          {/* Metrics Cards - Right Side */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card key="deal-value" className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Deal Value</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(opportunity.dealValue || 0)}
+                  {formatCurrencyAmount(opportunity.dealValue || 0)}
                 </p>
               </div>
-              <div className="p-3 rounded-full bg-green-100">
-                <DollarSign className="w-6 h-6 text-green-600" />
+                <div className="p-2 rounded-full bg-green-100">
+                  <DollarSign className="w-5 h-5 text-green-600" />
               </div>
             </div>
           </Card>
           
-          <Card className="p-6">
+            <Card key="win-probability" className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Win Probability</p>
                 <p className="text-2xl font-bold text-gray-900">{opportunity.probability || 0}%</p>
               </div>
-              <div className="p-3 rounded-full bg-blue-100">
-                <Target className="w-6 h-6 text-blue-600" />
+                <div className="p-2 rounded-full bg-blue-100">
+                  <Target className="w-5 h-5 text-blue-600" />
               </div>
             </div>
           </Card>
           
-          <Card className="p-6">
+            <Card key="interactions" className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Expected Close</p>
+                  <p className="text-sm font-medium text-gray-600">Interactions</p>
+                  <p className="text-xl font-bold text-gray-900">{metrics.totalInteractions}</p>
+                </div>
+                <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
+                  <MessageSquare className={`w-5 h-5 text-${theme.primary}`} />
+              </div>
+            </div>
+          </Card>
+          
+            <Card key="last-activity" className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Last Activity</p>
                 <p className="text-lg font-bold text-gray-900">
-                  {opportunity.expectedCloseDate ? formatDate(opportunity.expectedCloseDate) : 'Not set'}
+                    {metrics.lastActivity}
                 </p>
               </div>
-              <div className="p-3 rounded-full bg-orange-100">
-                <Calendar className="w-6 h-6 text-orange-600" />
+                <div className="p-2 rounded-full bg-orange-100">
+                  <Calendar className="w-5 h-5 text-orange-600" />
               </div>
             </div>
           </Card>
+          </div>
+        </div>
           
+        {/* Detail Sections */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {/* Tasks */}
           <Card className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Current Stage</p>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Tasks</h3>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAddTaskModal(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            {tasks && tasks.length > 0 ? (
+              <div className="space-y-3">
+                {tasks.slice(0, 3).map((task) => (
+                  <div 
+                    key={task.id} 
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleTaskClick(task)}
+                  >
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium text-gray-900">{task.title}</h4>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stageInfo.color}`}>
-                    <stageInfo.icon className="w-3 h-3 mr-1" />
-                    {stageInfo.label}
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          task.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                          task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                          task.status === 'OVERDUE' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {task.status.replace('_', ' ')}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          task.priority === 'URGENT' ? 'bg-red-100 text-red-800' :
+                          task.priority === 'HIGH' ? 'bg-orange-100 text-orange-800' :
+                          task.priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {task.priority}
                   </span>
                 </div>
               </div>
-              <div className="p-3 rounded-full bg-purple-100">
-                <TrendingUp className="w-6 h-6 text-purple-600" />
+                    {task.dueDate && (
+                      <div className="text-xs text-gray-500">
+                        {new Date(task.dueDate).toLocaleDateString()}
               </div>
+                    )}
             </div>
+                ))}
+                {tasks.length > 3 && (
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    +{tasks.length - 3} more tasks
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <CheckCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No tasks assigned</p>
+              </div>
+            )}
           </Card>
-        </div>
 
-        {/* Opportunity Details */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Opportunity Information */}
+          {/* Products */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Products</h3>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAddProductModal(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+        </div>
+            {products.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {products.slice(0, 3).map((product) => (
+                  <div key={product.id} className="p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-blue-900">{product.product?.name || 'Unknown Product'}</h4>
+                        {product.source === 'lead_creation' && (
+                          <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                            Original
+                          </span>
+                        )}
+                      </div>
+                      <span className={`px-2 py-1 text-xs rounded ${
+                        product.interestLevel === 'HIGH' ? 'bg-red-100 text-red-800' :
+                        product.interestLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {product.interestLevel}
+                      </span>
+                    </div>
+                    <p className="text-sm text-blue-700">Qty: {product.quantity}</p>
+                    {product.notes && (
+                      <p className="text-xs text-gray-600 mt-1">{product.notes}</p>
+                    )}
+                  </div>
+                ))}
+                {products.length > 3 && (
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    +{products.length - 3} more products
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Star className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No products interested</p>
+              </div>
+            )}
+          </Card>
+          
+          {/* Quotations */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Opportunity Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Contact Name</label>
-                  <p className="text-sm text-gray-900">{opportunity.firstName} {opportunity.lastName}</p>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Quotations</h3>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/quotations/create?leadId=${opportunity.id}&leadName=${encodeURIComponent(`${opportunity.firstName} ${opportunity.lastName}`)}&leadEmail=${opportunity.email || ''}&leadPhone=${opportunity.phone || ''}&leadCompany=${opportunity.company || ''}`)}
+                className="text-xs"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                New Quote
+              </Button>
                 </div>
+            
+            {opportunity.quotations && opportunity.quotations.length > 0 ? (
+              <div className="space-y-3">
+                {opportunity.quotations.map((quotation) => (
+                  <div key={quotation.id} className="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/quotations/${quotation.id}`)}>
+            <div className="flex items-center justify-between">
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Company</label>
-                  <p className="text-sm text-gray-900">{opportunity.company || 'Not specified'}</p>
+                        <h4 className="font-medium text-gray-900 text-sm">{quotation.number}</h4>
+                        <p className="text-xs text-gray-600">{quotation.subject}</p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Email</label>
-                  <p className="text-sm text-gray-900">{opportunity.email || 'Not provided'}</p>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-gray-900">{formatCurrencyAmount(quotation.total)}</p>
+                        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
+                          quotation.status === 'SENT' ? 'bg-blue-100 text-blue-800' :
+                          quotation.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' :
+                          quotation.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {quotation.status}
+                  </span>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Phone</label>
-                  <p className="text-sm text-gray-900">{opportunity.phone || 'Not provided'}</p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Source</label>
-                  <p className="text-sm text-gray-900">{opportunity.source || 'Not specified'}</p>
+                    <div className="mt-2 text-xs text-gray-500">
+                      {quotation.lines.length} item(s) • {formatDate(quotation.createdAt)}
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Owner</label>
-                  <p className="text-sm text-gray-900">{opportunity.owner.name}</p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Created</label>
-                  <p className="text-sm text-gray-900">{formatDate(opportunity.createdAt)}</p>
+                ))}
                 </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileBarChart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No quotations yet</p>
+              </div>
+            )}
+          </Card>
+
+          {/* Users */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Assigned Users</h3>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAddUserModal(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            {assignedUsers.length > 0 ? (
+              <div className="space-y-3">
+                {assignedUsers.map((user) => (
+                  <div key={user.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <User className="w-5 h-5 text-gray-400" />
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Last Updated</label>
-                  <p className="text-sm text-gray-900">{formatDate(opportunity.updatedAt)}</p>
+                      <p className="font-medium text-gray-900">{user.name}</p>
+                      <p className="text-sm text-gray-500">{user.email}</p>
+                      {user.role && (
+                        <p className="text-xs text-blue-600">{user.role}</p>
+                      )}
                 </div>
               </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No users assigned</p>
+              </div>
+            )}
             </Card>
 
-            {/* Notes */}
-            {opportunity.notes && (
+          {/* Sources */}
               <Card className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Notes</h3>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{opportunity.notes}</p>
-              </Card>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Sources</h3>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  success('Add Source clicked! (Feature coming soon)');
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+                </div>
+            {(opportunity.source || (Array.isArray(sources) && sources.length > 0)) ? (
+              <div className="space-y-2">
+                {/* Opportunity's primary source */}
+                {opportunity.source && (
+                  <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2">
+                      <Link className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-900">{opportunity.source}</span>
+                </div>
+                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">Primary</span>
+                </div>
+                )}
+                
+                {/* Additional sources */}
+                {Array.isArray(sources) && sources.slice(0, opportunity.source ? 2 : 3).map((source: any) => (
+                  <div key={source.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Link className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-900">{source.name}</span>
+                </div>
+                    <span className="text-xs text-gray-500">{source.category}</span>
+                </div>
+                ))}
+                
+                {Array.isArray(sources) && (sources.length > (opportunity.source ? 2 : 3)) && (
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    +{sources.length - (opportunity.source ? 2 : 3)} more sources
+                  </p>
+                )}
+                </div>
+            ) : (
+              <div className="text-center py-8">
+                <Link className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No sources assigned</p>
+              </div>
             )}
+          </Card>
 
-            {/* Interested Products */}
-            {(() => {
-              // Parse interestedProducts if it's a JSON string
-              const products = opportunity.interestedProducts ? 
-                (typeof opportunity.interestedProducts === 'string' ? 
-                  JSON.parse(opportunity.interestedProducts) : 
-                  opportunity.interestedProducts) : [];
-              
-              return products && products.length > 0 && (
+          {/* Emails */}
                 <Card className="p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Interested Products</h3>
-                  <div className="space-y-3">
-                    {products.map((product: any, index: number) => (
-                      <div key={index} className="p-3 bg-blue-50 rounded-lg">
-                        <h4 className="font-medium text-blue-900">{product.name}</h4>
-                        {product.sku && <p className="text-sm text-blue-700">SKU: {product.sku}</p>}
-                        {product.description && <p className="text-sm text-gray-600 mt-1">{product.description}</p>}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Emails</h3>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAddEmailModal(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            {emailHistory && emailHistory.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {emailHistory.map((email) => (
+                  <div key={email.id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-gray-900">{email.subject}</h4>
+                        <p className="text-xs text-gray-600 mt-1 line-clamp-2">{email.content}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            email.status === 'SENT' ? 'bg-green-100 text-green-800' :
+                            email.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                            email.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {email.status}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {email.sentAt ? new Date(email.sentAt).toLocaleDateString() : 'Not sent'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                       </div>
                     ))}
                   </div>
+            ) : (
+              <div className="text-center py-8">
+                <Mail className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No emails sent</p>
+          </div>
+            )}
                 </Card>
-              );
-            })()}
-          </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Pipeline Stage */}
+          {/* SMS */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Pipeline Stage</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Current Stage</span>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stageInfo.color}`}>
-                    <stageInfo.icon className="w-3 h-3 mr-1" />
-                    {stageInfo.label}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">SMS</h3>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAddSMSModal(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            {smsHistory && smsHistory.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {smsHistory.map((sms) => (
+                  <div key={sms.id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-900">{sms.message}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            sms.status === 'SENT' ? 'bg-green-100 text-green-800' :
+                            sms.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                            sms.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {sms.status}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {sms.sentAt ? new Date(sms.sentAt).toLocaleDateString() : 'Not sent'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            To: {sms.to}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Deal Value</span>
-                  <span className="text-sm font-medium text-gray-900">{formatCurrency(opportunity.dealValue || 0)}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Win Probability</span>
-                  <span className="text-sm font-medium text-gray-900">{opportunity.probability || 0}%</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Expected Close</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {opportunity.expectedCloseDate ? formatDate(opportunity.expectedCloseDate) : 'Not set'}
-                  </span>
                 </div>
+                ))}
               </div>
+            ) : (
+              <div className="text-center py-8">
+                <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No SMS sent</p>
+              </div>
+            )}
             </Card>
 
-            {/* Quick Actions */}
+          {/* Comments */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-              <div className="space-y-3">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Comments</h3>
                 <Button
-                  className="w-full justify-start"
                   variant="outline"
-                  onClick={() => router.push(`/quotations?opportunityId=${opportunity.id}`)}
-                >
-                  <FileBarChart className="w-4 h-4 mr-2" />
-                  Create Quote
+                size="sm"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAddCommentModal(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
                 </Button>
+            </div>
+            {comments.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {comments.map((comment) => (
+                  <div key={comment.id} className="border rounded-lg p-3 bg-gray-50">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-sm text-gray-900">
+                          {comment.createdByUser?.name || 'Unknown User'}
+                        </span>
+                        {comment.isInternal && (
+                          <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">
+                            Internal
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {new Date(comment.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700">{comment.content}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No comments</p>
+              </div>
+            )}
+          </Card>
+
+          {/* Files */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Files</h3>
                 <Button
-                  className="w-full justify-start"
                   variant="outline"
-                  onClick={() => console.log('Send email')}
-                >
-                  <Mail className="w-4 h-4 mr-2" />
-                  Send Email
+                size="sm"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAddFileModal(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
                 </Button>
+            </div>
+            {files.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {files.map((file) => (
+                  <div key={file.id} className="border rounded-lg p-3 bg-gray-50">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="w-4 h-4 text-gray-500" />
+                        <span className="font-medium text-sm text-gray-900 truncate">
+                          {file.fileName}
+                        </span>
+                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                          {file.category}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {new Date(file.uploadedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {file.description && (
+                      <p className="text-sm text-gray-600 mb-2">{file.description}</p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">
+                        {file.uploadedByUser?.name || 'Unknown User'}
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">
+                          {(file.fileSize / 1024).toFixed(1)} KB
+                        </span>
                 <Button
-                  className="w-full justify-start"
                   variant="outline"
-                  onClick={() => console.log('Schedule meeting')}
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => window.open(file.filePath, '_blank')}
                 >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Schedule Meeting
+                          Download
                 </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No files attached</p>
+              </div>
+            )}
+          </Card>
+
+          {/* Meetings & Calls */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Meetings & Calls</h3>
                 <Button
-                  className="w-full justify-start"
                   variant="outline"
-                  onClick={() => console.log('Add note')}
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Add Note
+                size="sm"
+                className="hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAddMeetingModal(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
                 </Button>
               </div>
+            {meetings.length > 0 ? (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {meetings.slice(0, 3).map((meeting) => (
+                  <div key={meeting.id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900">{meeting.title}</h4>
+                      <span className={`px-2 py-1 text-xs rounded ${
+                        meeting.status === 'SCHEDULED' ? 'bg-yellow-100 text-yellow-800' :
+                        meeting.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                        meeting.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {meeting.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-2">{meeting.type}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(meeting.scheduledAt).toLocaleDateString()} at {new Date(meeting.scheduledAt).toLocaleTimeString()}
+                    </p>
+                    <p className="text-xs text-gray-500">Duration: {meeting.duration} minutes</p>
+                    {meeting.description && (
+                      <p className="text-sm text-gray-600 mt-2">{meeting.description}</p>
+                    )}
+                  </div>
+                ))}
+                {meetings.length > 3 && (
+                  <p className="text-sm text-gray-500 text-center py-2">
+                    +{meetings.length - 3} more meetings
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Video className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No meetings scheduled</p>
+              </div>
+            )}
             </Card>
           </div>
+
+        {/* Activity Timeline */}
+        <Card className="p-6 mt-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
+                <Activity className={`w-5 h-5 text-${theme.primary}`} />
         </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Activity Timeline</h3>
+                <p className="text-sm text-gray-600">
+                  Track the opportunity's journey from creation to closing
+                  {activities.length > 0 && (
+                    <span className="ml-2 text-blue-600">({activities.length} activities)</span>
+                  )}
+                </p>
       </div>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowAllActivities(!showAllActivities)}
+            >
+              {showAllActivities ? 'Show Less' : 'Show All'}
+            </Button>
+          </div>
+          
+          {activities.length > 0 ? (
+            <div className="space-y-4">
+              {(showAllActivities ? activities : activities.slice(0, 5)).map((activity, index) => (
+                <div key={activity.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    activity.type === 'CREATED' ? 'bg-green-100 text-green-600' :
+                    activity.type === 'UPDATED' ? 'bg-blue-100 text-blue-600' :
+                    activity.type === 'EMAIL' ? 'bg-purple-100 text-purple-600' :
+                    activity.type === 'CALL' ? 'bg-orange-100 text-orange-600' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {activity.type === 'CREATED' ? <Plus className="w-4 h-4" /> :
+                     activity.type === 'UPDATED' ? <Edit className="w-4 h-4" /> :
+                     activity.type === 'EMAIL' ? <Mail className="w-4 h-4" /> :
+                     activity.type === 'CALL' ? <Phone className="w-4 h-4" /> :
+                     <Activity className="w-4 h-4" />}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900">{activity.title}</h4>
+                    <p className="text-sm text-gray-600 mt-1">{activity.description}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-gray-500">
+                        {new Date(activity.createdAt).toLocaleString()}
+                      </span>
+                      {activity.user && (
+                        <span className="text-xs text-blue-600">
+                          by {activity.user.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h4 className="text-lg font-medium text-gray-900 mb-2">No activities yet</h4>
+              <p className="text-gray-500">Activities will appear here as you interact with this opportunity.</p>
+        </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Modals */}
+      {showAddTaskModal && (
+        <AddLeadTaskModal
+          isOpen={showAddTaskModal}
+          onClose={() => setShowAddTaskModal(false)}
+          leadId={opportunity.id}
+          leadName={`${opportunity.firstName} ${opportunity.lastName}`}
+          onSave={(task) => {
+            setTasks(prev => [...prev, task]);
+            success('Task added successfully!');
+          }}
+        />
+      )}
+
+      {showAddCommentModal && (
+        <AddLeadCommentModal
+          isOpen={showAddCommentModal}
+          onClose={() => setShowAddCommentModal(false)}
+          leadId={opportunity.id}
+          leadName={`${opportunity.firstName} ${opportunity.lastName}`}
+          onSave={(comment) => {
+            setComments(prev => [...prev, comment]);
+            success('Comment added successfully!');
+          }}
+        />
+      )}
+
+      {showAddFileModal && (
+        <AddLeadFileModal
+          isOpen={showAddFileModal}
+          onClose={() => setShowAddFileModal(false)}
+          leadId={opportunity.id}
+          leadName={`${opportunity.firstName} ${opportunity.lastName}`}
+          onSave={(file) => {
+            setFiles(prev => [...prev, file]);
+            success('File uploaded successfully!');
+          }}
+        />
+      )}
+
+      {showAddEmailModal && (
+        <AddLeadEmailModal
+          isOpen={showAddEmailModal}
+          onClose={() => setShowAddEmailModal(false)}
+          leadId={opportunity.id}
+          leadName={`${opportunity.firstName} ${opportunity.lastName}`}
+          leadEmail={opportunity.email || ''}
+          onSave={handleAddEmail}
+        />
+      )}
+
+      {showAddSMSModal && (
+        <AddLeadSMSModal
+          isOpen={showAddSMSModal}
+          onClose={() => setShowAddSMSModal(false)}
+          leadId={opportunity.id}
+          leadName={`${opportunity.firstName} ${opportunity.lastName}`}
+          leadPhone={opportunity.phone}
+          onSave={handleAddSMS}
+        />
+      )}
+
+      {showAddProductModal && (
+        <AddLeadProductModal
+          isOpen={showAddProductModal}
+          onClose={() => setShowAddProductModal(false)}
+          leadId={opportunity.id}
+          leadName={`${opportunity.firstName} ${opportunity.lastName}`}
+          onSave={(product) => {
+            setProducts(prev => [...prev, product]);
+            success('Product added successfully!');
+          }}
+        />
+      )}
+
+      {showAddUserModal && (
+        <AddLeadUserModal
+          isOpen={showAddUserModal}
+          onClose={() => setShowAddUserModal(false)}
+          leadId={opportunity.id}
+          leadName={`${opportunity.firstName} ${opportunity.lastName}`}
+          onSave={(user) => {
+            setAssignedUsers(prev => [...prev, user]);
+            success('User assigned successfully!');
+          }}
+        />
+      )}
+
+      {showAddMeetingModal && (
+        <AddLeadMeetingModal
+          isOpen={showAddMeetingModal}
+          onClose={() => setShowAddMeetingModal(false)}
+          leadId={opportunity.id}
+          leadName={`${opportunity.firstName} ${opportunity.lastName}`}
+          onSave={(meeting) => {
+            setMeetings(prev => [...prev, meeting]);
+            success('Meeting scheduled successfully!');
+          }}
+        />
+      )}
+
+      {/* Task Slideout */}
+      {selectedTask && (
+        <TaskSlideout
+          task={selectedTask}
+          isOpen={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+        />
+      )}
     </MainLayout>
   );
 }

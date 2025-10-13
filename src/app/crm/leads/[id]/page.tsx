@@ -21,6 +21,7 @@ import AddLeadProductModal from '@/components/modals/add-lead-product-modal';
 import AddLeadUserModal from '@/components/modals/add-lead-user-modal';
 import AddLeadMeetingModal from '@/components/modals/add-lead-meeting-modal';
 import TaskSlideout from '@/components/task-slideout';
+import LeadToQuoteConfirmationModal from '@/components/modals/lead-to-quote-confirmation-modal';
 
 interface User {
   id: string;
@@ -79,6 +80,7 @@ export default function LeadDetailsPage() {
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showAddMeetingModal, setShowAddMeetingModal] = useState(false);
+  const [showQuoteConfirmationModal, setShowQuoteConfirmationModal] = useState(false);
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [smsHistory, setSmsHistory] = useState<any[]>([]);
@@ -441,12 +443,34 @@ export default function LeadDetailsPage() {
     if (totalInteractions > 5) conversionProbability += 10;
     else if (totalInteractions > 2) conversionProbability += 5;
     
-    const daysSinceCreated = Math.floor((new Date().getTime() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    // Calculate real last activity from all activity types
+    const allActivityDates = [
+      ...emailHistory.map(e => e.sentAt || e.createdAt),
+      ...smsHistory.map(s => s.sentAt || s.createdAt),
+      ...tasks.map(t => t.updatedAt || t.createdAt),
+      ...meetings.map(m => m.updatedAt || m.createdAt),
+      ...comments.map(c => c.createdAt),
+      ...files.map(f => f.createdAt),
+      lead.createdAt
+    ].filter(Boolean).map(date => new Date(date).getTime());
+    
+    const lastActivityTimestamp = allActivityDates.length > 0 ? Math.max(...allActivityDates) : new Date(lead.createdAt).getTime();
+    const hoursSinceLastActivity = Math.floor((new Date().getTime() - lastActivityTimestamp) / (1000 * 60 * 60));
+    
+    let lastActivityText;
+    if (hoursSinceLastActivity < 1) {
+      lastActivityText = 'Just now';
+    } else if (hoursSinceLastActivity < 24) {
+      lastActivityText = `${hoursSinceLastActivity}h ago`;
+    } else {
+      const daysSince = Math.floor(hoursSinceLastActivity / 24);
+      lastActivityText = daysSince === 1 ? 'Yesterday' : `${daysSince}d ago`;
+    }
     
     setMetrics({
       totalInteractions,
       conversionProbability: Math.min(conversionProbability, 95),
-      lastActivity: daysSinceCreated === 0 ? 'Today' : daysSinceCreated === 1 ? 'Yesterday' : `${daysSinceCreated} days ago`
+      lastActivity: lastActivityText
     });
   };
 
@@ -883,33 +907,28 @@ export default function LeadDetailsPage() {
     }
   };
 
-  const handleCreateQuote = async () => {
+  const handleCreateQuote = () => {
+    if (!lead) return;
+    setShowQuoteConfirmationModal(true);
+  };
+
+  const handleConfirmCreateQuote = () => {
     if (!lead) return;
 
-    try {
-      // First, update the lead status to OPPORTUNITY
-      const response = await fetch(`/api/leads/${lead.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...lead,
-          status: 'QUOTE_SENT'
-        }),
-        credentials: 'include',
-      });
+    // Navigate to create quote page with lead details pre-filled
+    // The lead will be converted to opportunity only after the quote is saved
+    const queryParams = new URLSearchParams({
+      leadId: lead.id,
+      leadName: `${lead.firstName} ${lead.lastName}`,
+      leadEmail: lead.email || '',
+      leadPhone: lead.phone || '',
+      leadCompany: lead.company || '',
+    });
 
-      if (response.ok) {
-        success('Lead converted to opportunity! Redirecting to quotations...');
-        // Navigate to quotations page with lead ID as parameter
-        router.push(`/quotations?leadId=${lead.id}`);
-      } else {
-        const errorData = await response.json();
-        error(errorData.error || 'Failed to convert lead to opportunity');
-      }
-    } catch (err) {
-      console.error('Error creating quote:', err);
-      error('Failed to create quote');
-    }
+    console.log('Creating quote for lead:', `${lead.firstName} ${lead.lastName}`);
+    console.log('🎯 Navigating to:', `/quotations/create?${queryParams.toString()}`);
+    
+    router.push(`/quotations/create?${queryParams.toString()}`);
   };
 
   const getStatusIcon = (status: string) => {
@@ -1832,6 +1851,20 @@ export default function LeadDetailsPage() {
             setSelectedTask(null);
             // Refresh tasks when slideout is closed in case task was updated
             fetchTasks();
+          }}
+        />
+      )}
+
+      {showQuoteConfirmationModal && lead && (
+        <LeadToQuoteConfirmationModal
+          isOpen={showQuoteConfirmationModal}
+          onClose={() => setShowQuoteConfirmationModal(false)}
+          onConfirm={handleConfirmCreateQuote}
+          leadData={{
+            name: `${lead.firstName} ${lead.lastName}`,
+            email: lead.email || '',
+            phone: lead.phone || '',
+            company: lead.company || '',
           }}
         />
       )}

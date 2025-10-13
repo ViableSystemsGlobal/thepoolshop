@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     if (status) {
       where.status = status;
     } else {
-      // Only show the simplified opportunity statuses
+      // Show leads that are opportunities (QUOTE_SENT and above)
       where.status = {
         in: ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST']
       };
@@ -47,11 +47,11 @@ export async function GET(request: NextRequest) {
     // Add search filter if provided
     if (search) {
       where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { company: { contains: search, mode: 'insensitive' } },
-        { subject: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search } },
+        { lastName: { contains: search } },
+        { email: { contains: search } },
+        { company: { contains: search } },
+        { subject: { contains: search } },
       ];
     }
 

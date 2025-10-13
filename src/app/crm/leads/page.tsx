@@ -294,31 +294,21 @@ export default function LeadsPage() {
     }
   };
 
-  const handleCreateQuote = async (lead: Lead) => {
-    try {
-      // First, update the lead status to OPPORTUNITY
-      const response = await fetch(`/api/leads/${lead.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...lead,
-          status: 'QUOTE_SENT'
-        }),
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        success('Lead converted to opportunity! Redirecting to quotations...');
-        // Navigate to quotations page with lead ID as parameter
-        router.push(`/quotations?leadId=${lead.id}`);
-      } else {
-        const errorData = await response.json();
-        error(errorData.error || 'Failed to convert lead to opportunity');
-      }
-    } catch (err) {
-      console.error('Error creating quote:', err);
-      error('Failed to create quote');
-    }
+  const handleCreateQuote = (lead: Lead) => {
+    console.log('🎯 Creating quote for lead:', lead.firstName, lead.lastName);
+    // Navigate to create quote page with lead details pre-filled
+    // The lead will be converted to opportunity only after the quote is saved
+    const queryParams = new URLSearchParams({
+      leadId: lead.id,
+      leadName: `${lead.firstName} ${lead.lastName}`,
+      leadEmail: lead.email || '',
+      leadPhone: lead.phone || '',
+      leadCompany: lead.company || '',
+    });
+    
+    const url = `/quotations/create?${queryParams.toString()}`;
+    console.log('🎯 Navigating to:', url);
+    router.push(url);
   };
 
   const handleConvertToOpportunity = async (stage: string) => {

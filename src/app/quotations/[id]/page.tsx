@@ -3,9 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/theme-context';
+import { useToast } from '@/contexts/toast-context';
+import { downloadQuotationAsPDF } from '@/lib/quotation-download';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { SendQuoteModal } from '@/components/modals/send-quote-modal';
 import { 
   ArrowLeft, 
   FileText, 
@@ -70,10 +73,13 @@ interface Quotation {
 export default function ViewQuotationPage() {
   const router = useRouter();
   const params = useParams();
-  const { theme, customLogo } = useTheme();
+  const { getThemeClasses, customLogo } = useTheme();
+  const { showError, success } = useToast();
+  const theme = getThemeClasses();
   
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showSendModal, setShowSendModal] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -91,7 +97,19 @@ export default function ViewQuotationPage() {
       }
       
       const data = await response.json();
-      setQuotation(data);
+      
+      // Map line items to include productName from product.name
+      const mappedData = {
+        ...data,
+        lines: data.lines.map((line: any) => ({
+          ...line,
+          productName: line.product?.name || `Product ${line.productId}`,
+          description: line.product?.description || '',
+          sku: line.product?.sku || ''
+        }))
+      };
+      
+      setQuotation(mappedData);
       
     } catch (err) {
       console.error('Error loading quotation:', err);
@@ -179,11 +197,17 @@ export default function ViewQuotationPage() {
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Button>
-            <Button variant="outline">
+            <Button 
+              variant="outline"
+              onClick={() => downloadQuotationAsPDF(quotation as any, customLogo || undefined, showError, success)}
+            >
               <Download className="h-4 w-4 mr-2" />
               Download PDF
             </Button>
-            <Button variant="outline">
+            <Button 
+              variant="outline"
+              onClick={() => setShowSendModal(true)}
+            >
               <Mail className="h-4 w-4 mr-2" />
               Send Email
             </Button>
@@ -262,6 +286,9 @@ export default function ViewQuotationPage() {
                         <tr key={line.id} className="border-b">
                           <td className="py-3">
                             <div className="font-medium">{line.productName || `Item ${index + 1}`}</div>
+                            {line.sku && (
+                              <div className="text-sm text-gray-500">SKU: {line.sku}</div>
+                            )}
                             {line.description && (
                               <div className="text-sm text-gray-600">{line.description}</div>
                             )}
@@ -282,6 +309,18 @@ export default function ViewQuotationPage() {
                     <span className="text-gray-600">Subtotal:</span>
                     <span className="font-medium">GH₵{quotation.subtotal.toFixed(2)}</span>
                   </div>
+                  {(() => {
+                    const totalDiscount = quotation.lines.reduce((sum, line) => {
+                      const discountAmount = (line.unitPrice * line.quantity * line.discount) / 100;
+                      return sum + discountAmount;
+                    }, 0);
+                    return totalDiscount > 0 ? (
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-gray-600">Discount:</span>
+                        <span className="font-medium text-green-600">-GH₵{totalDiscount.toFixed(2)}</span>
+                      </div>
+                    ) : null;
+                  })()}
                   <div className="flex justify-between items-center py-2">
                     <span className="text-gray-600">Tax:</span>
                     <span className="font-medium">GH₵{quotation.tax.toFixed(2)}</span>
@@ -322,7 +361,14 @@ export default function ViewQuotationPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700">Created</label>
                   <div className="mt-1 text-sm text-gray-600">
-                    {new Date(quotation.createdAt).toLocaleDateString()}
+                    {new Date(quotation.createdAt).toLocaleString()}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Last Updated</label>
+                  <div className="mt-1 text-sm text-gray-600">
+                    {new Date(quotation.updatedAt).toLocaleString()}
                   </div>
                 </div>
                 
@@ -337,17 +383,25 @@ export default function ViewQuotationPage() {
                 
                 <div className="pt-4 border-t space-y-2">
                   <Button 
-                    className="w-full" 
+                    className={`w-full bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
                     onClick={() => router.push(`/quotations/${quotation.id}/edit`)}
                   >
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Quotation
                   </Button>
-                  <Button variant="outline" className="w-full">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => downloadQuotationAsPDF(quotation as any, customLogo || undefined, showError, success)}
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     Download PDF
                   </Button>
-                  <Button variant="outline" className="w-full">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => router.push(`/quotations?send=${quotation.id}`)}
+                  >
                     <Mail className="h-4 w-4 mr-2" />
                     Send Email
                   </Button>
@@ -389,6 +443,89 @@ export default function ViewQuotationPage() {
               </Card>
             )}
 
+            {/* Progress Timeline */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Clock className="h-5 w-5 mr-2" />
+                  Progress Timeline
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Created Event */}
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 w-2 h-2 mt-2 rounded-full bg-green-500"></div>
+                    <div className="ml-3 flex-1">
+                      <div className="text-sm font-medium text-gray-900">Created</div>
+                      <div className="text-xs text-gray-500">{new Date(quotation.createdAt).toLocaleString()}</div>
+                      <div className="text-xs text-gray-600 mt-1">
+                        Quotation {quotation.number} was created by {quotation.owner?.name || 'Unknown User'}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Last Updated Event - Always show if updatedAt exists and is different from createdAt */}
+                  {quotation.updatedAt && (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0 w-2 h-2 mt-2 rounded-full bg-blue-500"></div>
+                      <div className="ml-3 flex-1">
+                        <div className="text-sm font-medium text-gray-900">Last Updated</div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(quotation.updatedAt).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">
+                          Quotation was modified by {quotation.owner?.name || 'Unknown User'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Status Events */}
+                  {quotation.status === 'SENT' && (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0 w-2 h-2 mt-2 rounded-full bg-blue-500"></div>
+                      <div className="ml-3 flex-1">
+                        <div className="text-sm font-medium text-gray-900">Sent to Customer</div>
+                        <div className="text-xs text-gray-500">
+                          {quotation.updatedAt ? new Date(quotation.updatedAt).toLocaleString() : 'Unknown time'}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">
+                          Quotation was sent by {quotation.owner?.name || 'Unknown User'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {quotation.status === 'ACCEPTED' && (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0 w-2 h-2 mt-2 rounded-full bg-green-500"></div>
+                      <div className="ml-3 flex-1">
+                        <div className="text-sm font-medium text-gray-900">Accepted</div>
+                        <div className="text-xs text-gray-500">
+                          {quotation.updatedAt ? new Date(quotation.updatedAt).toLocaleString() : 'Unknown time'}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">Customer accepted the quotation</div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {quotation.status === 'REJECTED' && (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0 w-2 h-2 mt-2 rounded-full bg-red-500"></div>
+                      <div className="ml-3 flex-1">
+                        <div className="text-sm font-medium text-gray-900">Rejected</div>
+                        <div className="text-xs text-gray-500">
+                          {quotation.updatedAt ? new Date(quotation.updatedAt).toLocaleString() : 'Unknown time'}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">Customer rejected the quotation</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Owner Info */}
             <Card>
               <CardHeader>
@@ -413,6 +550,23 @@ export default function ViewQuotationPage() {
           </div>
         </div>
       </div>
+
+      {/* Send Quote Modal */}
+      {quotation && (
+        <SendQuoteModal
+          isOpen={showSendModal}
+          onClose={() => setShowSendModal(false)}
+          quotation={{
+            id: quotation.id,
+            number: quotation.number,
+            subject: quotation.subject,
+            account: quotation.account,
+            distributor: quotation.distributor,
+            lead: quotation.lead,
+            total: quotation.total
+          }}
+        />
+      )}
     </MainLayout>
   );
 }

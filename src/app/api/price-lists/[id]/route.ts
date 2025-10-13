@@ -21,6 +21,8 @@ export async function GET(
                 name: true,
                 sku: true,
                 uomSell: true,
+                price: true,
+                cost: true,
               },
             },
           },
@@ -119,6 +121,8 @@ export async function PUT(
                 name: true,
                 sku: true,
                 uomSell: true,
+                price: true,
+                cost: true,
               },
             },
           },
@@ -147,29 +151,51 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    console.log("Attempting to delete price list:", id);
 
     // Check if price list exists
     const existingPriceList = await prisma.priceList.findUnique({
       where: { id },
+      include: {
+        items: {
+          select: {
+            id: true,
+          }
+        }
+      }
     });
 
     if (!existingPriceList) {
+      console.log("Price list not found:", id);
       return NextResponse.json(
         { error: "Price list not found" },
         { status: 404 }
       );
     }
 
-    // Delete the price list (this will cascade delete items due to foreign key constraints)
+    console.log(`Price list found with ${existingPriceList.items.length} items`);
+
+    // Delete the price list items first (if any)
+    if (existingPriceList.items.length > 0) {
+      console.log("Deleting price list items first...");
+      await prisma.priceListItem.deleteMany({
+        where: { priceListId: id }
+      });
+      console.log("Price list items deleted successfully");
+    }
+
+    // Delete the price list
+    console.log("Deleting price list...");
     await prisma.priceList.delete({
       where: { id },
     });
+    console.log("Price list deleted successfully");
 
     return NextResponse.json({ message: "Price list deleted successfully" });
   } catch (error) {
     console.error("Error deleting price list:", error);
     return NextResponse.json(
-      { error: "Failed to delete price list" },
+      { error: `Failed to delete price list: ${error.message}` },
       { status: 500 }
     );
   }

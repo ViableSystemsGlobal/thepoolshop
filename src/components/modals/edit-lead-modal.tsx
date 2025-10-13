@@ -128,6 +128,27 @@ export function EditLeadModal({ lead, onClose, onSave }: EditLeadModalProps) {
   }, []);
 
   useEffect(() => {
+    // Convert followUpDate timestamp to datetime-local format
+    const formatFollowUpDate = (dateValue: string | number | null | undefined): string => {
+      if (!dateValue) return '';
+      
+      // If it's a timestamp (number), convert it
+      if (typeof dateValue === 'number') {
+        const date = new Date(dateValue);
+        return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+      }
+      
+      // If it's already a string, try to parse it
+      if (typeof dateValue === 'string') {
+        const date = new Date(dateValue);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().slice(0, 16);
+        }
+      }
+      
+      return '';
+    };
+
     setFormData({
       firstName: lead.firstName,
       lastName: lead.lastName,
@@ -140,7 +161,7 @@ export function EditLeadModal({ lead, onClose, onSave }: EditLeadModalProps) {
       status: lead.status,
       assignedTo: lead.assignedTo || [],
       interestedProducts: lead.interestedProducts || [],
-      followUpDate: lead.followUpDate || '',
+      followUpDate: formatFollowUpDate(lead.followUpDate),
       notes: lead.notes || '',
     });
   }, [lead]);

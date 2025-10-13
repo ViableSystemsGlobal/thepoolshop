@@ -9,6 +9,8 @@ import { MainLayout } from "@/components/layout/main-layout";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
 import { formatCurrency } from "@/lib/utils";
+import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol } from "@/components/ui/currency-toggle";
+import { generatePriceListPDF, downloadPDF, PriceListData, BrandingSettings } from "@/lib/pdf-utils";
 import { AddProductToPriceListModal } from "@/components/modals/add-product-to-price-list-modal";
 import { EditPriceListModal } from "@/components/modals/edit-price-list-modal";
 import { EditPriceListItemModal } from "@/components/modals/edit-price-list-item-modal";
@@ -24,7 +26,8 @@ import {
   Package,
   Calendar,
   Users,
-  TrendingUp
+  TrendingUp,
+  Download
 } from "lucide-react";
 
 interface PriceList {
@@ -32,6 +35,9 @@ interface PriceList {
   name: string;
   channel: string;
   currency: string;
+  calculationType: string;
+  basePrice: string;
+  percentage: number;
   effectiveFrom: string;
   effectiveTo: string | null;
   createdAt: string;
@@ -47,6 +53,8 @@ interface PriceList {
       name: string;
       sku: string;
       uomSell: string;
+      price?: number;
+      cost?: number;
     };
   }>;
   _count?: {
@@ -58,10 +66,12 @@ interface PriceList {
 export default function PriceListDetailsPage() {
   const params = useParams();
   const router = useRouter();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, customLogo } = useTheme();
   const theme = getThemeClasses();
+  const { currency, changeCurrency } = useCurrency();
   
   const [priceList, setPriceList] = useState<PriceList | null>(null);
+  const [branding, setBranding] = useState<BrandingSettings | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -69,6 +79,7 @@ export default function PriceListDetailsPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEditItemModalOpen, setIsEditItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const { success, error: showError } = useToast();
 
   useEffect(() => {
@@ -91,8 +102,39 @@ export default function PriceListDetailsPage() {
       }
     };
 
+    const fetchBranding = async () => {
+      try {
+        const response = await fetch('/api/settings/branding');
+        if (response.ok) {
+          const data = await response.json();
+          setBranding(data);
+        } else {
+          console.log('Failed to fetch branding, using defaults');
+          // Set default branding if API fails
+          setBranding({
+            companyName: 'AdPools Group',
+            companyLogo: '/uploads/branding/company_logo_default.svg',
+            primaryColor: '#3B82F6',
+            secondaryColor: '#1E40AF',
+            description: 'A practical, single-tenant system for sales and distribution management'
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching branding settings:', error);
+        // Set default branding if API fails
+        setBranding({
+          companyName: 'AdPools Group',
+          companyLogo: '/uploads/branding/company_logo_default.svg',
+          primaryColor: '#3B82F6',
+          secondaryColor: '#1E40AF',
+          description: 'A practical, single-tenant system for sales and distribution management'
+        });
+      }
+    };
+
     if (params.id) {
       fetchPriceList();
+      fetchBranding();
     }
   }, [params.id]);
 
@@ -100,6 +142,40 @@ export default function PriceListDetailsPage() {
     item.product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.product.sku.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
+
+  const handleDownloadPDF = async () => {
+    if (!priceList || !branding) {
+      showError("Download Failed", "Price list or branding data not available");
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      
+      // Convert the price list data to the format expected by PDF utils
+      const priceListData: PriceListData = {
+        ...priceList,
+        items: priceList.items || []
+      };
+
+      // Use custom logo from theme context instead of branding API
+      const brandingWithLogo: BrandingSettings = {
+        ...branding,
+        companyLogo: customLogo || branding?.companyLogo || '/uploads/branding/company_logo_default.svg'
+      };
+
+      const doc = await generatePriceListPDF(priceListData, brandingWithLogo, currency);
+      const filename = `${priceList.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${currency}_${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      downloadPDF(doc, filename);
+      success("PDF Downloaded", `Price list "${priceList.name}" has been downloaded as PDF`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      showError("Download Failed", `Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -301,10 +377,21 @@ export default function PriceListDetailsPage() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{priceList.name}</h1>
-              <p className="text-gray-600">{priceList.channel} • {priceList.currency}</p>
+              <p className="text-gray-600">
+                {priceList.channel} • {priceList.percentage}% {priceList.calculationType} from {priceList.basePrice} price
+              </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
+            <CurrencyToggle value={currency} onChange={changeCurrency} />
+            <Button 
+              onClick={handleDownloadPDF}
+              disabled={isDownloading}
+              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {isDownloading ? "Generating..." : "Download PDF"}
+            </Button>
             <Button variant="outline" onClick={handleEdit}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
@@ -392,7 +479,7 @@ export default function PriceListDetailsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <h4 className="font-medium text-gray-900 mb-2">Basic Information</h4>
                 <div className="space-y-2 text-sm">
@@ -402,11 +489,44 @@ export default function PriceListDetailsPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Channel:</span>
-                    <span className="font-medium">{priceList.channel}</span>
+                    <span className="font-medium capitalize">{priceList.channel}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Currency:</span>
                     <span className="font-medium">{priceList.currency}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Products:</span>
+                    <span className="font-medium">{priceList._count?.items || 0}</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">Price Calculation</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Type:</span>
+                    <span className={`font-medium px-2 py-1 rounded ${
+                      priceList.calculationType === 'DISCOUNT' 
+                        ? 'bg-orange-100 text-orange-800' 
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {priceList.calculationType}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Base Price:</span>
+                    <span className="font-medium capitalize">{priceList.basePrice} Price</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Percentage:</span>
+                    <span className="font-medium text-lg">{priceList.percentage}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Formula:</span>
+                    <span className="font-medium text-xs bg-blue-50 px-2 py-1 rounded">
+                      {priceList.basePrice} {priceList.calculationType === 'DISCOUNT' ? '×' : '×'} (1 {priceList.calculationType === 'DISCOUNT' ? '-' : '+'} {priceList.percentage / 100})
+                    </span>
                   </div>
                 </div>
               </div>
@@ -473,8 +593,18 @@ export default function PriceListDetailsPage() {
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Product</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">SKU</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Selling Unit</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Unit Price</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">{priceList.channel.charAt(0).toUpperCase() + priceList.channel.slice(1)} Price</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      {priceList.basePrice === 'COST' ? 'Cost Price' : 'Selling Price'}
+                      <span className="text-xs text-gray-500 ml-1">(Base)</span>
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      {priceList.channel.charAt(0).toUpperCase() + priceList.channel.slice(1)} Price
+                      <span className="text-xs text-gray-500 ml-1">({priceList.percentage}% {priceList.calculationType.toLowerCase()})</span>
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Price in {currency}
+                      <span className="text-xs text-gray-500 ml-1">(Converted)</span>
+                    </th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Actions</th>
                   </tr>
                 </thead>
@@ -491,10 +621,26 @@ export default function PriceListDetailsPage() {
                         <span className="text-sm text-gray-600">{item.product.uomSell || 'pcs'}</span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="font-medium text-gray-900">{formatCurrency(item.unitPrice, priceList.currency)}</span>
+                        <span className="text-sm text-gray-600">
+                          {item.basePrice ? formatCurrencyWithSymbol(item.basePrice, priceList.currency, priceList.currency) : 'N/A'}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-sm text-gray-600">{item.basePrice ? formatCurrency(item.basePrice, priceList.currency) : 'N/A'}</span>
+                        <span className="font-medium text-gray-900">
+                          {formatCurrencyWithSymbol(item.unitPrice, priceList.currency, priceList.currency)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-blue-900">
+                            {formatCurrencyWithSymbol(item.unitPrice, currency, priceList.currency)}
+                          </span>
+                          {currency !== priceList.currency && (
+                            <span className="text-xs text-gray-500">
+                              from {formatCurrencyWithSymbol(item.unitPrice, priceList.currency, priceList.currency)}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">

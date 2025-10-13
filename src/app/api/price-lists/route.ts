@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/price-lists - Create a new price list
+// POST /api/price-lists - Create a new price list with auto-populated products
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -67,14 +67,29 @@ export async function POST(request: NextRequest) {
       name,
       channel,
       currency = "USD",
+      calculationType = "DISCOUNT",
+      basePrice = "SELLING",
+      percentage = 0,
       effectiveFrom,
       effectiveTo,
+      includeInactive = false,
     } = body;
+    
+    // Ensure percentage is a number
+    const numericPercentage = typeof percentage === 'string' ? parseFloat(percentage) : percentage;
 
     // Validate required fields
     if (!name || !channel) {
       return NextResponse.json(
         { error: "Name and channel are required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate percentage
+    if (numericPercentage < 0 || numericPercentage > 100) {
+      return NextResponse.json(
+        { error: "Percentage must be between 0 and 100" },
         { status: 400 }
       );
     }
@@ -94,14 +109,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create the price list
     const priceList = await prisma.priceList.create({
       data: {
         name,
         channel,
         currency,
+        calculationType,
+        basePrice,
+        percentage: numericPercentage,
         effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : new Date(),
         effectiveTo: effectiveTo ? new Date(effectiveTo) : null,
       },
+    });
+
+    // Fetch all products (active or all based on includeInactive)
+    const products = await prisma.product.findMany({
+      where: includeInactive ? {} : { active: true },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        price: true,
+        cost: true,
+      },
+    });
+    
+
+    // Calculate prices and create price list items for all products
+    const priceListItems = products.map((product) => {
+      // Determine base price
+      const originalPrice = basePrice === "COST" ? product.cost || 0 : product.price || 0;
+      
+      // Calculate unit price based on calculation type
+      let unitPrice: number;
+      if (calculationType === "MARKUP") {
+        // Markup: increase price by percentage
+        unitPrice = originalPrice * (1 + numericPercentage / 100);
+      } else {
+        // Discount: decrease price by percentage
+        unitPrice = originalPrice * (1 - numericPercentage / 100);
+      }
+
+      return {
+        priceListId: priceList.id,
+        productId: product.id,
+        unitPrice: Math.round(unitPrice * 100) / 100, // Round to 2 decimal places
+        basePrice: originalPrice,
+      };
+    });
+
+    // Bulk create price list items
+    if (priceListItems.length > 0) {
+      await prisma.priceListItem.createMany({
+        data: priceListItems,
+      });
+    }
+
+    // Fetch the complete price list with items
+    const completePriceList = await prisma.priceList.findUnique({
+      where: { id: priceList.id },
       include: {
         items: {
           include: {
@@ -122,7 +189,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(priceList, { status: 201 });
+    return NextResponse.json(completePriceList, { status: 201 });
   } catch (error) {
     console.error("Error creating price list:", error);
     return NextResponse.json(

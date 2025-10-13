@@ -368,7 +368,7 @@ model QuotationLine {
   lineTotal   Float
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   product     Product   @relation(fields: [productId], references: [id])
 
   @@map("quotation_lines")

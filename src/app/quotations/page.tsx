@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/contexts/toast-context";
 import { useTheme } from "@/contexts/theme-context";
+import { downloadQuotationAsPDF } from "@/lib/quotation-download";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { SendQuoteModal } from "../../components/modals/send-quote-modal";
+import { ConfirmationModal } from "@/components/modals/confirmation-modal";
+import { SkeletonTableRow, SkeletonMetricCard } from "@/components/ui/skeleton-loading";
 import { 
   Plus, 
   Search, 
@@ -34,7 +37,9 @@ import {
   Clock,
   Send,
   MoreVertical,
-  Calendar
+  Calendar,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import Link from "next/link";
 
@@ -50,6 +55,7 @@ interface Quotation {
   notes?: string;
   validUntil: string;
   createdAt: string;
+  updatedAt: string;
   customerType?: 'STANDARD' | 'CREDIT';
   account: {
     id: string;
@@ -60,6 +66,7 @@ interface Quotation {
   distributor?: {
     id: string;
     businessName: string;
+    name?: string;
     email?: string;
     phone?: string;
   };
@@ -67,6 +74,7 @@ interface Quotation {
     id: string;
     firstName: string;
     lastName: string;
+    name?: string;
     email?: string;
     phone?: string;
     company?: string;
@@ -100,26 +108,75 @@ interface Quotation {
 
 export default function QuotationsPage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { success, error: showError } = useToast();
   const { getThemeClasses, customLogo } = useTheme();
   const theme = getThemeClasses();
   
   const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [allQuotations, setAllQuotations] = useState<Quotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [sendQuoteModalOpen, setSendQuoteModalOpen] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  
+  // Bulk selection state
+  const [selectedQuotations, setSelectedQuotations] = useState<Set<string>>(new Set());
+  const [isAllSelected, setIsAllSelected] = useState(false);
+  
+  // Confirmation modal state
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    onConfirm: () => void;
+    type: 'danger' | 'warning' | 'info';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: '',
+    onConfirm: () => {},
+    type: 'danger'
+  });
 
   useEffect(() => {
-    loadQuotations();
-  }, []);
+    if (status === 'authenticated' && session?.user) {
+      loadQuotations(1);
+      loadAllQuotationsForMetrics();
+    }
+  }, [statusFilter, status, session]);
 
-  const loadQuotations = async () => {
+  // Debounced search effect
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      const timeoutId = setTimeout(() => {
+        loadQuotations(1);
+      }, 500); // 500ms debounce
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchTerm, status, session]);
+
+  const loadAllQuotationsForMetrics = async () => {
     try {
-      setIsLoading(true);
-      const response = await fetch('/api/quotations');
+      // Check if user is logged in
+      if (status === 'loading' || !session?.user) {
+        return;
+      }
+      
+      // Fetch all quotations without pagination for metrics
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '1000' // Large limit to get all quotations
+      });
+      
+      const response = await fetch(`/api/quotations?${params.toString()}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -133,17 +190,90 @@ export default function QuotationsPage() {
           } : undefined,
           distributor: q.distributor ? {
             ...q.distributor,
-            businessName: q.distributor.businessName || 'Unknown Customer'
+            name: q.distributor.businessName || 'Unknown Distributor'
+          } : undefined,
+          lead: q.lead ? {
+            ...q.lead,
+            name: q.lead.firstName && q.lead.lastName ? `${q.lead.firstName} ${q.lead.lastName}` : 'Unknown Lead'
+          } : undefined,
+        }));
+        
+        setAllQuotations(mappedQuotations);
+      } else {
+        console.error('Failed to load quotations for metrics:', response.status);
+      }
+    } catch (error) {
+      console.error('Error loading all quotations for metrics:', error);
+    }
+  };
+
+  const loadQuotations = async (page: number = 1) => {
+    try {
+      setIsLoading(true);
+      
+      // Check if user is logged in
+      if (status === 'loading') {
+        setIsLoading(false);
+        return;
+      }
+      
+      if (!session?.user) {
+        showError("Please log in to view quotations");
+        setIsLoading(false);
+        return;
+      }
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10'
+      });
+      
+      if (statusFilter !== 'ALL') {
+        params.append('status', statusFilter);
+      }
+      
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+      }
+      
+      const response = await fetch(`/api/quotations?${params.toString()}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update pagination data
+        setCurrentPage(data.pagination?.page || 1);
+        setTotalPages(data.pagination?.pages || 1);
+        setTotalItems(data.pagination?.total || 0);
+        
+        // Map quotations to include customer name from either account, distributor, or lead
+        const mappedQuotations = (data.quotations || []).map((q: any) => ({
+          ...q,
+          account: q.account ? {
+            ...q.account,
+            name: q.account.name || 'Unknown Customer'
+          } : undefined,
+          distributor: q.distributor ? {
+            ...q.distributor,
+            name: q.distributor.businessName || 'Unknown Distributor'
+          } : undefined,
+          lead: q.lead ? {
+            ...q.lead,
+            name: q.lead.firstName && q.lead.lastName ? `${q.lead.firstName} ${q.lead.lastName}` : 'Unknown Lead'
           } : undefined
         }));
         
         setQuotations(mappedQuotations);
       } else {
+        if (response.status === 401) {
+          showError("Please log in to view quotations");
+          window.location.href = '/auth/signin';
+      } else {
         showError("Failed to load quotations");
+        }
       }
     } catch (error) {
       console.error('Error loading quotations:', error);
-      showError("Failed to load quotations");
+      showError("Failed to load quotations", "Network error or server unavailable");
     } finally {
       setIsLoading(false);
     }
@@ -216,401 +346,193 @@ export default function QuotationsPage() {
     }
   };
 
-  const handleDeleteQuotation = async (quotation: Quotation) => {
-    if (!confirm(`Are you sure you want to delete quotation ${quotation.number}? This action cannot be undone.`)) {
-      return;
-    }
-
+  const handleStatusUpdate = async (quotation: Quotation, newStatus: string) => {
     try {
       const response = await fetch(`/api/quotations/${quotation.id}`, {
-        method: 'DELETE',
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: quotation.subject,
+          status: newStatus
+        }),
       });
 
       if (response.ok) {
-        success(`Quotation ${quotation.number} deleted successfully`);
-        loadQuotations(); // Reload the list
+        success("Status Updated", `Quotation ${quotation.number} status updated to ${newStatus}`);
+        loadQuotations(currentPage);
+        loadAllQuotationsForMetrics();
       } else {
         const errorData = await response.json();
-        showError(errorData.error || "Failed to delete quotation");
+        showError(errorData.error || "Failed to update status");
       }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      showError("Failed to update status");
+    }
+  };
+
+  const handleDeleteQuotation = async (quotation: Quotation) => {
+    showConfirmation(
+      "Delete Quotation",
+      `Are you sure you want to delete quotation ${quotation.number}?`,
+      "Delete Quotation",
+      async () => {
+    try {
+      const response = await fetch(`/api/quotations/${quotation.id}`, {
+        method: 'DELETE',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+      });
+
+          if (response.ok) {
+            success(`Quotation ${quotation.number} deleted successfully`);
+            loadQuotations(); // Reload the list
+            closeConfirmation(); // Close the modal
+          } else {
+            const errorData = await response.json();
+            showError(errorData.error || "Failed to delete quotation");
+          }
     } catch (error) {
       console.error('Error deleting quotation:', error);
       showError("Failed to delete quotation");
     }
+      }
+    );
   };
 
   const handleDownload = async (quotation: Quotation) => {
-    try {
-      // Create a new window with the quotation content formatted for printing
-      const printWindow = window.open('', '_blank');
-      
-      if (!printWindow) {
-        showError("Unable to open print window. Please check your popup blocker.");
-        return;
-      }
+    await downloadQuotationAsPDF(quotation as any, customLogo || undefined, showError, success);
+  };
 
-      // Get quotation details
-      const customerName = quotation.account?.name || 
-                          quotation.distributor?.businessName || 
-                          (quotation.lead ? `${quotation.lead.firstName} ${quotation.lead.lastName}`.trim() : '') ||
-                          'No customer';
-      const customerEmail = quotation.account?.email || quotation.distributor?.email || quotation.lead?.email || '';
-      const customerPhone = quotation.account?.phone || quotation.distributor?.phone || quotation.lead?.phone || '';
-      
-      
-      
-      // Calculate if discount column should be shown
-      const hasDiscounts = quotation.lines?.some(line => line.discount > 0) || false;
-      
-      // Create the HTML content matching the preview layout exactly
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Quotation ${quotation.number}</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              margin: 0;
-              padding: 20px;
-              color: #333;
-              line-height: 1.6;
-            }
-            .company-header {
-              text-align: center;
-              margin-bottom: 32px;
-            }
-            .logo {
-              height: 64px;
-              width: auto;
-              margin: 0 auto 16px;
-              display: block;
-            }
-            .company-name {
-              font-size: 24px;
-              font-weight: bold;
-              color: #111;
-              margin-bottom: 4px;
-            }
-            .document-subtitle {
-              font-size: 14px;
-              color: #6b7280;
-            }
-            .info-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr 1fr;
-              gap: 24px;
-              margin-bottom: 32px;
-            }
-            .info-label {
-              font-size: 12px;
-              font-weight: 500;
-              color: #6b7280;
-              text-transform: uppercase;
-              letter-spacing: 0.025em;
-              margin-bottom: 4px;
-            }
-            .info-value {
-              font-weight: 600;
-              color: #111;
-            }
-            .info-sub {
-              font-size: 14px;
-              color: #6b7280;
-              margin-top: 8px;
-            }
-            .info-sub-label {
-              font-size: 12px;
-              font-weight: 500;
-              color: #6b7280;
-              text-transform: uppercase;
-              letter-spacing: 0.025em;
-              margin-bottom: 4px;
-            }
-            .status-badge {
-              display: inline-flex;
-              align-items: center;
-              padding: 2px 10px;
-              border-radius: 9999px;
-              font-size: 12px;
-              font-weight: 500;
-            }
-            .status-draft { background-color: #f3f4f6; color: #374151; }
-            .status-sent { background-color: #dbeafe; color: #1e40af; }
-            .status-accepted { background-color: #d1fae5; color: #065f46; }
-            .status-rejected { background-color: #fee2e2; color: #991b1b; }
-            .status-expired { background-color: #fed7aa; color: #9a3412; }
-            
-            .items-section {
-              margin-bottom: 32px;
-            }
-            .items-label {
-              font-size: 12px;
-              font-weight: 500;
-              color: #6b7280;
-              text-transform: uppercase;
-              margin-bottom: 12px;
-            }
-            .table-container {
-              border: 1px solid #e5e7eb;
-              border-radius: 8px;
-              overflow: hidden;
-            }
-            .table-header {
-              background-color: #f9fafb;
-              display: grid;
-              grid-template-columns: ${hasDiscounts ? '1fr 4fr 1fr 2fr 2fr 2fr' : '1fr 4fr 1fr 2fr 2fr'};
-              gap: 8px;
-              padding: 8px 12px;
-            }
-            .table-header-cell {
-              font-size: 12px;
-              font-weight: 500;
-              color: #374151;
-              text-transform: uppercase;
-            }
-            .table-body {
-              max-height: none;
-              overflow: visible;
-            }
-            .table-row {
-              display: grid;
-              grid-template-columns: ${hasDiscounts ? '1fr 4fr 1fr 2fr 2fr 2fr' : '1fr 4fr 1fr 2fr 2fr'};
-              gap: 8px;
-              padding: 8px 12px;
-              border-bottom: 1px solid #f3f4f6;
-              font-size: 12px;
-            }
-            .table-row:last-child {
-              border-bottom: none;
-            }
-            .table-row:nth-child(even) {
-              background-color: #f9fafb;
-            }
-            .table-row:nth-child(odd) {
-              background-color: white;
-            }
-            .row-number { color: #6b7280; }
-            .row-description {
-              font-weight: 500;
-              color: #111;
-            }
-            .row-sku {
-              font-size: 12px;
-              color: #6b7280;
-              margin-top: 2px;
-            }
-            .row-amount {
-              font-weight: 500;
-              color: #111;
-            }
-            .row-discount {
-              font-weight: 500;
-              color: #059669;
-            }
-            .row-discount-dash {
-              color: #9ca3af;
-            }
-            .row-other { color: #6b7280; }
-            
-            .totals-section {
-              border-top: 1px solid #e5e7eb;
-              padding-top: 16px;
-            }
-            .total-row {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              padding: 8px 0;
-            }
-            .total-final {
-              font-weight: bold;
-              font-size: 18px;
-              border-top: 1px solid #e5e7eb;
-              margin-top: 8px;
-              padding-top: 16px;
-            }
-            .total-label { color: #6b7280; }
-            .total-value { font-weight: 500; }
-            .total-discount { color: #059669; }
-            .total-black { color: #111; }
-            
-            .notes-section {
-              margin-top: 32px;
-              padding-top: 24px;
-              border-top: 1px solid #e5e7eb;
-            }
-            .notes-title {
-              font-weight: 500;
-              color: #111;
-              margin-bottom: 8px;
-            }
-            .notes-content {
-              font-size: 14px;
-              color: #6b7280;
-              white-space: pre-wrap;
-            }
-            
-            @media print {
-              body { margin: 0; padding: 15px; }
-              .company-header { page-break-after: avoid; }
-              .table-container { page-break-inside: avoid; }
-            }
-          </style>
-        </head>
-        <body>
-          <!-- Company Header -->
-          <div class="company-header">
-            ${customLogo ? `<img src="${customLogo}" alt="Company Logo" class="logo" />` : ''}
-            <div class="company-name">${quotation.subject || 'Untitled Quotation'}</div>
-            <div class="document-subtitle">${quotation.number}</div>
-          </div>
+  // Helper function to show confirmation modal
+  const showConfirmation = (
+    title: string,
+    message: string,
+    confirmText: string,
+    onConfirm: () => void,
+    type: 'danger' | 'warning' | 'info' = 'danger'
+  ) => {
+    setConfirmationModal({
+      isOpen: true,
+      title,
+      message,
+      confirmText,
+      onConfirm,
+      type
+    });
+  };
 
-          <!-- Document Info Grid -->
-          <div class="info-grid">
-            <div>
-              <div class="info-label">QUOTATION</div>
-              <div class="info-value">${quotation.number}</div>
-              <div class="info-sub">
-                <div class="info-sub-label">Valid Until</div>
-                <div>${quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString() : 'No expiry'}</div>
-              </div>
-            </div>
-            <div>
-              <div class="info-label">DATE</div>
-              <div class="info-value">${new Date(quotation.createdAt).toLocaleDateString()}</div>
-              <div class="info-sub">
-                <div class="info-sub-label">Status</div>
-                <div>
-                  <span class="status-badge status-${quotation.status.toLowerCase()}">
-                    ${quotation.status.toLowerCase()}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div>
-              <div class="info-label">Bill To</div>
-              <div class="info-value">${customerName}</div>
-              <div class="info-sub">
-                <div>${customerEmail}</div>
-                <div>${customerPhone}</div>
-              </div>
-            </div>
-          </div>
+  const closeConfirmation = () => {
+    setConfirmationModal(prev => ({ ...prev, isOpen: false }));
+  };
 
-          <!-- Items Section -->
-          <div class="items-section">
-            <div class="items-label">Items</div>
-            ${quotation.lines && quotation.lines.length > 0 ? `
-              <div class="table-container">
-                <div class="table-header">
-                  <div class="table-header-cell">#</div>
-                  <div class="table-header-cell">Description</div>
-                  <div class="table-header-cell">Qty</div>
-                  <div class="table-header-cell">Unit Price</div>
-                  ${hasDiscounts ? '<div class="table-header-cell">Discount</div>' : ''}
-                  <div class="table-header-cell">Amount</div>
-                </div>
-                <div class="table-body">
-                  ${quotation.lines.map((line: any, index: number) => `
-                    <div class="table-row">
-                      <div class="row-number">${index + 1}</div>
-                      <div class="row-description">
-                        ${line.product?.name || line.productName || `Item ${index + 1}`}
-                        ${line.product?.sku || line.sku ? `<div class="row-sku">SKU: ${line.product?.sku || line.sku}</div>` : ''}
-                        ${line.description ? `<div class="row-sku">${line.description}</div>` : ''}
-                      </div>
-                      <div class="row-other">${line.quantity}</div>
-                      <div class="row-other">GH₵${line.unitPrice.toFixed(2)}</div>
-                      ${hasDiscounts ? `
-                        <div class="${line.discount > 0 ? 'row-discount' : 'row-discount-dash'}">
-                          ${line.discount > 0 ? `${line.discount}%` : '-'}
-                        </div>
-                      ` : ''}
-                      <div class="row-amount">GH₵${line.lineTotal.toFixed(2)}</div>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            ` : `
-              <div style="text-align: center; padding: 16px; color: #9ca3af; font-style: italic;">
-                No items added
-              </div>
-            `}
-          </div>
-
-          <!-- Totals Section -->
-          <div class="totals-section">
-            ${!quotation.taxInclusive ? `
-              <div class="total-row">
-                <span class="total-label">Subtotal:</span>
-                <span class="total-value">GH₵${quotation.subtotal.toFixed(2)}</span>
-              </div>
-              <div class="total-row">
-                <span class="total-label">Tax:</span>
-                <span class="total-value">GH₵${quotation.tax.toFixed(2)}</span>
-              </div>
-            ` : ''}
-            <div class="total-row total-final">
-              <span>${quotation.taxInclusive ? 'Total (Tax Inclusive):' : 'Total:'}</span>
-              <span class="total-black">GH₵${quotation.total.toFixed(2)}</span>
-            </div>
-          </div>
-
-          ${quotation.notes ? `
-            <div class="notes-section">
-              <div class="notes-title">Notes</div>
-              <div class="notes-content">${quotation.notes}</div>
-            </div>
-          ` : ''}
-        </body>
-        </html>
-      `;
-
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-      
-      // Wait for content to load, then trigger print dialog
-      printWindow.onload = () => {
-        printWindow.print();
-        printWindow.close();
-      };
-      
-      success("Quotation ready for download/printing");
-    } catch (error) {
-      console.error('Error downloading quotation:', error);
-      showError("Failed to download quotation");
+  // Bulk selection functions
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedQuotations(new Set());
+      setIsAllSelected(false);
+    } else {
+      const allIds = new Set(filteredQuotations.map(q => q.id));
+      setSelectedQuotations(allIds);
+      setIsAllSelected(true);
     }
   };
 
-  const filteredQuotations = quotations.filter(q => {
-    const matchesSearch = q.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         q.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         q.account.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "ALL" || q.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const stats = {
-    total: quotations.length,
-    draft: quotations.filter(q => q.status === 'DRAFT').length,
-    sent: quotations.filter(q => q.status === 'SENT').length,
-    accepted: quotations.filter(q => q.status === 'ACCEPTED').length,
-    totalValue: quotations.reduce((sum, q) => sum + q.total, 0),
+  const handleSelectQuotation = (quotationId: string) => {
+    const newSelected = new Set(selectedQuotations);
+    if (newSelected.has(quotationId)) {
+      newSelected.delete(quotationId);
+    } else {
+      newSelected.add(quotationId);
+    }
+    setSelectedQuotations(newSelected);
+    setIsAllSelected(newSelected.size === filteredQuotations.length);
   };
 
-  if (isLoading) {
-    return (
-      <MainLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading quotations...</p>
-          </div>
-        </div>
-      </MainLayout>
+  const handleBulkDelete = async () => {
+    if (selectedQuotations.size === 0) return;
+    
+    showConfirmation(
+      "Delete Multiple Quotations",
+      `Are you sure you want to delete ${selectedQuotations.size} quotation(s)?`,
+      "Delete All",
+      async () => {
+        try {
+          const deletePromises = Array.from(selectedQuotations).map(id => 
+            fetch(`/api/quotations/${id}`, {
+              method: 'DELETE',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+            })
+          );
+
+          const results = await Promise.all(deletePromises);
+          const failed = results.filter(r => !r.ok).length;
+          
+          if (failed === 0) {
+            success(`Successfully deleted ${selectedQuotations.size} quotation(s)`);
+            setSelectedQuotations(new Set());
+            setIsAllSelected(false);
+            loadQuotations(currentPage);
+            loadAllQuotationsForMetrics();
+            closeConfirmation(); // Close the modal
+          } else {
+            showError(`Failed to delete ${failed} quotation(s)`);
+          }
+        } catch (error) {
+          console.error('Error bulk deleting quotations:', error);
+          showError("Failed to delete quotations");
+        }
+      }
     );
-  }
+  };
+
+  const handleBulkStatusUpdate = async (newStatus: string) => {
+    if (selectedQuotations.size === 0) return;
+
+    try {
+      const updatePromises = Array.from(selectedQuotations).map(id => 
+        fetch(`/api/quotations/${id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        })
+      );
+
+      const results = await Promise.all(updatePromises);
+      const failed = results.filter(r => !r.ok).length;
+      
+      if (failed === 0) {
+        success(`Successfully updated ${selectedQuotations.size} quotation(s) to ${newStatus}`);
+        setSelectedQuotations(new Set());
+        setIsAllSelected(false);
+        loadQuotations(currentPage);
+        loadAllQuotationsForMetrics();
+      } else {
+        showError(`Failed to update ${failed} quotation(s)`);
+      }
+    } catch (error) {
+      console.error('Error bulk updating quotations:', error);
+      showError("Failed to update quotations");
+    }
+  };
+
+  // Since we're using backend pagination and filtering, we don't need client-side filtering
+  const filteredQuotations = quotations;
+
+  const stats = {
+    total: allQuotations.length,
+    draft: allQuotations.filter(q => q.status === 'DRAFT').length,
+    sent: allQuotations.filter(q => q.status === 'SENT').length,
+    accepted: allQuotations.filter(q => q.status === 'ACCEPTED').length,
+    totalValue: Number(allQuotations.reduce((sum, q) => sum + q.total, 0).toFixed(2)),
+  };
+
+  // Remove the loading return - we'll show skeleton loading instead
 
   return (
     <MainLayout>
@@ -665,6 +587,15 @@ export default function QuotationsPage() {
 
           {/* Metrics Cards - Right Side (1/3, 2x2 Grid) */}
           <div className="grid grid-cols-2 gap-4">
+            {isLoading ? (
+              <>
+                <SkeletonMetricCard />
+                <SkeletonMetricCard />
+                <SkeletonMetricCard />
+                <SkeletonMetricCard />
+              </>
+            ) : (
+              <>
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -704,12 +635,15 @@ export default function QuotationsPage() {
                 <FileText className={`h-8 w-8 text-${theme.primary}`} />
               </div>
             </Card>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Quotations Table with Search */}
         <Card>
-          <CardContent className="p-4">
+          {/* Search and Filters Header */}
+          <CardContent className="p-4 border-b">
             <div className="flex items-center space-x-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -740,15 +674,87 @@ export default function QuotationsPage() {
               </Button>
             </div>
           </CardContent>
-        </Card>
 
-        {/* Quotations Table */}
-        <Card>
+          {/* Bulk Actions */}
+          {selectedQuotations.size > 0 && (
+            <CardContent className="p-4 border-b bg-blue-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm font-medium text-blue-900">
+                    {selectedQuotations.size} quotation(s) selected
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Update Status
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => handleBulkStatusUpdate('DRAFT')}>
+                        <Clock className="h-4 w-4 mr-2" />
+                        Draft
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleBulkStatusUpdate('SENT')}>
+                        <Send className="h-4 w-4 mr-2" />
+                        Sent
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleBulkStatusUpdate('ACCEPTED')}>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Accepted
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleBulkStatusUpdate('REJECTED')}>
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Rejected
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                  
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => {
+                      setSelectedQuotations(new Set());
+                      setIsAllSelected(false);
+                    }}
+                  >
+                    Clear Selection
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          )}
+
+          {/* Table Content */}
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button
+                        onClick={handleSelectAll}
+                        className="flex items-center justify-center w-4 h-4"
+                      >
+                        {isAllSelected ? (
+                          <CheckSquare className="h-4 w-4 text-blue-600" />
+                        ) : (
+                          <Square className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Quote #
                     </th>
@@ -775,7 +781,7 @@ export default function QuotationsPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredQuotations.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
+                      <td colSpan={8} className="px-6 py-12 text-center">
                         <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                         <p className="text-gray-500 text-sm mb-4">
                           {searchTerm || statusFilter !== "ALL" 
@@ -790,9 +796,33 @@ export default function QuotationsPage() {
                         </Link>
                       </td>
                     </tr>
+                  ) : isLoading ? (
+                    // Show skeleton rows while loading
+                    Array.from({ length: 5 }).map((_, index) => (
+                      <SkeletonTableRow key={index} />
+                    ))
                   ) : (
                     filteredQuotations.map((quotation) => (
-                      <tr key={quotation.id} className="hover:bg-gray-50">
+                      <tr 
+                        key={quotation.id} 
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => router.push(`/quotations/${quotation.id}`)}
+                      >
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => handleSelectQuotation(quotation.id)}
+                            className="flex items-center justify-center w-4 h-4"
+                          >
+                            {selectedQuotations.has(quotation.id) ? (
+                              <CheckSquare className="h-4 w-4 text-blue-600" />
+                            ) : (
+                              <Square className="h-4 w-4 text-gray-400" />
+                            )}
+                          </button>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <FileText className="h-4 w-4 text-gray-400 mr-2" />
@@ -804,7 +834,7 @@ export default function QuotationsPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
-                            {quotation.account?.name || quotation.distributor?.businessName || (quotation.lead ? `${quotation.lead.firstName} ${quotation.lead.lastName}` : 'Unknown')}
+                            {quotation.account?.name || quotation.distributor?.name || quotation.lead?.name || 'Unknown'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -818,10 +848,44 @@ export default function QuotationsPage() {
                             {new Date(quotation.validUntil).toLocaleDateString()}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="focus:outline-none">
                           {getStatusBadge(quotation.status)}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(quotation, 'DRAFT')}>
+                                <span className="w-2 h-2 bg-gray-500 rounded-full mr-2"></span>
+                                Draft
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(quotation, 'SENT')}>
+                                <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                                Sent
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(quotation, 'ACCEPTED')}>
+                                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                                Accepted
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(quotation, 'REJECTED')}>
+                                <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                                Rejected
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(quotation, 'EXPIRED')}>
+                                <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
+                                Expired
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap text-sm font-medium"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <div className="flex items-center space-x-2">
                             <Button
                               size="sm"
@@ -882,6 +946,57 @@ export default function QuotationsPage() {
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <div className="text-sm text-gray-700">
+                  Showing {((currentPage - 1) * 10) + 1} to {Math.min(currentPage * 10, totalItems)} of {totalItems} quotations
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadQuotations(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  
+                  {/* Page numbers */}
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNum = currentPage <= 3 
+                      ? i + 1 
+                      : currentPage >= totalPages - 2 
+                        ? totalPages - 4 + i 
+                        : currentPage - 2 + i;
+                    
+                    if (pageNum < 1 || pageNum > totalPages) return null;
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadQuotations(pageNum)}
+                        className={currentPage === pageNum ? `bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0` : ''}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadQuotations(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -897,6 +1012,19 @@ export default function QuotationsPage() {
           quotation={selectedQuotation}
         />
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        onClose={closeConfirmation}
+        onConfirm={confirmationModal.onConfirm}
+        title={confirmationModal.title}
+        message={confirmationModal.message}
+        confirmText={confirmationModal.confirmText}
+        cancelText="Cancel"
+        type={confirmationModal.type}
+        isLoading={false}
+      />
     </MainLayout>
   );
 }

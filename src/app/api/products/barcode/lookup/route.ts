@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
         where: {
           OR: [
             { sku: { contains: barcode.slice(0, 8) } },
-            { name: { contains: barcode.slice(0, 8), mode: 'insensitive' } }
+            { name: { contains: barcode.slice(0, 8) } }
           ]
         },
         take: 5,

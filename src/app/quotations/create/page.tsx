@@ -100,6 +100,116 @@ export default function CreateQuotationPage() {
   // Product search
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [showProductSearch, setShowProductSearch] = useState(false);
+  
+  // Lead data from URL params
+  const [leadId, setLeadId] = useState("");
+  const [leadData, setLeadData] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    company: string;
+  } | null>(null);
+  const [leadProductsLoaded, setLeadProductsLoaded] = useState(false);
+
+  // Read lead data from URL params and pre-fill form
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const leadIdParam = params.get('leadId');
+    const leadNameParam = params.get('leadName');
+    const leadEmailParam = params.get('leadEmail');
+    const leadPhoneParam = params.get('leadPhone');
+    const leadCompanyParam = params.get('leadCompany');
+    
+    if (leadIdParam && leadNameParam) {
+      setLeadId(leadIdParam);
+      setLeadData({
+        name: leadNameParam,
+        email: leadEmailParam || '',
+        phone: leadPhoneParam || '',
+        company: leadCompanyParam || '',
+      });
+      setCustomerType('lead');
+      setCustomerId(leadIdParam);
+      setSubject(`Quotation for ${leadNameParam}`);
+      
+      // Set the selected customer to the lead
+      setSelectedCustomer({
+        id: leadIdParam,
+        name: leadNameParam,
+        email: leadEmailParam || undefined,
+        phone: leadPhoneParam || undefined,
+        type: 'lead'
+      });
+      
+      // Fetch lead's interested products and add them to the quote
+      fetchLeadProducts(leadIdParam);
+    }
+  }, []);
+  
+  // Fetch lead's interested products
+  const fetchLeadProducts = async (leadId: string) => {
+    // Prevent duplicate loading
+    if (leadProductsLoaded) return;
+    
+    try {
+      console.log('🚀 STARTING: Fetching products for lead:', leadId);
+      const response = await fetch(`/api/leads/${leadId}/products`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      console.log('🚀 RESPONSE STATUS:', response.status, response.ok);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🚀 RAW API DATA:', data);
+        const leadProducts = data.products || [];
+        console.log('🚀 PROCESSED PRODUCTS:', leadProducts.length, leadProducts);
+        
+        // Add interested products to quote lines
+        if (leadProducts.length > 0) {
+          const newLines: LineItem[] = leadProducts.map((lp: any) => {
+            const product = lp.product;
+            if (!product) return null;
+            
+            const quantity = lp.quantity || 1;
+            const unitPrice = product.price || 0;
+            const discount = 0;
+            const subtotal = quantity * unitPrice * (1 - discount / 100);
+            
+            // Calculate taxes
+            const taxesForLine = globalTaxes.map(tax => ({
+              ...tax,
+              amount: (subtotal * tax.rate) / 100
+            }));
+            
+            const lineTotal = taxInclusive 
+              ? subtotal 
+              : subtotal + taxesForLine.reduce((sum, tax) => sum + tax.amount, 0);
+            
+            return {
+              id: Math.random().toString(),
+              productId: product.id,
+              productName: product.name,
+              sku: product.sku || '',
+              quantity,
+              unitPrice,
+              discount,
+              taxes: taxesForLine,
+              lineTotal
+            };
+          }).filter(Boolean);
+          
+          setLines(newLines as LineItem[]);
+          setLeadProductsLoaded(true); // Mark as loaded
+          success(`Added ${newLines.length} interested products to quote`);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching lead products:', error);
+      // Don't show error - products are optional
+    }
+  };
 
   useEffect(() => {
     loadCustomers();
@@ -117,8 +227,8 @@ export default function CreateQuotationPage() {
       
       // Load both accounts and distributors
       const [accountsRes, distributorsRes] = await Promise.all([
-        fetch('/api/accounts'),
-        fetch('/api/drm/distributors')
+        fetch('/api/accounts', { credentials: 'include' }),
+        fetch('/api/drm/distributors', { credentials: 'include' })
       ]);
       
       const allCustomers: Customer[] = [];
@@ -383,6 +493,123 @@ export default function CreateQuotationPage() {
 
   const totals = calculateTotals();
 
+  const sendQuotationToCustomer = async (quotation: any, customer: any) => {
+    try {
+      // Get customer details
+      const customerName = customer?.name || customer?.businessName || 
+                          (customer?.firstName && customer?.lastName ? `${customer.firstName} ${customer.lastName}` : '') ||
+                          'Customer';
+      const customerEmail = customer?.email || '';
+      const customerPhone = customer?.phone || '';
+
+      // Generate PDF URL
+      const pdfUrl = `${window.location.origin}/quotations/${quotation.id}/pdf`;
+
+      // Send email if customer has email
+      if (customerEmail) {
+        const emailMessage = `Dear ${customerName},
+
+Please find your quotation (No: ${quotation.number}, Subject: ${quotation.subject}) attached. The total amount is GH₵${quotation.total.toFixed(2)}.
+
+View your quote here: ${pdfUrl}
+
+Best regards,
+AdPools Team`;
+
+        await fetch('/api/communication/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipients: [customerEmail],
+            subject: `Quotation ${quotation.number} - ${quotation.subject}`,
+            message: emailMessage,
+            isBulk: false,
+            attachments: [
+              {
+                filename: `Quotation-${quotation.number}.pdf`,
+                url: pdfUrl,
+                contentType: 'application/pdf'
+              }
+            ]
+          }),
+        });
+      }
+
+      // Send SMS if customer has phone
+      if (customerPhone) {
+        const smsMessage = `Dear ${customerName}, your quotation ${quotation.number} is ready. Total: GH₵${quotation.total.toFixed(2)}. View PDF: ${pdfUrl}`;
+
+        await fetch('/api/communication/sms/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipients: [customerPhone],
+            message: smsMessage,
+            isBulk: false
+          }),
+        });
+      }
+
+      // Send notification to super admins
+      await sendNotificationToSuperAdmins(quotation, customerName);
+
+    } catch (error) {
+      console.error('Error sending quotation to customer:', error);
+      // Don't fail the entire save process if sending fails
+    }
+  };
+
+  const sendNotificationToSuperAdmins = async (quotation: any, customerName: string) => {
+    try {
+      // Get all super admin users
+      const response = await fetch('/api/users?role=SUPER_ADMIN');
+      if (!response.ok) {
+        console.error('Failed to fetch super admins:', response.status);
+        return;
+      }
+      
+      const responseData = await response.json();
+      const superAdmins = responseData.users || [];
+      
+      // Check if superAdmins is an array
+      if (!Array.isArray(superAdmins) || superAdmins.length === 0) {
+        console.log('No super admins found or invalid response format');
+        return;
+      }
+
+      const notificationMessage = `New quotation ${quotation.number} created and sent to ${customerName}. Total: GH₵${quotation.total.toFixed(2)}.`;
+
+      // Send email to all super admins
+      const adminEmails = superAdmins.map((admin: any) => admin.email).filter(Boolean);
+      if (adminEmails.length > 0) {
+        await fetch('/api/communication/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipients: adminEmails,
+            subject: `New Quotation Created: ${quotation.number}`,
+            message: `A new quotation has been created and sent to customer ${customerName}.
+
+Quotation Details:
+- Number: ${quotation.number}
+- Subject: ${quotation.subject}
+- Total: GH₵${quotation.total.toFixed(2)}
+- Customer: ${customerName}
+
+View quotation: ${window.location.origin}/quotations/${quotation.id}
+
+Best regards,
+AdPools System`,
+            isBulk: false
+          }),
+        });
+      }
+
+    } catch (error) {
+      console.error('Error sending notification to super admins:', error);
+    }
+  };
+
   const handleSave = async (sendToCustomer: boolean = false) => {
     if (!subject.trim()) {
       showError("Validation Error", "Subject is required");
@@ -430,11 +657,115 @@ export default function CreateQuotationPage() {
 
       if (response.ok) {
         const data = await response.json();
-        success("Quotation Created", `Quotation ${data.number} has been created successfully`);
+        
+        // If this quote was created from a lead, create Account + Contact and convert lead to opportunity
+        if (leadId && selectedCustomer?.type === 'lead') {
+          try {
+            // Create Account and Contact for the lead
+            const accountResponse = await fetch('/api/accounts', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: leadData?.company || leadData?.name || 'Unknown Customer',
+                type: leadData?.company ? 'COMPANY' : 'INDIVIDUAL',
+                email: leadData?.email || '',
+                phone: leadData?.phone || '',
+                address: '',
+                city: '',
+                country: '',
+                website: '',
+                notes: `Account created from lead: ${leadData?.name || 'Unknown'}`,
+              }),
+            });
+
+            if (!accountResponse.ok) {
+              const errorData = await accountResponse.json();
+              console.error('Account creation failed:', errorData);
+              throw new Error(`Failed to create account: ${errorData.error || 'Unknown error'}`);
+            }
+
+            const accountData = await accountResponse.json();
+
+            // Create Contact for the account
+            const contactResponse = await fetch('/api/contacts', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                accountId: accountData.id,
+                firstName: leadData?.name.split(' ')[0] || '',
+                lastName: leadData?.name.split(' ').slice(1).join(' ') || '',
+                email: leadData?.email || '',
+                phone: leadData?.phone || '',
+                position: '',
+              }),
+            });
+
+            if (!contactResponse.ok) {
+              const errorData = await contactResponse.json();
+              console.error('Contact creation failed:', errorData);
+              throw new Error(`Failed to create contact: ${errorData.error || 'Unknown error'}`);
+            }
+
+            const contactData = await contactResponse.json();
+
+            // Update the quotation to reference the new account instead of the lead
+            console.log('🔍 Updating quotation with accountId:', accountData.id);
+            const updateResponse = await fetch(`/api/quotations/${data.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                subject: subject, // Required field
+                accountId: accountData.id,
+                leadId: null, // Remove lead reference
+              }),
+            });
+
+            if (!updateResponse.ok) {
+              const updateError = await updateResponse.json();
+              console.error('Failed to update quotation:', updateError);
+              throw new Error(`Failed to update quotation: ${updateError.error || 'Unknown error'}`);
+            }
+
+            console.log('✅ Quotation updated successfully');
+
+            // Update lead status to QUOTE_SENT (opportunity stage)
+            await fetch(`/api/leads/${leadId}`, {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'QUOTE_SENT',
+              }),
+            });
+            
+            success("Success", `Quotation ${data.number} created with Account "${accountData.name}" and Contact "${contactData.firstName} ${contactData.lastName}". Lead converted to opportunity.`);
+          } catch (conversionError) {
+            console.error('Error creating account/contact and converting lead:', conversionError);
+            // Don't fail if conversion fails - quote is still created
+            success("Quotation Created", `Quotation ${data.number} created (Note: Account/Contact creation pending)`);
+          }
+        }
         
         if (sendToCustomer) {
-          // TODO: Send email
-          success("Email Sent", "Quotation sent to customer");
+          // Send email and SMS to customer
+          await sendQuotationToCustomer(data, selectedCustomer);
+          
+          // Update quotation status to SENT
+          await fetch(`/api/quotations/${data.id}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subject: subject,
+              status: 'SENT'
+            }),
+          });
+          
+          success("Quotation Sent", `Quotation ${data.number} created and sent to customer via email/SMS`);
+        } else {
+          success("Quotation Created", `Quotation ${data.number} has been created successfully`);
         }
         
         router.push('/quotations');
@@ -531,7 +862,8 @@ export default function CreateQuotationPage() {
                   <div className={`p-3 bg-${theme.primaryBg} rounded-lg text-sm space-y-1 border border-${theme.primary} border-opacity-20`}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-gray-900">
-                        {selectedCustomer.type === 'account' ? '📊 CRM Customer' : '🤝 Distributor'}
+                        {selectedCustomer.type === 'account' ? '📊 CRM Customer' : 
+                         selectedCustomer.type === 'lead' ? '👤 Lead' : '🤝 Distributor'}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         selectedCustomer.customerType === 'CREDIT' 
