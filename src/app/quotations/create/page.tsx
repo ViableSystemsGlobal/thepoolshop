@@ -111,6 +111,12 @@ export default function CreateQuotationPage() {
   } | null>(null);
   const [leadProductsLoaded, setLeadProductsLoaded] = useState(false);
 
+  // Address selection state
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [selectedBillingAddressId, setSelectedBillingAddressId] = useState("");
+  const [selectedShippingAddressId, setSelectedShippingAddressId] = useState("");
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+
   // Read lead data from URL params and pre-fill form
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -287,10 +293,53 @@ export default function CreateQuotationPage() {
     }
   };
 
+  const loadAddresses = async (accountId: string) => {
+    try {
+      setIsLoadingAddresses(true);
+      const response = await fetch(`/api/addresses?accountId=${accountId}`, {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAddresses(data.addresses || []);
+        
+        // Auto-select default addresses
+        const defaultBilling = data.addresses?.find((addr: any) => 
+          (addr.type === 'BILLING' || addr.type === 'BOTH') && addr.isDefault
+        );
+        const defaultShipping = data.addresses?.find((addr: any) => 
+          (addr.type === 'SHIPPING' || addr.type === 'BOTH') && addr.isDefault
+        );
+        
+        if (defaultBilling) setSelectedBillingAddressId(defaultBilling.id);
+        if (defaultShipping) setSelectedShippingAddressId(defaultShipping.id);
+      } else {
+        console.error('Failed to load addresses');
+        setAddresses([]);
+      }
+    } catch (error) {
+      console.error('Error loading addresses:', error);
+      setAddresses([]);
+    } finally {
+      setIsLoadingAddresses(false);
+    }
+  };
+
   const handleCustomerChange = (custId: string) => {
     setCustomerId(custId);
     const customer = customers.find(c => c.id === custId);
     setSelectedCustomer(customer || null);
+    
+    // Load addresses if customer is an account
+    if (customer?.type === 'account') {
+      loadAddresses(customer.id);
+    } else {
+      // Clear addresses for non-account customers
+      setAddresses([]);
+      setSelectedBillingAddressId("");
+      setSelectedShippingAddressId("");
+    }
     if (customer) {
       setCustomerType(customer.type);
     }
@@ -638,6 +687,8 @@ AdPools System`,
           distributorId: selectedCustomer?.type === 'distributor' ? customerId : null,
           leadId: selectedCustomer?.type === 'lead' ? customerId : null,
           customerType: selectedCustomer?.customerType || 'STANDARD',
+          billingAddressId: selectedBillingAddressId || null,
+          shippingAddressId: selectedShippingAddressId || null,
           validUntil,
           notes,
           taxInclusive,
@@ -661,6 +712,18 @@ AdPools System`,
         // If this quote was created from a lead, create Account + Contact and convert lead to opportunity
         if (leadId && selectedCustomer?.type === 'lead') {
           try {
+            // First, fetch the full lead data including addresses
+            const leadResponse = await fetch(`/api/leads/${leadId}`, {
+              credentials: 'include',
+            });
+            
+            if (!leadResponse.ok) {
+              throw new Error('Failed to fetch lead data');
+            }
+            
+            const fullLeadData = await leadResponse.json();
+            console.log('🔍 Full lead data:', fullLeadData);
+            
             // Create Account and Contact for the lead
             const accountResponse = await fetch('/api/accounts', {
               method: 'POST',
@@ -671,9 +734,6 @@ AdPools System`,
                 type: leadData?.company ? 'COMPANY' : 'INDIVIDUAL',
                 email: leadData?.email || '',
                 phone: leadData?.phone || '',
-                address: '',
-                city: '',
-                country: '',
                 website: '',
                 notes: `Account created from lead: ${leadData?.name || 'Unknown'}`,
               }),
@@ -686,6 +746,68 @@ AdPools System`,
             }
 
             const accountData = await accountResponse.json();
+            console.log('✅ Account created:', accountData.id);
+
+            // Create addresses from lead data if they exist
+            if (fullLeadData.hasBillingAddress && fullLeadData.billingAddress) {
+              try {
+                console.log('🏠 Creating billing address from lead data');
+                const billingAddressResponse = await fetch('/api/addresses', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    accountId: accountData.id,
+                    label: 'Billing Address',
+                    type: 'BILLING',
+                    street: fullLeadData.billingAddress.street || '',
+                    city: fullLeadData.billingAddress.city || '',
+                    region: fullLeadData.billingAddress.region || '',
+                    country: fullLeadData.billingAddress.country || '',
+                    postalCode: fullLeadData.billingAddress.postalCode || '',
+                    isDefault: true,
+                  }),
+                });
+
+                if (billingAddressResponse.ok) {
+                  console.log('✅ Billing address created successfully');
+                } else {
+                  console.error('❌ Failed to create billing address');
+                }
+              } catch (addressError) {
+                console.error('Error creating billing address:', addressError);
+              }
+            }
+
+            if (fullLeadData.hasShippingAddress && fullLeadData.shippingAddress && !fullLeadData.sameAsBilling) {
+              try {
+                console.log('🚚 Creating shipping address from lead data');
+                const shippingAddressResponse = await fetch('/api/addresses', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    accountId: accountData.id,
+                    label: 'Shipping Address',
+                    type: 'SHIPPING',
+                    street: fullLeadData.shippingAddress.street || '',
+                    city: fullLeadData.shippingAddress.city || '',
+                    region: fullLeadData.shippingAddress.region || '',
+                    country: fullLeadData.shippingAddress.country || '',
+                    postalCode: fullLeadData.shippingAddress.postalCode || '',
+                    isDefault: !fullLeadData.hasBillingAddress, // Default if no billing address
+                  }),
+                });
+
+                if (shippingAddressResponse.ok) {
+                  console.log('✅ Shipping address created successfully');
+                } else {
+                  console.error('❌ Failed to create shipping address');
+                }
+              } catch (addressError) {
+                console.error('Error creating shipping address:', addressError);
+              }
+            }
 
             // Create Contact for the account
             const contactResponse = await fetch('/api/contacts', {
@@ -850,8 +972,7 @@ AdPools System`,
                 <CustomerSearch
                   value={customerId}
                   onChange={(id, customer) => {
-                    setCustomerId(id);
-                    setSelectedCustomer(customer);
+                    handleCustomerChange(id);
                   }}
                   placeholder="Search customers, distributors, or leads..."
                   label="Customer"
@@ -886,6 +1007,114 @@ AdPools System`,
                 )}
               </CardContent>
             </Card>
+
+            {/* Address Selection - Only show for accounts */}
+            {selectedCustomer?.type === 'account' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Building className="h-5 w-5" />
+                    <span>Billing & Shipping Addresses</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {isLoadingAddresses ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                      <span className="ml-2 text-gray-500">Loading addresses...</span>
+                    </div>
+                  ) : addresses.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Billing Address Selection */}
+                      <div>
+                        <Label htmlFor="billingAddress">Billing Address</Label>
+                        <select
+                          id="billingAddress"
+                          value={selectedBillingAddressId}
+                          onChange={(e) => setSelectedBillingAddressId(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select billing address...</option>
+                          {addresses
+                            .filter(addr => addr.type === 'BILLING' || addr.type === 'BOTH')
+                            .map(address => (
+                              <option key={address.id} value={address.id}>
+                                {address.label} - {address.street}, {address.city}
+                                {address.isDefault ? ' (Default)' : ''}
+                              </option>
+                            ))}
+                        </select>
+                        
+                        {/* Display selected billing address details */}
+                        {selectedBillingAddressId && (
+                          <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                            {(() => {
+                              const addr = addresses.find(a => a.id === selectedBillingAddressId);
+                              return addr ? (
+                                <div>
+                                  <div className="font-medium">{addr.label}</div>
+                                  <div>{addr.street}</div>
+                                  <div>{addr.city}, {addr.region}</div>
+                                  <div>{addr.country} {addr.postalCode}</div>
+                                  {addr.contactPerson && <div>Contact: {addr.contactPerson}</div>}
+                                  {addr.phone && <div>Phone: {addr.phone}</div>}
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Shipping Address Selection */}
+                      <div>
+                        <Label htmlFor="shippingAddress">Shipping Address</Label>
+                        <select
+                          id="shippingAddress"
+                          value={selectedShippingAddressId}
+                          onChange={(e) => setSelectedShippingAddressId(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select shipping address...</option>
+                          {addresses
+                            .filter(addr => addr.type === 'SHIPPING' || addr.type === 'BOTH')
+                            .map(address => (
+                              <option key={address.id} value={address.id}>
+                                {address.label} - {address.street}, {address.city}
+                                {address.isDefault ? ' (Default)' : ''}
+                              </option>
+                            ))}
+                        </select>
+                        
+                        {/* Display selected shipping address details */}
+                        {selectedShippingAddressId && (
+                          <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                            {(() => {
+                              const addr = addresses.find(a => a.id === selectedShippingAddressId);
+                              return addr ? (
+                                <div>
+                                  <div className="font-medium">{addr.label}</div>
+                                  <div>{addr.street}</div>
+                                  <div>{addr.city}, {addr.region}</div>
+                                  <div>{addr.country} {addr.postalCode}</div>
+                                  {addr.contactPerson && <div>Contact: {addr.contactPerson}</div>}
+                                  {addr.phone && <div>Phone: {addr.phone}</div>}
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">
+                      <Building className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                      <p>No addresses found for this account.</p>
+                      <p className="text-sm">Addresses can be added from the account details page.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Quote Details */}
             <Card>
@@ -1027,12 +1256,12 @@ AdPools System`,
                   <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                     <div className="flex gap-2 mb-3">
                       <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                        <Input
-                          placeholder="Search products..."
-                          value={productSearchTerm}
-                          onChange={(e) => setProductSearchTerm(e.target.value)}
-                          className="pl-10"
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        placeholder="Search products..."
+                        value={productSearchTerm}
+                        onChange={(e) => setProductSearchTerm(e.target.value)}
+                        className="pl-10"
                         />
                       </div>
                       <BarcodeScanner

@@ -35,6 +35,8 @@ export async function GET(
         notes: true,
         paymentTerms: true,
         customerType: true,
+        qrCodeData: true,
+        qrCodeGeneratedAt: true,
         issueDate: true,
         dueDate: true,
         paidDate: true,

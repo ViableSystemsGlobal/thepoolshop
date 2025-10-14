@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { generateQuoteQRData, generateQRCode } from '@/lib/qrcode';
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,6 +47,8 @@ export async function GET(request: NextRequest) {
         taxInclusive: true,
         notes: true,
         validUntil: true,
+        qrCodeData: true,
+        qrCodeGeneratedAt: true,
         createdAt: true,
         updatedAt: true,
         owner: {
@@ -126,6 +129,8 @@ export async function POST(request: NextRequest) {
       distributorId,
       leadId,
       customerType,
+      billingAddressId,
+      shippingAddressId,
       lines = [],
       taxInclusive = false,
     } = body;
@@ -189,9 +194,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate quotation number
-    const count = await prisma.quotation.count();
-    const number = `QT-${String(count + 1).padStart(6, '0')}`;
+    // Generate unique quotation number
+    let number: string;
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    do {
+      const count = await prisma.quotation.count();
+      number = `QT-${String(count + 1 + attempts).padStart(6, '0')}`;
+      
+      // Check if this number already exists
+      const existing = await prisma.quotation.findUnique({
+        where: { number }
+      });
+      
+      if (!existing) break;
+      
+      attempts++;
+    } while (attempts < maxAttempts);
+    
+    if (attempts >= maxAttempts) {
+      // Fallback to timestamp-based number
+      number = `QT-${Date.now().toString().slice(-6)}`;
+    }
 
     // Calculate totals with flexible taxes
     let subtotal = 0;
@@ -237,6 +262,8 @@ export async function POST(request: NextRequest) {
         distributorId: distributorId || null,
         leadId: leadId || null,
         customerType: customerType || 'STANDARD',
+        billingAddressId: billingAddressId || null,
+        shippingAddressId: shippingAddressId || null,
         ownerId: userId,
         lines: {
           create: processedLines.map((line: any) => ({
@@ -254,6 +281,9 @@ export async function POST(request: NextRequest) {
         },
         account: {
           select: { id: true, name: true, type: true, email: true },
+        },
+        distributor: {
+          select: { id: true, businessName: true, email: true },
         },
         lines: {
           include: {
@@ -276,6 +306,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Generate QR code for the quotation
+    try {
+      const qrData = generateQuoteQRData(number, {
+        companyName: quotation.account?.name || quotation.distributor?.businessName || 'Company'
+      });
+      const qrCodeDataUrl = await generateQRCode(qrData);
+      
+      // Update quotation with QR code
+      await prisma.quotation.update({
+        where: { id: quotation.id },
+        data: {
+          qrCodeData: qrCodeDataUrl,
+          qrCodeGeneratedAt: new Date()
+        } as any
+      });
+      
+      console.log('✅ Generated QR code for quotation:', number);
+    } catch (qrError) {
+      console.error('⚠️ Failed to generate QR code:', qrError);
+      // Continue without QR code - not critical
+    }
+
     // Log activity
     await prisma.activity.create({
       data: {
@@ -287,7 +339,27 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(quotation, { status: 201 });
+    // Fetch the updated quotation with QR code
+    const updatedQuotation = await prisma.quotation.findUnique({
+      where: { id: quotation.id },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true },
+        },
+        account: {
+          select: { id: true, name: true, type: true, email: true },
+        },
+        lines: {
+          include: {
+            product: {
+              select: { id: true, name: true, sku: true },
+            },
+          },
+        },
+      },
+    });
+
+    return NextResponse.json(updatedQuotation, { status: 201 });
   } catch (error) {
     console.error('❌ Error creating quotation:', error);
     console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');

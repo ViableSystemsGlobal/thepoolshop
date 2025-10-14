@@ -14,10 +14,6 @@ interface Account {
   type: 'INDIVIDUAL' | 'COMPANY' | 'PROJECT';
   email?: string;
   phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  country?: string;
   website?: string;
   notes?: string;
 }
@@ -30,10 +26,6 @@ interface EditAccountModalProps {
     type: string;
     email?: string;
     phone?: string;
-    address?: string;
-    city?: string;
-    state?: string;
-    country?: string;
     website?: string;
     notes?: string;
   }) => void;
@@ -47,10 +39,6 @@ export function EditAccountModal({ account, onClose, onSave }: EditAccountModalP
     type: 'INDIVIDUAL',
     email: '',
     phone: '',
-    address: '',
-    city: '',
-    state: '',
-    country: '',
     website: '',
     notes: '',
   });
@@ -63,10 +51,6 @@ export function EditAccountModal({ account, onClose, onSave }: EditAccountModalP
       type: account.type,
       email: account.email || '',
       phone: account.phone || '',
-      address: account.address || '',
-      city: account.city || '',
-      state: account.state || '',
-      country: account.country || '',
       website: account.website || '',
       notes: account.notes || '',
     });
@@ -143,41 +127,6 @@ export function EditAccountModal({ account, onClose, onSave }: EditAccountModalP
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="address">Address</Label>
-            <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) => handleChange('address', e.target.value)}
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="city">City</Label>
-              <Input
-                id="city"
-                value={formData.city}
-                onChange={(e) => handleChange('city', e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="state">State</Label>
-              <Input
-                id="state"
-                value={formData.state}
-                onChange={(e) => handleChange('state', e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="country">Country</Label>
-              <Input
-                id="country"
-                value={formData.country}
-                onChange={(e) => handleChange('country', e.target.value)}
-              />
-            </div>
-          </div>
 
           <div>
             <Label htmlFor="website">Website</Label>

@@ -1,0 +1,427 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { MainLayout } from "@/components/layout/main-layout";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/contexts/toast-context";
+import { useTheme } from "@/contexts/theme-context";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { 
+  DollarSign, 
+  TrendingUp, 
+  Calendar, 
+  Search,
+  Filter,
+  Plus,
+  Eye,
+  Trash2,
+  Download,
+  CreditCard,
+  Building
+} from "lucide-react";
+import { AddPaymentModal } from "@/components/modals/add-payment-modal";
+import { ConfirmationModal } from "@/components/modals/confirmation-modal";
+import Link from "next/link";
+
+interface Payment {
+  id: string;
+  number: string;
+  amount: number;
+  method: string;
+  reference?: string;
+  receivedAt: string;
+  account: {
+    id: string;
+    name: string;
+  };
+  receiver: {
+    name: string;
+  };
+  allocations: Array<{
+    invoice: {
+      id: string;
+      number: string;
+    };
+    amount: number;
+  }>;
+}
+
+const PAYMENT_METHODS = {
+  CASH: 'Cash',
+  BANK_TRANSFER: 'Bank Transfer',
+  MOBILE_MONEY: 'Mobile Money',
+  CREDIT_CARD: 'Credit Card',
+  CHECK: 'Check'
+};
+
+export default function PaymentsPage() {
+  const router = useRouter();
+  const { success, error: showError } = useToast();
+  const { getThemeClasses } = useTheme();
+  const theme = getThemeClasses();
+
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterMethod, setFilterMethod] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Metrics
+  const [metrics, setMetrics] = useState({
+    totalPayments: 0,
+    totalAmount: 0,
+    thisMonth: 0,
+    lastMonth: 0
+  });
+
+  useEffect(() => {
+    loadPayments();
+  }, [filterMethod]);
+
+  const loadPayments = async () => {
+    try {
+      setLoading(true);
+      const url = new URL('/api/payments', window.location.origin);
+      if (filterMethod) {
+        url.searchParams.append('method', filterMethod);
+      }
+
+      const response = await fetch(url.toString(), {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPayments(data.payments || []);
+        calculateMetrics(data.payments || []);
+      } else {
+        showError('Failed to load payments');
+      }
+    } catch (err) {
+      console.error('Error loading payments:', err);
+      showError('Failed to load payments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateMetrics = (paymentsData: Payment[]) => {
+    const now = new Date();
+    const thisMonth = paymentsData.filter(p => {
+      const paymentDate = new Date(p.receivedAt);
+      return paymentDate.getMonth() === now.getMonth() && 
+             paymentDate.getFullYear() === now.getFullYear();
+    });
+    
+    const lastMonth = paymentsData.filter(p => {
+      const paymentDate = new Date(p.receivedAt);
+      const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return paymentDate >= lastMonthDate && paymentDate < new Date(now.getFullYear(), now.getMonth(), 1);
+    });
+
+    setMetrics({
+      totalPayments: paymentsData.length,
+      totalAmount: paymentsData.reduce((sum, p) => sum + p.amount, 0),
+      thisMonth: thisMonth.reduce((sum, p) => sum + p.amount, 0),
+      lastMonth: lastMonth.reduce((sum, p) => sum + p.amount, 0)
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!selectedPayment) return;
+
+    try {
+      setDeleting(true);
+      const response = await fetch(`/api/payments/${selectedPayment.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        success('Payment deleted successfully');
+        loadPayments();
+        setShowDeleteModal(false);
+        setSelectedPayment(null);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete payment');
+      }
+    } catch (err) {
+      console.error('Error deleting payment:', err);
+      showError(err instanceof Error ? err.message : 'Failed to delete payment');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const filteredPayments = payments.filter(payment => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      payment.number.toLowerCase().includes(search) ||
+      payment.account.name.toLowerCase().includes(search) ||
+      payment.reference?.toLowerCase().includes(search) ||
+      payment.allocations.some(alloc => 
+        alloc.invoice.number.toLowerCase().includes(search)
+      )
+    );
+  });
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'GHS',
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  return (
+    <MainLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Payments</h1>
+            <p className="text-gray-600 mt-1">Track and manage customer payments</p>
+          </div>
+          <Button
+            onClick={() => setShowPaymentModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Record Payment
+          </Button>
+        </div>
+
+        {/* Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Payments</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{metrics.totalPayments}</p>
+                </div>
+                <div className="bg-blue-100 p-3 rounded-full">
+                  <DollarSign className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Amount</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(metrics.totalAmount)}</p>
+                </div>
+                <div className="bg-green-100 p-3 rounded-full">
+                  <TrendingUp className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">This Month</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(metrics.thisMonth)}</p>
+                </div>
+                <div className="bg-purple-100 p-3 rounded-full">
+                  <Calendar className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Last Month</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(metrics.lastMonth)}</p>
+                </div>
+                <div className="bg-orange-100 p-3 rounded-full">
+                  <TrendingUp className="h-6 w-6 text-orange-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters and Search */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <Input
+                  placeholder="Search by payment number, customer, invoice, or reference..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <select
+                  value={filterMethod}
+                  onChange={(e) => setFilterMethod(e.target.value)}
+                  className="pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Methods</option>
+                  {Object.entries(PAYMENT_METHODS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Payments Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Payments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-gray-600 mt-4">Loading payments...</p>
+              </div>
+            ) : filteredPayments.length === 0 ? (
+              <div className="text-center py-12">
+                <DollarSign className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-600">No payments found</p>
+                <Button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Record First Payment
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Payment #</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Customer</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Amount</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Method</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Invoices</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Date</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Received By</th>
+                      <th className="text-right py-3 px-4 font-medium text-gray-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPayments.map((payment) => (
+                      <tr key={payment.id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <span className="font-medium text-gray-900">{payment.number}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center">
+                            <Building className="h-4 w-4 text-gray-400 mr-2" />
+                            <span className="text-gray-900">{payment.account.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-medium text-green-600">{formatCurrency(payment.amount)}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            {PAYMENT_METHODS[payment.method as keyof typeof PAYMENT_METHODS] || payment.method}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col gap-1">
+                            {payment.allocations.map((alloc, idx) => (
+                              <Link
+                                key={idx}
+                                href={`/invoices/${alloc.invoice.id}`}
+                                className="text-blue-600 hover:underline text-sm"
+                              >
+                                {alloc.invoice.number}
+                              </Link>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          {formatDate(payment.receivedAt)}
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          {payment.receiver.name}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedPayment(payment);
+                                setShowDeleteModal(true);
+                              }}
+                              className="text-red-600 hover:text-red-700 p-1"
+                              title="Delete payment"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Payment Modal */}
+      <AddPaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={() => {
+          loadPayments();
+          setShowPaymentModal(false);
+        }}
+        accountId=""
+        accountName=""
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setSelectedPayment(null);
+        }}
+        onConfirm={handleDelete}
+        title="Delete Payment"
+        message={`Are you sure you want to delete payment ${selectedPayment?.number}? This action cannot be undone and will update the associated invoices.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleting}
+      />
+    </MainLayout>
+  );
+}

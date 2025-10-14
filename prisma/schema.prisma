@@ -131,7 +131,8 @@ model Category {
 
 model Product {
   id                      String                   @id @default(cuid())
-  sku                     String                   @unique
+  type                    ItemType                 @default(PRODUCT) // PRODUCT or SERVICE
+  sku                     String?                  @unique // Nullable for services
   name                    String
   description             String?
   images                  String?
@@ -155,6 +156,12 @@ model Product {
   barcode                 String?                  @unique
   barcodeType             BarcodeType?             @default(EAN13)
   generateBarcode         Boolean                  @default(true)
+  
+  // Service-specific fields
+  serviceCode             String?  @unique          // Service code/identifier
+  duration                String?                  // e.g., "1 hour", "2 days"
+  unit                    String?                  // e.g., "hour", "day", "session"
+  
   backorders              Backorder[]
   priceListItems          PriceListItem[]
   documents               ProductDocument[]
@@ -230,21 +237,63 @@ model PriceListItem {
   @@map("price_list_items")
 }
 
+model Address {
+  id              String      @id @default(cuid())
+  accountId       String
+  
+  // Address details
+  label           String      // "Head Office", "Warehouse", "Branch 1"
+  type            AddressType @default(BOTH) // BILLING, SHIPPING, BOTH
+  
+  street          String
+  city            String
+  region          String
+  country         String
+  postalCode      String?
+  
+  // Contact person at this location
+  contactPerson   String?
+  phone           String?
+  
+  isDefault       Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  account         Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  // Relations to contacts
+  contacts        Contact[]
+  
+  // Relations to quotations and invoices
+  quotationBillingAddresses   Quotation[] @relation("QuotationBillingAddress")
+  quotationShippingAddresses  Quotation[] @relation("QuotationShippingAddress")
+  invoiceBillingAddresses     Invoice[]   @relation("InvoiceBillingAddress")
+  invoiceShippingAddresses    Invoice[]   @relation("InvoiceShippingAddress")
+  
+  @@map("addresses")
+}
+
 model Account {
   id            String        @id @default(cuid())
   name          String
   type          AccountType   @default(INDIVIDUAL)
   email         String?
   phone         String?
-  address       String?
-  city          String?
-  state         String?
-  country       String?
+  address       String?       // Legacy field - keep for backward compatibility
+  city          String?       // Legacy field
+  state         String?       // Legacy field
+  country       String?       // Legacy field
   website       String?
   notes         String?
   ownerId       String
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+  
+  // New address system
+  addresses     Address[]
+  defaultBillingAddressId  String?
+  defaultShippingAddressId String?
+  
   owner         User          @relation(fields: [ownerId], references: [id])
   backorders    Backorder[]
   contacts      Contact[]
@@ -270,7 +319,22 @@ model Contact {
   accountId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
+  // Link to specific address
+  addressId   String?
+  address     Address? @relation(fields: [addressId], references: [id])
+  
+  // Contact role/relationship
+  role        String?  // "Billing Manager", "Shipping Contact", "CEO"
+  department  String?
+  
   account   Account  @relation(fields: [accountId], references: [id])
+  
+  // Relations to quotations and invoices
+  quotationBillingContacts   Quotation[] @relation("QuotationBillingContact")
+  quotationShippingContacts  Quotation[] @relation("QuotationShippingContact")
+  invoiceBillingContacts     Invoice[]   @relation("InvoiceBillingContact")
+  invoiceShippingContacts    Invoice[]   @relation("InvoiceShippingContact")
 
   @@map("contacts")
 }
@@ -295,6 +359,14 @@ model Lead {
   dealValue          Float?
   probability        Int? // Win probability percentage
   expectedCloseDate  DateTime?
+  
+  // Address capture
+  billingAddress     Json?  // Store as JSON for flexibility
+  shippingAddress    Json?
+  hasBillingAddress  Boolean @default(false)
+  hasShippingAddress Boolean @default(false)
+  sameAsBilling      Boolean @default(true)
+  
   ownerId            String
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
@@ -346,6 +418,25 @@ model Quotation {
   ownerId       String
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+  
+  // Address fields
+  billingAddressId     String?
+  billingAddress       Address? @relation("QuotationBillingAddress", fields: [billingAddressId], references: [id])
+  shippingAddressId    String?
+  shippingAddress      Address? @relation("QuotationShippingAddress", fields: [shippingAddressId], references: [id])
+  billingAddressSnapshot   Json?  // Snapshot at time of creation
+  shippingAddressSnapshot  Json?
+  
+  // Contact fields
+  billingContactId     String?
+  billingContact       Contact? @relation("QuotationBillingContact", fields: [billingContactId], references: [id])
+  shippingContactId    String?
+  shippingContact      Contact? @relation("QuotationShippingContact", fields: [shippingContactId], references: [id])
+  
+  // QR Code
+  qrCodeData           String?  // QR code data (not image)
+  qrCodeGeneratedAt    DateTime?
+  
   proformas     Proforma[]
   lines         QuotationLine[]
   account       Account?        @relation(fields: [accountId], references: [id])
@@ -1683,6 +1774,24 @@ model Invoice {
   paymentTerms String?
   customerType CustomerType @default(STANDARD)
 
+  // Address fields
+  billingAddressId     String?
+  billingAddress       Address? @relation("InvoiceBillingAddress", fields: [billingAddressId], references: [id])
+  shippingAddressId    String?
+  shippingAddress      Address? @relation("InvoiceShippingAddress", fields: [shippingAddressId], references: [id])
+  billingAddressSnapshot   Json?  // Snapshot at time of creation
+  shippingAddressSnapshot  Json?
+  
+  // Contact fields
+  billingContactId     String?
+  billingContact       Contact? @relation("InvoiceBillingContact", fields: [billingContactId], references: [id])
+  shippingContactId    String?
+  shippingContact      Contact? @relation("InvoiceShippingContact", fields: [shippingContactId], references: [id])
+  
+  // QR Code
+  qrCodeData           String?  // QR code data (not image)
+  qrCodeGeneratedAt    DateTime?
+
   notes     String?
   ownerId   String
   createdAt DateTime @default(now())
@@ -1917,6 +2026,17 @@ enum BarcodeType {
   QR
   DATAMATRIX
   CUSTOM
+}
+
+enum ItemType {
+  PRODUCT
+  SERVICE
+}
+
+enum AddressType {
+  BILLING
+  SHIPPING
+  BOTH
 }
 
 model StocktakeSession {

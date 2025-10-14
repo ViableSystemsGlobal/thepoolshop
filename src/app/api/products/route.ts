@@ -22,9 +22,10 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { sku: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
+        { name: { contains: search } },
+        { sku: { contains: search } },
+        { serviceCode: { contains: search } },
+        { description: { contains: search } },
       ];
     }
 
@@ -123,10 +124,14 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions);
     const body = await request.json();
     const {
+      type = "PRODUCT",
       sku,
+      serviceCode,
       name,
       description,
       categoryId,
+      duration,
+      unit,
       barcode: providedBarcode,
       barcodeType: providedBarcodeType,
       generateBarcode: shouldGenerateBarcode = true,
@@ -153,24 +158,54 @@ export async function POST(request: NextRequest) {
       active = true,
     } = body;
 
-    // Validate required fields
-    if (!sku || !name || !categoryId) {
+    // Validate required fields based on type
+    if (!name || !categoryId) {
       return NextResponse.json(
-        { error: "SKU, name, and category are required" },
+        { error: "Name and category are required" },
         { status: 400 }
       );
     }
 
-    // Check if SKU already exists
-    const existingProduct = await prisma.product.findUnique({
-      where: { sku },
-    });
-
-    if (existingProduct) {
+    // For products, SKU is required; for services, serviceCode is required
+    if (type === "PRODUCT" && !sku) {
       return NextResponse.json(
-        { error: "Product with this SKU already exists" },
+        { error: "SKU is required for products" },
         { status: 400 }
       );
+    }
+    
+    if (type === "SERVICE" && !serviceCode) {
+      return NextResponse.json(
+        { error: "Service Code is required for services" },
+        { status: 400 }
+      );
+    }
+
+    // Check if SKU or Service Code already exists
+    if (type === "PRODUCT" && sku) {
+      const existingProduct = await prisma.product.findFirst({
+        where: { sku },
+      });
+
+      if (existingProduct) {
+        return NextResponse.json(
+          { error: "Product with this SKU already exists" },
+          { status: 400 }
+        );
+      }
+    }
+    
+    if (type === "SERVICE" && serviceCode) {
+      const existingService = await prisma.product.findFirst({
+        where: { serviceCode },
+      });
+
+      if (existingService) {
+        return NextResponse.json(
+          { error: "Service with this Service Code already exists" },
+          { status: 400 }
+        );
+      }
     }
 
     // Handle barcode generation/validation
@@ -178,8 +213,9 @@ export async function POST(request: NextRequest) {
     let finalBarcodeType = providedBarcodeType || 'EAN13';
 
     if (!finalBarcode && shouldGenerateBarcode) {
-      // Generate barcode from SKU
-      finalBarcode = generateBarcode(sku, finalBarcodeType as any);
+      // Generate barcode from SKU or Service Code
+      const codeForBarcode = type === "SERVICE" ? serviceCode : sku;
+      finalBarcode = generateBarcode(codeForBarcode, finalBarcodeType as any);
       
       // Ensure uniqueness
       let attempts = 0;
@@ -191,7 +227,7 @@ export async function POST(request: NextRequest) {
         if (!existingBarcode) break;
         
         // Add timestamp to ensure uniqueness
-        finalBarcode = generateBarcode(`${sku}-${Date.now()}`, finalBarcodeType as any);
+        finalBarcode = generateBarcode(`${codeForBarcode}-${Date.now()}`, finalBarcodeType as any);
         attempts++;
       }
     }
@@ -223,7 +259,9 @@ export async function POST(request: NextRequest) {
 
     const product = await prisma.product.create({
       data: {
-        sku,
+        type,
+        sku: type === "PRODUCT" ? sku : null,
+        serviceCode: type === "SERVICE" ? serviceCode : null,
         name,
         description,
         categoryId,
@@ -241,6 +279,8 @@ export async function POST(request: NextRequest) {
         baseCurrency: baseCurrency || sellingCurrency || "USD",
         uomBase,
         uomSell,
+        duration: type === "SERVICE" ? duration : null,
+        unit: type === "SERVICE" ? unit : null,
         attributes: attributes || {},
         images: images || null,
         active,

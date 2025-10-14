@@ -135,6 +135,11 @@ export async function POST(request: NextRequest) {
       assignedTo,
       interestedProducts,
       followUpDate,
+      hasBillingAddress,
+      hasShippingAddress,
+      sameAsBilling,
+      billingAddress,
+      shippingAddress,
     } = body;
 
     if (!firstName || !lastName) {
@@ -175,6 +180,12 @@ export async function POST(request: NextRequest) {
         interestedProducts: interestedProducts && Array.isArray(interestedProducts) && interestedProducts.length > 0 ? JSON.stringify(interestedProducts) : null,
         followUpDate: followUpDate ? new Date(followUpDate) : null,
         ownerId: userId,
+        // Address fields
+        hasBillingAddress: hasBillingAddress || false,
+        hasShippingAddress: hasShippingAddress || false,
+        sameAsBilling: sameAsBilling !== undefined ? sameAsBilling : true,
+        billingAddress: billingAddress ? billingAddress : null,
+        shippingAddress: shippingAddress ? shippingAddress : null,
       } as any,
       include: {
         owner: {

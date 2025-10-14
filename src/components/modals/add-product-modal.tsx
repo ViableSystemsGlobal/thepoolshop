@@ -15,7 +15,8 @@ import {
   AlertCircle,
   Upload,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  FileText
 } from "lucide-react";
 
 interface Category {
@@ -35,6 +36,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const [formData, setFormData] = useState({
+    type: "PRODUCT" as "PRODUCT" | "SERVICE",
     sku: "",
     name: "",
     description: "",
@@ -50,6 +52,10 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
     reorderPoint: 0,
     active: true,
     images: [] as string[],
+    // Service-specific fields
+    serviceCode: "",
+    duration: "",
+    unit: "hour",
   });
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -172,7 +178,13 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
         originalPriceCurrency: formData.sellingCurrency,
         originalCostCurrency: formData.costCurrency,
         exchangeRateAtImport: formData.exchangeRateMode === "manual" ? formData.customExchangeRate : currentExchangeRate,
-        baseCurrency: formData.sellingCurrency
+        baseCurrency: formData.sellingCurrency,
+        // Service-specific fields
+        serviceCode: formData.type === "SERVICE" ? formData.sku : null,
+        duration: formData.type === "SERVICE" ? formData.duration : null,
+        unit: formData.type === "SERVICE" ? formData.unit : null,
+        // Make SKU optional for services
+        sku: formData.type === "PRODUCT" ? formData.sku : null
       };
 
       const response = await fetch('/api/products', {
@@ -184,11 +196,13 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
       });
 
       if (response.ok) {
-        success("Product Created", `"${formData.name}" has been successfully added to your inventory.`);
+        const itemType = formData.type === "SERVICE" ? "Service" : "Product";
+        success(`${itemType} Created`, `"${formData.name}" has been successfully added.`);
         onSuccess();
         onClose();
         // Reset form
         setFormData({
+          type: "PRODUCT",
           sku: "",
           name: "",
           description: "",
@@ -204,6 +218,9 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
           reorderPoint: 0,
           active: true,
           images: [] as string[],
+          serviceCode: "",
+          duration: "",
+          unit: "hour",
         });
       } else {
         const errorData = await response.json();
@@ -307,16 +324,59 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Basic Information</h3>
               
+              {/* Type Selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Type *
+                </label>
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, type: "PRODUCT" }))}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all ${
+                      formData.type === "PRODUCT"
+                        ? `border-${theme.primary} bg-${theme.primary} text-white`
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                    style={formData.type === "PRODUCT" ? { 
+                      borderColor: theme.primary, 
+                      backgroundColor: theme.primary, 
+                      color: 'white' 
+                    } : {}}
+                  >
+                    <Package className="h-5 w-5 inline mr-2" />
+                    Product
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, type: "SERVICE" }))}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all ${
+                      formData.type === "SERVICE"
+                        ? `border-${theme.primary} bg-${theme.primary} text-white`
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                    style={formData.type === "SERVICE" ? { 
+                      borderColor: theme.primary, 
+                      backgroundColor: theme.primary, 
+                      color: 'white' 
+                    } : {}}
+                  >
+                    <FileText className="h-5 w-5 inline mr-2" />
+                    Service
+                  </button>
+                </div>
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    SKU *
+                    {formData.type === "PRODUCT" ? "SKU" : "Service Code"} *
                   </label>
                   <div className="flex gap-2">
                     <Input
                       value={formData.sku}
                       onChange={(e) => handleInputChange('sku', e.target.value)}
-                      placeholder="e.g., PROD-001"
+                      placeholder={formData.type === "PRODUCT" ? "e.g., PROD-001" : "e.g., SVC-001"}
                       required
                       className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
                     />
@@ -352,11 +412,45 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
                 <textarea
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
-                  placeholder="Product description..."
+                  placeholder={formData.type === "PRODUCT" ? "Product description..." : "Service description..."}
                   className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}
                   rows={3}
                 />
               </div>
+
+              {/* Service-specific fields */}
+              {formData.type === "SERVICE" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Duration
+                    </label>
+                    <Input
+                      value={formData.duration}
+                      onChange={(e) => handleInputChange('duration', e.target.value)}
+                      placeholder="e.g., 1 hour, 2 days"
+                      className={`focus:ring-${theme.primary} focus:border-${theme.primary}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Unit
+                    </label>
+                    <select
+                      value={formData.unit}
+                      onChange={(e) => handleInputChange('unit', e.target.value)}
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}
+                    >
+                      <option value="hour">Hour</option>
+                      <option value="day">Day</option>
+                      <option value="week">Week</option>
+                      <option value="month">Month</option>
+                      <option value="session">Session</option>
+                      <option value="project">Project</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* Image Upload */}
               <div>

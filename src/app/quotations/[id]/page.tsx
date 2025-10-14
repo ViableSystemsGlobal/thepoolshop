@@ -20,7 +20,9 @@ import {
   Download,
   Mail,
   DollarSign,
-  Clock
+  Clock,
+  Receipt,
+  QrCode
 } from 'lucide-react';
 
 interface LineItem {
@@ -48,6 +50,8 @@ interface Quotation {
   accountId?: string;
   distributorId?: string;
   customerType: string;
+  qrCodeData?: string;
+  qrCodeGeneratedAt?: string;
   createdAt: string;
   updatedAt: string;
   account?: {
@@ -74,12 +78,13 @@ export default function ViewQuotationPage() {
   const router = useRouter();
   const params = useParams();
   const { getThemeClasses, customLogo } = useTheme();
-  const { showError, success } = useToast();
+  const { error: showError, success } = useToast();
   const theme = getThemeClasses();
   
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [convertingToInvoice, setConvertingToInvoice] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -116,6 +121,68 @@ export default function ViewQuotationPage() {
       router.push('/quotations');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConvertToInvoice = async () => {
+    if (!quotation) return;
+    
+    setConvertingToInvoice(true);
+    
+    try {
+      const response = await fetch(`/api/quotations/${quotation.id}/convert-to-invoice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        
+        // If invoice already exists, show a more helpful message with a link
+        if (errorData.error?.includes('already exists')) {
+          const invoiceId = errorData.invoiceId;
+          const invoiceNumber = errorData.invoiceNumber;
+          
+          if (invoiceId) {
+            showError(
+              `Invoice ${invoiceNumber} already exists for this quotation. ` +
+              `Click here to view it.`,
+              {
+                action: {
+                  label: 'View Invoice',
+                  onClick: () => router.push(`/invoices/${invoiceId}`)
+                }
+              }
+            );
+          } else {
+            showError('This quotation has already been converted to an invoice. Please check your invoices list.');
+          }
+          return;
+        }
+        
+        throw new Error(errorData.error || 'Failed to convert to invoice');
+      }
+
+      const result = await response.json();
+      
+      success('Quotation successfully converted to invoice!');
+      
+      // Refresh the quotation data
+      await loadQuotation(quotation.id);
+      
+      // Optionally redirect to the invoice
+      if (result.invoice) {
+        // You can add navigation to invoice details page here
+        console.log('Invoice created:', result.invoice);
+      }
+      
+    } catch (err) {
+      console.error('Error converting to invoice:', err);
+      showError(err instanceof Error ? err.message : 'Failed to convert to invoice');
+    } finally {
+      setConvertingToInvoice(false);
     }
   };
 
@@ -199,7 +266,7 @@ export default function ViewQuotationPage() {
             </Button>
             <Button 
               variant="outline"
-              onClick={() => downloadQuotationAsPDF(quotation as any, customLogo || undefined, showError, success)}
+              onClick={() => downloadQuotationAsPDF(quotation as any, customLogo || undefined, error, success)}
             >
               <Download className="h-4 w-4 mr-2" />
               Download PDF
@@ -211,6 +278,20 @@ export default function ViewQuotationPage() {
               <Mail className="h-4 w-4 mr-2" />
               Send Email
             </Button>
+            {quotation.status === 'ACCEPTED' && (
+              <Button 
+                onClick={handleConvertToInvoice}
+                disabled={convertingToInvoice}
+                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                style={{
+                  backgroundColor: theme.primary,
+                  color: 'white'
+                }}
+              >
+                <Receipt className="h-4 w-4 mr-2" />
+                {convertingToInvoice ? 'Converting...' : 'Convert to Invoice'}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -405,6 +486,20 @@ export default function ViewQuotationPage() {
                     <Mail className="h-4 w-4 mr-2" />
                     Send Email
                   </Button>
+                  {quotation.status === 'ACCEPTED' && (
+                    <Button 
+                      onClick={handleConvertToInvoice}
+                      disabled={convertingToInvoice}
+                      className={`w-full bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
+                      style={{
+                        backgroundColor: theme.primary,
+                        color: 'white'
+                      }}
+                    >
+                      <Receipt className="h-4 w-4 mr-2" />
+                      {convertingToInvoice ? 'Converting...' : 'Convert to Invoice'}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -442,6 +537,36 @@ export default function ViewQuotationPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* QR Code */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <QrCode className="h-5 w-5 mr-2" />
+                  QR Code
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center">
+                  {quotation.qrCodeData ? (
+                    <div className="w-32 h-32 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center mx-auto p-2">
+                      <img 
+                        src={quotation.qrCodeData} 
+                        alt="QR Code" 
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center mx-auto">
+                      <QrCode className="h-12 w-12 text-gray-400" />
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">
+                    Scan to view quotation details
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Progress Timeline */}
             <Card>

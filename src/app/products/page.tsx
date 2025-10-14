@@ -67,7 +67,9 @@ interface StockItem {
 
 interface Product {
   id: string;
+  type?: string;
   sku: string;
+  serviceCode?: string;
   name: string;
   description?: string;
   images?: string | null; // JSON string in database, will be parsed to string[]
@@ -90,6 +92,8 @@ interface Product {
   stockItems?: StockItem[];
   barcode?: string;
   barcodeType?: string;
+  duration?: string;
+  unit?: string;
 }
 
 // Mock data for now
@@ -933,11 +937,22 @@ export default function ProductsPage() {
                       })()}
                     </div>
                     <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">
-                        {product.name}
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-gray-900">
+                          {product.name}
+                        </div>
+                        {product.type && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            product.type === 'SERVICE' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {product.type === 'SERVICE' ? 'Service' : 'Product'}
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-gray-500 font-mono">
-                        {product.sku}
+                        {product.sku || product.serviceCode}
                       </div>
                       <div className="text-sm text-gray-500 truncate max-w-xs">
                         {product.description}

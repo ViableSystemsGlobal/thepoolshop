@@ -59,6 +59,24 @@ export function AddLeadModal({ onClose, onSave }: AddLeadModalProps) {
     interestedProducts: [] as Product[],
     followUpDate: '',
     notes: '',
+    // Address fields
+    hasBillingAddress: false,
+    hasShippingAddress: false,
+    sameAsBilling: true,
+    billingAddress: {
+      street: '',
+      city: '',
+      region: '',
+      country: '',
+      postalCode: ''
+    },
+    shippingAddress: {
+      street: '',
+      city: '',
+      region: '',
+      country: '',
+      postalCode: ''
+    }
   });
 
   const [loading, setLoading] = useState(false);
@@ -283,6 +301,190 @@ export function AddLeadModal({ onClose, onSave }: AddLeadModalProps) {
               value={formData.followUpDate}
               onChange={(e) => handleChange('followUpDate', e.target.value)}
             />
+          </div>
+
+          {/* Address Section */}
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Address Information</h3>
+            
+            {/* Billing Address Toggle */}
+            <div className="mb-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.hasBillingAddress}
+                  onChange={(e) => setFormData({ ...formData, hasBillingAddress: e.target.checked })}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Add Billing Address</span>
+              </label>
+            </div>
+
+            {/* Billing Address Fields */}
+            {formData.hasBillingAddress && (
+              <div className="space-y-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-900">Billing Address</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="billingStreet">Street Address</Label>
+                    <Input
+                      id="billingStreet"
+                      value={formData.billingAddress.street}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        billingAddress: { ...formData.billingAddress, street: e.target.value }
+                      })}
+                      placeholder="123 Main Street"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="billingCity">City</Label>
+                    <Input
+                      id="billingCity"
+                      value={formData.billingAddress.city}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        billingAddress: { ...formData.billingAddress, city: e.target.value }
+                      })}
+                      placeholder="Accra"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="billingRegion">Region/State</Label>
+                    <Input
+                      id="billingRegion"
+                      value={formData.billingAddress.region}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        billingAddress: { ...formData.billingAddress, region: e.target.value }
+                      })}
+                      placeholder="Greater Accra"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="billingCountry">Country</Label>
+                    <Input
+                      id="billingCountry"
+                      value={formData.billingAddress.country}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        billingAddress: { ...formData.billingAddress, country: e.target.value }
+                      })}
+                      placeholder="Ghana"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="billingPostalCode">Postal Code</Label>
+                    <Input
+                      id="billingPostalCode"
+                      value={formData.billingAddress.postalCode}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        billingAddress: { ...formData.billingAddress, postalCode: e.target.value }
+                      })}
+                      placeholder="GA-123-4567"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Shipping Address Toggle */}
+            <div className="mb-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.hasShippingAddress}
+                  onChange={(e) => setFormData({ ...formData, hasShippingAddress: e.target.checked })}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Add Shipping Address</span>
+              </label>
+            </div>
+
+            {/* Same as Billing Checkbox */}
+            {formData.hasBillingAddress && formData.hasShippingAddress && (
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.sameAsBilling}
+                    onChange={(e) => setFormData({ ...formData, sameAsBilling: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Same as Billing Address</span>
+                </label>
+              </div>
+            )}
+
+            {/* Shipping Address Fields */}
+            {formData.hasShippingAddress && !formData.sameAsBilling && (
+              <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-900">Shipping Address</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="shippingStreet">Street Address</Label>
+                    <Input
+                      id="shippingStreet"
+                      value={formData.shippingAddress.street}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        shippingAddress: { ...formData.shippingAddress, street: e.target.value }
+                      })}
+                      placeholder="123 Main Street"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shippingCity">City</Label>
+                    <Input
+                      id="shippingCity"
+                      value={formData.shippingAddress.city}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        shippingAddress: { ...formData.shippingAddress, city: e.target.value }
+                      })}
+                      placeholder="Accra"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shippingRegion">Region/State</Label>
+                    <Input
+                      id="shippingRegion"
+                      value={formData.shippingAddress.region}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        shippingAddress: { ...formData.shippingAddress, region: e.target.value }
+                      })}
+                      placeholder="Greater Accra"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shippingCountry">Country</Label>
+                    <Input
+                      id="shippingCountry"
+                      value={formData.shippingAddress.country}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        shippingAddress: { ...formData.shippingAddress, country: e.target.value }
+                      })}
+                      placeholder="Ghana"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shippingPostalCode">Postal Code</Label>
+                    <Input
+                      id="shippingPostalCode"
+                      value={formData.shippingAddress.postalCode}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        shippingAddress: { ...formData.shippingAddress, postalCode: e.target.value }
+                      })}
+                      placeholder="GA-123-4567"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

@@ -387,14 +387,14 @@ export default function QuotationsPage() {
             },
       });
 
-          if (response.ok) {
-            success(`Quotation ${quotation.number} deleted successfully`);
-            loadQuotations(); // Reload the list
+      if (response.ok) {
+        success(`Quotation ${quotation.number} deleted successfully`);
+        loadQuotations(); // Reload the list
             closeConfirmation(); // Close the modal
-          } else {
-            const errorData = await response.json();
-            showError(errorData.error || "Failed to delete quotation");
-          }
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || "Failed to delete quotation");
+      }
     } catch (error) {
       console.error('Error deleting quotation:', error);
       showError("Failed to delete quotation");

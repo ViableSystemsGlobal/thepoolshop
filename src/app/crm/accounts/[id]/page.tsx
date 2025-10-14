@@ -12,6 +12,7 @@ import { useToast } from '@/contexts/toast-context';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { EditAccountModal } from '@/components/modals/edit-account-modal';
 import { ConfirmDeleteModal } from '@/components/modals/confirm-delete-modal';
+import { AddAddressModal } from '@/components/modals/add-address-modal';
 
 interface Account {
   id: string;
@@ -81,6 +82,9 @@ export default function AccountDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [editingAddress, setEditingAddress] = useState<any>(null);
   const [aiRecommendations, setAiRecommendations] = useState([
     {
       id: '1',
@@ -112,6 +116,12 @@ export default function AccountDetailsPage() {
       fetchAccount();
     }
   }, [session, accountId]);
+
+  useEffect(() => {
+    if (account) {
+      loadAddresses();
+    }
+  }, [account]);
 
   const fetchAccount = async () => {
     try {
@@ -193,6 +203,54 @@ export default function AccountDetailsPage() {
       console.error('Error deleting account:', err);
       error('Failed to delete account');
     }
+  };
+
+  const loadAddresses = async () => {
+    if (!account) return;
+    
+    try {
+      console.log('Loading addresses for account:', account.id);
+      const response = await fetch(`/api/addresses?accountId=${account.id}`, {
+        credentials: 'include'
+      });
+      console.log('Addresses response status:', response.status);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Addresses data:', data);
+        setAddresses(data.addresses || []);
+      } else {
+        console.error('Failed to load addresses:', response.status);
+      }
+    } catch (err) {
+      console.error('Error loading addresses:', err);
+    }
+  };
+
+  const handleEditAddress = (address: any) => {
+    setEditingAddress(address);
+    setShowAddressModal(true);
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    try {
+      const response = await fetch(`/api/addresses/${addressId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        success('Address deleted successfully');
+        loadAddresses();
+      } else {
+        error('Failed to delete address');
+      }
+    } catch (err) {
+      error('Failed to delete address');
+    }
+  };
+
+  const handleAddressSuccess = () => {
+    loadAddresses();
+    setEditingAddress(null);
   };
 
   const handleRecommendationComplete = (id: string) => {
@@ -447,6 +505,85 @@ export default function AccountDetailsPage() {
               </Card>
             )}
 
+            {/* Addresses */}
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Addresses</h3>
+                <button
+                  onClick={() => {
+                    setEditingAddress(null);
+                    setShowAddressModal(true);
+                  }}
+                  className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity bg-blue-600"
+                >
+                  <Plus className="w-4 h-4 mr-2 inline" />
+                  Add Address
+                </button>
+              </div>
+              
+              {addresses.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <MapPin className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p>No addresses added yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {addresses.map((addr) => (
+                    <div key={addr.id} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-medium text-gray-900">{addr.label}</h4>
+                            {addr.isDefault && (
+                              <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                                Default
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded capitalize">
+                              {addr.type.toLowerCase()}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600 space-y-1">
+                            <div>{addr.street}</div>
+                            <div>
+                              {addr.city}
+                              {addr.city && addr.region && ', '}
+                              {addr.region}
+                              {addr.country && (addr.city || addr.region) && ', '}
+                              {addr.country}
+                              {addr.postalCode && ` ${addr.postalCode}`}
+                            </div>
+                            {addr.contactPerson && (
+                              <div className="text-gray-500">
+                                Contact: {addr.contactPerson}
+                                {addr.phone && ` • ${addr.phone}`}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditAddress(addr)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteAddress(addr.id)}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
             {/* Recent Quotations */}
             {account.quotations && account.quotations.length > 0 && (
               <Card className="p-6">
@@ -600,6 +737,20 @@ export default function AccountDetailsPage() {
           itemName={account.name}
           onClose={() => setShowDeleteModal(false)}
           onConfirm={handleDeleteAccount}
+        />
+      )}
+
+      {/* Add/Edit Address Modal */}
+      {showAddressModal && account && (
+        <AddAddressModal
+          isOpen={showAddressModal}
+          onClose={() => {
+            setShowAddressModal(false);
+            setEditingAddress(null);
+          }}
+          accountId={account.id}
+          address={editingAddress}
+          onSuccess={handleAddressSuccess}
         />
       )}
     </MainLayout>

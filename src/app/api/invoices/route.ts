@@ -37,7 +37,14 @@ export async function GET(request: NextRequest) {
     }
     
     if (paymentStatus) {
-      where.paymentStatus = paymentStatus;
+      // Handle comma-separated payment statuses (e.g., "UNPAID,PARTIALLY_PAID")
+      if (paymentStatus.includes(',')) {
+        where.paymentStatus = {
+          in: paymentStatus.split(',').map(s => s.trim())
+        };
+      } else {
+        where.paymentStatus = paymentStatus;
+      }
     }
     
     if (customerId) {
@@ -138,6 +145,8 @@ export async function POST(request: NextRequest) {
       leadId,
       quotationId,
       customerType,
+      billingAddressId,
+      shippingAddressId,
       dueDate,
       paymentTerms,
       notes,
@@ -271,6 +280,8 @@ export async function POST(request: NextRequest) {
         accountId: accountId || null,
         distributorId: distributorId || null,
         leadId: leadId || null,
+        billingAddressId: billingAddressId || null,
+        shippingAddressId: shippingAddressId || null,
         status: 'DRAFT',
         paymentStatus: 'UNPAID',
         issueDate: new Date(),

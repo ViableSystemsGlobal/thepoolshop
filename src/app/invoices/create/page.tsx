@@ -97,6 +97,12 @@ export default function CreateInvoicePage() {
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Address selection state
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [selectedBillingAddressId, setSelectedBillingAddressId] = useState("");
+  const [selectedShippingAddressId, setSelectedShippingAddressId] = useState("");
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   
   // Product search
   const [productSearchTerm, setProductSearchTerm] = useState("");
@@ -175,10 +181,56 @@ export default function CreateInvoicePage() {
     }
   };
 
+  const loadAddresses = async (accountId: string) => {
+    try {
+      setIsLoadingAddresses(true);
+      const response = await fetch(`/api/addresses?accountId=${accountId}`, {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAddresses(data.addresses || []);
+        
+        // Auto-select default addresses
+        const defaultBilling = data.addresses?.find((addr: any) => 
+          (addr.type === 'BILLING' || addr.type === 'BOTH') && addr.isDefault
+        );
+        const defaultShipping = data.addresses?.find((addr: any) => 
+          (addr.type === 'SHIPPING' || addr.type === 'BOTH') && addr.isDefault
+        );
+        
+        if (defaultBilling) setSelectedBillingAddressId(defaultBilling.id);
+        if (defaultShipping) setSelectedShippingAddressId(defaultShipping.id);
+        
+        console.log('✅ Loaded addresses:', data.addresses?.length || 0);
+      } else {
+        console.error('Failed to load addresses');
+        setAddresses([]);
+      }
+    } catch (error) {
+      console.error('Error loading addresses:', error);
+      setAddresses([]);
+    } finally {
+      setIsLoadingAddresses(false);
+    }
+  };
+
   const handleCustomerChange = (custId: string) => {
     setCustomerId(custId);
     const customer = customers.find(c => c.id === custId);
     setSelectedCustomer(customer || null);
+    
+    // Load addresses if customer is an account
+    if (customer?.type === 'account') {
+      loadAddresses(customer.id);
+    } else {
+      // Clear addresses for non-account customers
+      setAddresses([]);
+      setSelectedBillingAddressId("");
+      setSelectedShippingAddressId("");
+    }
+    
     if (customer) {
       setCustomerType(customer.type);
     }
@@ -390,6 +442,8 @@ export default function CreateInvoicePage() {
           distributorId: selectedCustomer?.type === 'distributor' ? customerId : null,
           leadId: selectedCustomer?.type === 'lead' ? customerId : null,
           customerType: selectedCustomer?.customerType || 'STANDARD',
+          billingAddressId: selectedBillingAddressId || null,
+          shippingAddressId: selectedShippingAddressId || null,
           dueDate,
           paymentTerms,
           notes,
@@ -537,6 +591,114 @@ export default function CreateInvoicePage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Address Selection - Only show for accounts */}
+            {selectedCustomer?.type === 'account' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Building className="h-5 w-5" />
+                    <span>Billing & Shipping Addresses</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {isLoadingAddresses ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                      <span className="ml-2 text-gray-500">Loading addresses...</span>
+                    </div>
+                  ) : addresses.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Billing Address Selection */}
+                      <div>
+                        <Label htmlFor="billingAddress">Billing Address</Label>
+                        <select
+                          id="billingAddress"
+                          value={selectedBillingAddressId}
+                          onChange={(e) => setSelectedBillingAddressId(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select billing address...</option>
+                          {addresses
+                            .filter(addr => addr.type === 'BILLING' || addr.type === 'BOTH')
+                            .map(address => (
+                              <option key={address.id} value={address.id}>
+                                {address.label} - {address.street}, {address.city}
+                                {address.isDefault ? ' (Default)' : ''}
+                              </option>
+                            ))}
+                        </select>
+                        
+                        {/* Display selected billing address details */}
+                        {selectedBillingAddressId && (
+                          <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                            {(() => {
+                              const addr = addresses.find(a => a.id === selectedBillingAddressId);
+                              return addr ? (
+                                <div>
+                                  <div className="font-medium">{addr.label}</div>
+                                  <div>{addr.street}</div>
+                                  <div>{addr.city}, {addr.region}</div>
+                                  <div>{addr.country} {addr.postalCode}</div>
+                                  {addr.contactPerson && <div>Contact: {addr.contactPerson}</div>}
+                                  {addr.phone && <div>Phone: {addr.phone}</div>}
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Shipping Address Selection */}
+                      <div>
+                        <Label htmlFor="shippingAddress">Shipping Address</Label>
+                        <select
+                          id="shippingAddress"
+                          value={selectedShippingAddressId}
+                          onChange={(e) => setSelectedShippingAddressId(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select shipping address...</option>
+                          {addresses
+                            .filter(addr => addr.type === 'SHIPPING' || addr.type === 'BOTH')
+                            .map(address => (
+                              <option key={address.id} value={address.id}>
+                                {address.label} - {address.street}, {address.city}
+                                {address.isDefault ? ' (Default)' : ''}
+                              </option>
+                            ))}
+                        </select>
+                        
+                        {/* Display selected shipping address details */}
+                        {selectedShippingAddressId && (
+                          <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                            {(() => {
+                              const addr = addresses.find(a => a.id === selectedShippingAddressId);
+                              return addr ? (
+                                <div>
+                                  <div className="font-medium">{addr.label}</div>
+                                  <div>{addr.street}</div>
+                                  <div>{addr.city}, {addr.region}</div>
+                                  <div>{addr.country} {addr.postalCode}</div>
+                                  {addr.contactPerson && <div>Contact: {addr.contactPerson}</div>}
+                                  {addr.phone && <div>Phone: {addr.phone}</div>}
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">
+                      <Building className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                      <p>No addresses found for this account.</p>
+                      <p className="text-sm">Addresses can be added from the account details page.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Invoice Details */}
             <Card>

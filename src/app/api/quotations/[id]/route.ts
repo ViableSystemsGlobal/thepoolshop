@@ -32,6 +32,8 @@ export async function GET(
         notes: true,
         validUntil: true,
         customerType: true,
+        qrCodeData: true,
+        qrCodeGeneratedAt: true,
         createdAt: true,
         updatedAt: true,
         owner: {
