@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { formatCurrency } from '@/lib/utils';
+import { CustomerSearch } from '@/components/ui/customer-search';
 
 interface Product {
   id: string;
@@ -16,16 +17,6 @@ interface Product {
   sku: string;
   sellingPrice: number;
   stockQuantity: number;
-}
-
-interface Distributor {
-  id: string;
-  businessName: string;
-  email?: string;
-  phone?: string;
-  creditLimit?: number;
-  currentCreditUsed?: number;
-  creditStatus?: string;
 }
 
 interface OrderItem {
@@ -52,57 +43,37 @@ export function AddOrderModal({
   const { success, error } = useToast();
 
   const [loading, setLoading] = useState(false);
-  const [distributors, setDistributors] = useState<Distributor[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoadingDistributors, setIsLoadingDistributors] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   
   const [formData, setFormData] = useState({
-    distributorId: '',
-    paymentMethod: 'credit',
+    customerId: '',
+    customerType: '',
+    paymentMethod: 'cash',
     notes: '',
     deliveryAddress: '',
     deliveryDate: '',
   });
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [selectedDistributor, setSelectedDistributor] = useState<Distributor | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
 
   useEffect(() => {
     if (isOpen) {
-      loadDistributors();
       loadProducts();
       // Reset form
       setFormData({
-        distributorId: '',
-        paymentMethod: 'credit',
+        customerId: '',
+        customerType: '',
+        paymentMethod: 'cash',
         notes: '',
         deliveryAddress: '',
         deliveryDate: '',
       });
       setOrderItems([]);
-      setSelectedDistributor(null);
+      setSelectedCustomer(null);
     }
   }, [isOpen]);
-
-  const loadDistributors = async () => {
-    setIsLoadingDistributors(true);
-    try {
-      const response = await fetch('/api/distributors', {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to load distributors');
-      }
-      const data = await response.json();
-      setDistributors(data.distributors || []);
-    } catch (err) {
-      console.error('Error loading distributors:', err);
-      error('Failed to load distributors');
-    } finally {
-      setIsLoadingDistributors(false);
-    }
-  };
 
   const loadProducts = async () => {
     setIsLoadingProducts(true);
@@ -125,11 +96,15 @@ export function AddOrderModal({
 
   const handleChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
-    if (field === 'distributorId') {
-      const distributor = distributors.find(d => d.id === value);
-      setSelectedDistributor(distributor || null);
-    }
+  };
+
+  const handleCustomerChange = (id: string, customer: any) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      customerId: id,
+      customerType: customer.type
+    }));
+    setSelectedCustomer(customer);
   };
 
   const addOrderItem = () => {
@@ -186,8 +161,8 @@ export function AddOrderModal({
     setLoading(true);
 
     try {
-      if (!formData.distributorId) {
-        throw new Error('Please select a distributor');
+      if (!formData.customerId) {
+        throw new Error('Please select a customer');
       }
       if (orderItems.length === 0) {
         throw new Error('Please add at least one item to the order');
@@ -201,16 +176,28 @@ export function AddOrderModal({
         throw new Error('Order total must be greater than 0');
       }
 
+      // Prepare data based on customer type
+      const orderData: any = {
+        customerType: formData.customerType,
+        customerId: formData.customerId,
+        items: orderItems,
+        totalAmount,
+        paymentMethod: formData.paymentMethod,
+        notes: formData.notes,
+        deliveryAddress: formData.deliveryAddress,
+        deliveryDate: formData.deliveryDate ? new Date(formData.deliveryDate).toISOString() : null
+      };
+
+      // For backward compatibility, also send distributorId if customer is a distributor
+      if (formData.customerType === 'distributor') {
+        orderData.distributorId = formData.customerId;
+      }
+
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          ...formData,
-          items: orderItems,
-          totalAmount,
-          deliveryDate: formData.deliveryDate ? new Date(formData.deliveryDate).toISOString() : null
-        })
+        body: JSON.stringify(orderData)
       });
 
       if (!response.ok) {
@@ -247,39 +234,24 @@ export function AddOrderModal({
           {/* Order Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <Label htmlFor="distributorId">Distributor *</Label>
-              {isLoadingDistributors ? (
-                <div className="flex items-center py-2">
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  <span className="text-sm text-gray-500">Loading distributors...</span>
-                </div>
-              ) : (
-                <select
-                  id="distributorId"
-                  value={formData.distributorId}
-                  onChange={(e) => handleChange('distributorId', e.target.value)}
-                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-${theme.primary} focus:border-transparent`}
-                  required
-                >
-                  <option value="">Select a distributor</option>
-                  {distributors.map(distributor => (
-                    <option key={distributor.id} value={distributor.id}>
-                      {distributor.businessName}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {selectedDistributor && (
+              <Label htmlFor="customerId">Customer *</Label>
+              <CustomerSearch
+                value={formData.customerId}
+                onChange={handleCustomerChange}
+                placeholder="Search for a customer (Account, Contact, or Distributor)"
+                label="Customer"
+                required
+              />
+              {selectedCustomer && (
                 <div className="mt-2 p-3 bg-gray-50 rounded-md">
-                  <p className="text-sm font-medium">{selectedDistributor.businessName}</p>
-                  <p className="text-xs text-gray-500">
-                    Credit Limit: {formatCurrency(selectedDistributor.creditLimit || 0)} | 
-                    Used: {formatCurrency(selectedDistributor.currentCreditUsed || 0)} | 
-                    Available: {formatCurrency((selectedDistributor.creditLimit || 0) - (selectedDistributor.currentCreditUsed || 0))}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Status: {selectedDistributor.creditStatus || 'ACTIVE'}
-                  </p>
+                  <p className="text-sm font-medium">{selectedCustomer.name}</p>
+                  <p className="text-xs text-gray-500">Type: {selectedCustomer.type}</p>
+                  {selectedCustomer.email && (
+                    <p className="text-xs text-gray-500">Email: {selectedCustomer.email}</p>
+                  )}
+                  {selectedCustomer.phone && (
+                    <p className="text-xs text-gray-500">Phone: {selectedCustomer.phone}</p>
+                  )}
                 </div>
               )}
             </div>

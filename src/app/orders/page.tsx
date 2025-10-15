@@ -37,6 +37,7 @@ import Link from "next/link";
 import { AddOrderModal } from "@/components/modals/add-order-modal";
 import { EditOrderModal } from "@/components/modals/edit-order-modal";
 import { ConfirmationModal } from "@/components/modals/confirmation-modal";
+import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { OrderStatus } from "@prisma/client";
 
@@ -46,14 +47,28 @@ interface Order {
   totalAmount: number;
   status: OrderStatus;
   paymentMethod: string;
+  customerType?: string;
   notes?: string;
   deliveryAddress?: string;
   deliveryDate?: string;
   createdAt: string;
   updatedAt: string;
-  distributor: {
+  distributor?: {
     id: string;
     businessName: string;
+    email?: string;
+    phone?: string;
+  };
+  account?: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+  };
+  contact?: {
+    id: string;
+    firstName: string;
+    lastName: string;
     email?: string;
     phone?: string;
   };
@@ -210,6 +225,28 @@ export default function OrdersPage() {
     }
   };
 
+  const getCustomerName = (order: Order) => {
+    if (order.customerType === 'account' && order.account) {
+      return order.account.name;
+    } else if (order.customerType === 'contact' && order.contact) {
+      return `${order.contact.firstName} ${order.contact.lastName}`;
+    } else if (order.distributor) {
+      return order.distributor.businessName;
+    }
+    return 'Unknown Customer';
+  };
+
+  const getCustomerLink = (order: Order) => {
+    if (order.customerType === 'account' && order.account) {
+      return `/crm/accounts/${order.account.id}`;
+    } else if (order.customerType === 'contact' && order.contact) {
+      return `/crm/contacts/${order.contact.id}`;
+    } else if (order.distributor) {
+      return `/drm/distributors/${order.distributor.id}`;
+    }
+    return '#';
+  };
+
   const getPaymentMethodIcon = (method: string) => {
     switch (method.toLowerCase()) {
       case 'cash': return <Banknote className="h-4 w-4" />;
@@ -236,48 +273,84 @@ export default function OrdersPage() {
         </button>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-gray-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalOrders}</div>
-            <p className="text-xs text-gray-500">All time orders</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-gray-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalValue)}</div>
-            <p className="text-xs text-gray-500">All time value</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
-            <Clock className="h-4 w-4 text-gray-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pendingOrders}</div>
-            <p className="text-xs text-gray-500">Awaiting confirmation</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month</CardTitle>
-            <Calendar className="h-4 w-4 text-gray-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(thisMonthOrders)}</div>
-            <p className="text-xs text-gray-500">Current month value</p>
-          </CardContent>
-        </Card>
+      {/* AI Card + Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* AI Recommendation Card - Left Side (2/3) */}
+        <div className="lg:col-span-2">
+          <AIRecommendationCard
+            title="Order Management AI"
+            subtitle="Your intelligent assistant for order fulfillment"
+            recommendations={[
+              {
+                id: '1',
+                title: "Process pending orders",
+                description: `${pendingOrders} order${pendingOrders !== 1 ? 's' : ''} awaiting confirmation`,
+                priority: pendingOrders > 0 ? 'high' : 'low',
+                completed: false
+              },
+              {
+                id: '2',
+                title: "Monitor order fulfillment",
+                description: "Track orders in processing and shipping status",
+                priority: 'medium',
+                completed: false
+              },
+              {
+                id: '3',
+                title: "Monthly performance",
+                description: `${formatCurrency(thisMonthOrders)} in orders this month`,
+                priority: 'low',
+                completed: false
+              }
+            ]}
+            onRecommendationComplete={(id) => {
+              console.log('Recommendation completed:', id);
+            }}
+          />
+        </div>
+
+        {/* Metrics Cards - Right Side (1/3, 2x2 Grid) */}
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Orders</p>
+                <p className="text-2xl font-bold text-gray-900">{totalOrders}</p>
+              </div>
+              <ShoppingCart className="h-8 w-8 text-gray-400" />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Value</p>
+                <p className={`text-2xl font-bold text-${theme.primary}`}>{formatCurrency(totalValue)}</p>
+              </div>
+              <DollarSign className={`h-8 w-8 text-${theme.primary}`} />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pending</p>
+                <p className="text-2xl font-bold text-yellow-600">{pendingOrders}</p>
+              </div>
+              <Clock className="h-8 w-8 text-yellow-400" />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">This Month</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(thisMonthOrders)}</p>
+              </div>
+              <Calendar className="h-8 w-8 text-green-400" />
+            </div>
+          </Card>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -338,7 +411,7 @@ export default function OrdersPage() {
                         Order #
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
-                        Distributor
+                        Customer
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
                         Status
@@ -367,9 +440,10 @@ export default function OrdersPage() {
                           {order.orderNumber}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <Link href={`/drm/distributors/${order.distributor.id}`} className={`text-${theme.primary} hover:underline`}>
-                            {order.distributor.businessName}
+                          <Link href={getCustomerLink(order)} className={`text-${theme.primary} hover:underline`}>
+                            {getCustomerName(order)}
                           </Link>
+                          <p className="text-xs text-gray-400 capitalize">{order.customerType || 'distributor'}</p>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>

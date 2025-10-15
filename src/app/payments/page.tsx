@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { AddPaymentModal } from "@/components/modals/add-payment-modal";
 import { ConfirmationModal } from "@/components/modals/confirmation-modal";
+import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 
 interface Payment {
@@ -172,21 +174,6 @@ export default function PaymentsPage() {
     );
   });
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'GHS',
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -205,63 +192,84 @@ export default function PaymentsPage() {
           </Button>
         </div>
 
-        {/* Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardContent className="p-6">
+        {/* AI Card + Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* AI Recommendation Card - Left Side (2/3) */}
+          <div className="lg:col-span-2">
+            <AIRecommendationCard
+              title="Payment Management AI"
+              subtitle="Your intelligent assistant for cash flow optimization"
+              recommendations={[
+                {
+                  id: '1',
+                  title: "Track outstanding invoices",
+                  description: "Monitor and follow up on unpaid invoices to improve cash flow",
+                  priority: 'high',
+                  completed: false
+                },
+                {
+                  id: '2',
+                  title: "Monthly payment analysis",
+                  description: `Collected ${formatCurrency(metrics.thisMonth)} this month vs ${formatCurrency(metrics.lastMonth)} last month`,
+                  priority: 'medium',
+                  completed: false
+                },
+                {
+                  id: '3',
+                  title: "Payment reconciliation",
+                  description: `${metrics.totalPayments} payments recorded totaling ${formatCurrency(metrics.totalAmount)}`,
+                  priority: 'low',
+                  completed: false
+                }
+              ]}
+              onRecommendationComplete={(id) => {
+                console.log('Recommendation completed:', id);
+              }}
+            />
+          </div>
+
+          {/* Metrics Cards - Right Side (1/3, 2x2 Grid) */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Payments</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{metrics.totalPayments}</p>
+                  <p className="text-2xl font-bold text-gray-900">{metrics.totalPayments}</p>
                 </div>
-                <div className="bg-blue-100 p-3 rounded-full">
-                  <DollarSign className="h-6 w-6 text-blue-600" />
-                </div>
+                <DollarSign className="h-8 w-8 text-gray-400" />
               </div>
-            </CardContent>
-          </Card>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
+            <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Amount</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(metrics.totalAmount)}</p>
+                  <p className={`text-2xl font-bold text-${theme.primary}`}>{formatCurrency(metrics.totalAmount)}</p>
                 </div>
-                <div className="bg-green-100 p-3 rounded-full">
-                  <TrendingUp className="h-6 w-6 text-green-600" />
-                </div>
+                <TrendingUp className={`h-8 w-8 text-${theme.primary}`} />
               </div>
-            </CardContent>
-          </Card>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
+            <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">This Month</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(metrics.thisMonth)}</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.thisMonth)}</p>
                 </div>
-                <div className="bg-purple-100 p-3 rounded-full">
-                  <Calendar className="h-6 w-6 text-purple-600" />
-                </div>
+                <Calendar className="h-8 w-8 text-green-400" />
               </div>
-            </CardContent>
-          </Card>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
+            <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Last Month</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(metrics.lastMonth)}</p>
+                  <p className="text-2xl font-bold text-orange-600">{formatCurrency(metrics.lastMonth)}</p>
                 </div>
-                <div className="bg-orange-100 p-3 rounded-full">
-                  <TrendingUp className="h-6 w-6 text-orange-600" />
-                </div>
+                <TrendingUp className="h-8 w-8 text-orange-400" />
               </div>
-            </CardContent>
-          </Card>
+            </Card>
+          </div>
         </div>
 
         {/* Filters and Search */}

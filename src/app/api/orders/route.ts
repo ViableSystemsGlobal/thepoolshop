@@ -103,7 +103,11 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { 
-      distributorId, 
+      customerType = 'distributor',
+      customerId, // Can be distributorId, accountId, or contactId
+      distributorId, // Legacy support
+      accountId,
+      contactId,
       items, 
       totalAmount, 
       paymentMethod = 'credit',
@@ -112,10 +116,17 @@ export async function POST(request: NextRequest) {
       deliveryDate = null
     } = body;
 
+    // Determine the actual customer ID and type
+    const actualCustomerType = customerType || 'distributor';
+    const actualCustomerId = customerId || distributorId;
+    const actualDistributorId = actualCustomerType === 'distributor' ? actualCustomerId : (distributorId || actualCustomerId);
+    const actualAccountId = actualCustomerType === 'account' ? actualCustomerId : accountId;
+    const actualContactId = actualCustomerType === 'contact' ? actualCustomerId : contactId;
+
     // Validate required fields
-    if (!distributorId || !items || !Array.isArray(items) || items.length === 0) {
+    if (!actualCustomerId || !items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ 
-        error: 'Distributor ID and order items are required' 
+        error: 'Customer ID and order items are required' 
       }, { status: 400 });
     }
 
@@ -125,17 +136,17 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('🚀 Creating order for distributor:', distributorId);
+    console.log('🚀 Creating order for customer:', { type: actualCustomerType, id: actualCustomerId });
     console.log('📦 Order details:', { totalAmount, items: items.length, paymentMethod });
 
-    // Check if credit checking is enabled
+    // Check if credit checking is enabled (only for distributors)
     const creditCheckingEnabled = await getSettingValue('CREDIT_CHECKING_ENABLED', 'true');
     
-    if (creditCheckingEnabled === 'true' && paymentMethod === 'credit') {
+    if (creditCheckingEnabled === 'true' && paymentMethod === 'credit' && actualCustomerType === 'distributor') {
       console.log('🔍 Running credit check...');
       
       // Perform credit check
-      const creditCheck = await checkDistributorCredit(distributorId, totalAmount);
+      const creditCheck = await checkDistributorCredit(actualDistributorId, totalAmount);
       
       console.log('💳 Credit check result:', creditCheck);
 
@@ -161,7 +172,10 @@ export async function POST(request: NextRequest) {
     const order = await prisma.order.create({
       data: {
         orderNumber,
-        distributorId,
+        distributorId: actualDistributorId,
+        customerType: actualCustomerType,
+        accountId: actualAccountId,
+        contactId: actualContactId,
         totalAmount,
         status: 'PENDING',
         paymentMethod,
@@ -187,6 +201,23 @@ export async function POST(request: NextRequest) {
             phone: true
           }
         },
+        account: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        },
+        contact: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true
+          }
+        },
         items: {
           include: {
             product: {
@@ -200,19 +231,19 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // If payment method is credit, update distributor's credit usage
-    if (paymentMethod === 'credit') {
+    // If payment method is credit and customer is distributor, update credit usage
+    if (paymentMethod === 'credit' && actualCustomerType === 'distributor') {
       console.log('💳 Updating distributor credit usage...');
       
       const distributor = await prisma.distributor.findUnique({
-        where: { id: distributorId }
+        where: { id: actualDistributorId }
       });
 
       if (distributor) {
         const newCreditUsed = (distributor.currentCreditUsed || 0) + totalAmount;
         
         await prisma.distributor.update({
-          where: { id: distributorId },
+          where: { id: actualDistributorId },
           data: {
             currentCreditUsed: newCreditUsed,
             updatedAt: new Date()
@@ -222,7 +253,7 @@ export async function POST(request: NextRequest) {
         // Log credit usage in credit history
         await prisma.distributorCreditHistory.create({
           data: {
-            distributorId,
+            distributorId: actualDistributorId,
             action: 'CREDIT_USED',
             previousLimit: distributor.creditLimit || 0,
             newLimit: distributor.creditLimit || 0,
@@ -297,6 +328,23 @@ export async function GET(request: NextRequest) {
           distributor: {
             select: {
               businessName: true,
+              email: true,
+              phone: true
+            }
+          },
+          account: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true
+            }
+          },
+          contact: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
               email: true,
               phone: true
             }

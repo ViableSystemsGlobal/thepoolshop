@@ -305,6 +305,7 @@ model Account {
   invoices      Invoice[]     @relation("InvoiceAccount")
   payments      Payment[]     @relation("PaymentAccount")
   returns       Return[]      @relation("ReturnAccount")
+  orders        Order[]       @relation("OrderAccount")
 
   @@map("accounts")
 }
@@ -335,6 +336,7 @@ model Contact {
   quotationShippingContacts  Quotation[] @relation("QuotationShippingContact")
   invoiceBillingContacts     Invoice[]   @relation("InvoiceBillingContact")
   invoiceShippingContacts    Invoice[]   @relation("InvoiceShippingContact")
+  orders                     Order[]     @relation("OrderContact")
 
   @@map("contacts")
 }
@@ -1544,6 +1546,10 @@ model Order {
   id              String      @id @default(cuid())
   orderNumber     String      @unique
   distributorId   String
+  // New flexible customer fields (optional for backward compatibility)
+  customerType    String?     @default("distributor") // "account", "contact", "distributor"
+  accountId       String?     // For account orders
+  contactId       String?     // For contact orders
   totalAmount     Decimal
   status          OrderStatus @default(PENDING)
   paymentMethod   String      @default("credit") // credit, cash, bank_transfer
@@ -1554,6 +1560,8 @@ model Order {
   updatedAt       DateTime    @updatedAt
   createdBy       String
   distributor     Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  account         Account?    @relation("OrderAccount", fields: [accountId], references: [id], onDelete: SetNull)
+  contact         Contact?    @relation("OrderContact", fields: [contactId], references: [id], onDelete: SetNull)
   items           OrderItem[]
   delivery        Delivery?
   createdByUser   User        @relation(fields: [createdBy], references: [id])
