@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { businessName: { contains: search, mode: 'insensitive' } },
-        { contactPerson: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search, mode: 'insensitive' } },
       ];
@@ -40,11 +41,15 @@ export async function GET(request: NextRequest) {
         where,
         select: {
           id: true,
+          firstName: true,
+          lastName: true,
           businessName: true,
-          contactPerson: true,
           email: true,
           phone: true,
           address: true,
+          city: true,
+          region: true,
+          country: true,
           creditLimit: true,
           currentCreditUsed: true,
           creditStatus: true,
@@ -92,44 +97,58 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
+      firstName,
+      lastName,
       businessName,
-      contactPerson,
+      businessType,
       email,
       phone,
       address,
+      city,
+      region,
+      country = 'Ghana',
       creditLimit = 0,
       creditStatus = 'ACTIVE',
       status = 'ACTIVE'
     } = body;
 
     // Validate required fields
-    if (!businessName) {
+    if (!businessName || !firstName || !lastName || !email || !phone || !businessType || !city || !region) {
       return NextResponse.json({ 
-        error: 'Business name is required' 
+        error: 'Business name, first name, last name, email, phone, business type, city, and region are required' 
       }, { status: 400 });
     }
 
     // Create the distributor
     const distributor = await prisma.distributor.create({
       data: {
+        firstName,
+        lastName,
         businessName,
-        contactPerson: contactPerson || null,
-        email: email || null,
-        phone: phone || null,
+        businessType,
+        email,
+        phone,
         address: address || null,
+        city,
+        region,
+        country,
         creditLimit: creditLimit || 0,
         currentCreditUsed: 0,
         creditStatus: creditStatus || 'ACTIVE',
         status: status || 'ACTIVE',
-        createdBy: session.user.id,
+        approvedBy: session.user.id,
       },
       select: {
         id: true,
+        firstName: true,
+        lastName: true,
         businessName: true,
-        contactPerson: true,
         email: true,
         phone: true,
         address: true,
+        city: true,
+        region: true,
+        country: true,
         creditLimit: true,
         currentCreditUsed: true,
         creditStatus: true,
