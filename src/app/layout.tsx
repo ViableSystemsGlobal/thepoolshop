@@ -4,14 +4,18 @@ import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/contexts/theme-context";
 import { ToastProvider } from "@/contexts/toast-context";
 import { LoadingProvider } from "@/contexts/loading-context";
+import { CompanyProvider } from "@/contexts/company-context";
 import { ToastContainer } from "@/components/toast-container";
 import { HydrationBoundary } from "@/components/hydration-boundary";
 import { TaskNotificationStarter } from "@/components/task-notification-starter";
 import { DynamicFavicon } from "@/components/dynamic-favicon";
 
 export const metadata: Metadata = {
-  title: "AD Pools SM - Sales Management System",
+  title: "Sales Management System",
   description: "A practical, single-tenant system for sales and distribution management",
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
@@ -26,12 +30,14 @@ export default function RootLayout({
                 <ThemeProvider>
                   <LoadingProvider>
                     <ToastProvider>
-                      <AuthSessionProvider>
-                        <TaskNotificationStarter />
-                        <DynamicFavicon />
-                        {children}
-                        <ToastContainer />
-                      </AuthSessionProvider>
+                      <CompanyProvider>
+                        <AuthSessionProvider>
+                          <TaskNotificationStarter />
+                          <DynamicFavicon />
+                          {children}
+                          <ToastContainer />
+                        </AuthSessionProvider>
+                      </CompanyProvider>
                     </ToastProvider>
                   </LoadingProvider>
                 </ThemeProvider>

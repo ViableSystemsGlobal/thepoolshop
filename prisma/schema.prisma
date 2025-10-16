@@ -67,6 +67,7 @@ model User {
   createdReturns             Return[]                   @relation("ReturnCreator")
   approvedReturns            Return[]                   @relation("ReturnApprover")
   createdStocktakes          StocktakeSession[]         @relation("StocktakeCreator")
+  agent                      Agent?
 
   @@map("users")
 }
@@ -394,9 +395,12 @@ model Opportunity {
   probability Int              @default(0)
   closeDate   DateTime?
   accountId   String
+  agentId     String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   account     Account          @relation(fields: [accountId], references: [id])
+  agent       Agent?           @relation(fields: [agentId], references: [id])
+  commissions Commission[]
 
   @@map("opportunities")
 }
@@ -439,14 +443,17 @@ model Quotation {
   qrCodeData           String?  // QR code data (not image)
   qrCodeGeneratedAt    DateTime?
   
+  agentId       String?
   proformas     Proforma[]
   lines         QuotationLine[]
   account       Account?        @relation(fields: [accountId], references: [id])
   distributor   Distributor?    @relation(fields: [distributorId], references: [id])
   lead          Lead?           @relation(fields: [leadId], references: [id])
   owner         User            @relation(fields: [ownerId], references: [id])
+  agent         Agent?          @relation(fields: [agentId], references: [id])
   salesOrders   SalesOrder[]
   invoices      Invoice[]
+  commissions   Commission[]
 
   @@map("quotations")
 }
@@ -1559,12 +1566,15 @@ model Order {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   createdBy       String
+  agentId         String?
   distributor     Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
   account         Account?    @relation("OrderAccount", fields: [accountId], references: [id], onDelete: SetNull)
   contact         Contact?    @relation("OrderContact", fields: [contactId], references: [id], onDelete: SetNull)
   items           OrderItem[]
   delivery        Delivery?
   createdByUser   User        @relation(fields: [createdBy], references: [id])
+  agent           Agent?      @relation(fields: [agentId], references: [id])
+  commissions     Commission[]
 
   @@map("orders")
 }
@@ -1802,6 +1812,7 @@ model Invoice {
 
   notes     String?
   ownerId   String
+  agentId   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1812,9 +1823,11 @@ model Invoice {
   lead           Lead?               @relation("InvoiceLead", fields: [leadId], references: [id])
   owner          User                @relation("InvoiceOwner", fields: [ownerId], references: [id])
   creditApprover User?               @relation("InvoiceCreditApprover", fields: [creditApprovedBy], references: [id])
+  agent          Agent?              @relation(fields: [agentId], references: [id])
   lines          InvoiceLine[]
   salesOrders    SalesOrder[]
   payments       PaymentAllocation[]
+  commissions    Commission[]
 
   @@map("invoices")
 }
@@ -2093,4 +2106,117 @@ enum StocktakeStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+}
+
+model Agent {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  agentCode         String    @unique
+  status            AgentStatus @default(ACTIVE)
+  hireDate          DateTime  @default(now())
+  territory         String?
+  team              String?
+  managerId         String?
+  commissionRate    Float     @default(0)
+  targetMonthly     Float?
+  targetQuarterly   Float?
+  targetAnnual      Float?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manager           Agent?    @relation("AgentManager", fields: [managerId], references: [id])
+  subordinates      Agent[]   @relation("AgentManager")
+  commissions       Commission[]
+  invoices          Invoice[]
+  quotations        Quotation[]
+  orders            Order[]
+  opportunities     Opportunity[]
+  
+  @@index([status])
+  @@index([territory])
+  @@index([team])
+  @@map("agents")
+}
+
+model Commission {
+  id                String    @id @default(cuid())
+  agentId           String
+  invoiceId         String?
+  quotationId       String?
+  orderId           String?
+  opportunityId     String?
+  commissionType    CommissionType
+  calculationType   CommissionCalculationType
+  baseAmount        Float
+  commissionRate    Float
+  commissionAmount  Float
+  status            CommissionStatus @default(PENDING)
+  paidDate          DateTime?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  agent             Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  invoice           Invoice?  @relation(fields: [invoiceId], references: [id])
+  quotation         Quotation? @relation(fields: [quotationId], references: [id])
+  order             Order?    @relation(fields: [orderId], references: [id])
+  opportunity       Opportunity? @relation(fields: [opportunityId], references: [id])
+  
+  @@index([agentId])
+  @@index([status])
+  @@index([commissionType])
+  @@map("commissions")
+}
+
+model CommissionRule {
+  id                String    @id @default(cuid())
+  name              String
+  description       String?
+  commissionType    CommissionType
+  calculationType   CommissionCalculationType
+  baseRate          Float
+  minAmount         Float?
+  maxAmount         Float?
+  isActive          Boolean   @default(true)
+  effectiveFrom     DateTime  @default(now())
+  effectiveTo       DateTime?
+  conditions        Json?     // Store complex conditions as JSON
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([commissionType])
+  @@index([isActive])
+  @@map("commission_rules")
+}
+
+enum AgentStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum CommissionType {
+  SALES
+  QUOTA_BONUS
+  TEAM_BONUS
+  RETENTION
+  REFERRAL
+  SPECIAL
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum CommissionCalculationType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  TIERED
+  QUOTA_BASED
 }

@@ -13,6 +13,8 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
   const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [hasDismissedPreview, setHasDismissedPreview] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
   const chatModalRef = useRef<HTMLDivElement>(null);
 
   // Handle click outside to close
@@ -52,20 +54,46 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
     }
   }, [isOpen, hasShownWelcome, chatHistory.length]);
 
-  // Show preview message after 2 seconds on mount, hide after 10 seconds
+  // Check if user has previously dismissed the preview
   useEffect(() => {
-    const showTimer = setTimeout(() => {
-      setShowPreview(true);
-    }, 2000);
-
-    const hideTimer = setTimeout(() => {
-      setShowPreview(false);
-    }, 12000); // 2s + 10s = 12s total
-
-    return () => {
-      clearTimeout(showTimer);
-      clearTimeout(hideTimer);
-    };
+    const dismissed = localStorage.getItem('kwame-preview-dismissed');
+    const lastShown = localStorage.getItem('kwame-preview-last-shown');
+    const visitCount = parseInt(localStorage.getItem('kwame-visit-count') || '0');
+    
+    // Increment visit count
+    localStorage.setItem('kwame-visit-count', (visitCount + 1).toString());
+    
+    if (dismissed === 'true') {
+      setHasDismissedPreview(true);
+      return;
+    }
+    
+    // Only show if:
+    // 1. User hasn't seen it in the last 24 hours
+    // 2. User has visited at least 2 times (not first visit)
+    // 3. Not on mobile (less intrusive)
+    const now = Date.now();
+    const lastShownTime = lastShown ? parseInt(lastShown) : 0;
+    const isMobile = window.innerWidth < 768;
+    const shouldShow = visitCount >= 2 && 
+                      (now - lastShownTime) > 24 * 60 * 60 * 1000 && 
+                      !isMobile;
+    
+    if (shouldShow) {
+      const showTimer = setTimeout(() => {
+        setShowPreview(true);
+        localStorage.setItem('kwame-preview-last-shown', now.toString());
+      }, 3000); // Slightly longer delay
+      
+      const hideTimer = setTimeout(() => {
+        setShowPreview(false);
+      }, 10000); // Shorter display time
+      
+      return () => {
+        clearTimeout(showTimer);
+        clearTimeout(hideTimer);
+      };
+    }
   }, []);
 
   const handleSendMessage = async () => {
@@ -85,11 +113,45 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
     }, 1000);
   };
 
+  // Enhanced dismissal function with animation
+  const handleDismissPreview = (permanent = true) => {
+    setIsDismissing(true);
+    
+    // Animate out
+    setTimeout(() => {
+      setShowPreview(false);
+      setIsDismissing(false);
+      
+      if (permanent) {
+        setHasDismissedPreview(true);
+        localStorage.setItem('kwame-preview-dismissed', 'true');
+      }
+    }, 300); // Match animation duration
+  };
+
+  // Utility function to reset preview dismissal (for development/testing)
+  const resetPreviewDismissal = () => {
+    setHasDismissedPreview(false);
+    setIsDismissing(false);
+    localStorage.removeItem('kwame-preview-dismissed');
+    localStorage.removeItem('kwame-preview-last-shown');
+    localStorage.removeItem('kwame-visit-count');
+  };
+
+  // Expose reset function to window for debugging
+  useEffect(() => {
+    (window as any).resetKwamePreview = resetPreviewDismissal;
+  }, []);
+
   return (
     <>
       {/* Preview Message */}
-      {showPreview && !isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 animate-in slide-in-from-bottom-2 fade-in duration-300">
+      {showPreview && !isOpen && !hasDismissedPreview && (
+        <div className={`fixed bottom-24 right-6 z-50 transition-all duration-300 ${
+          isDismissing 
+            ? 'animate-out slide-out-to-bottom-2 fade-out' 
+            : 'animate-in slide-in-from-bottom-2 fade-in'
+        }`}>
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-4 max-w-xs">
             <div className="flex items-start space-x-3">
               <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center">
@@ -98,10 +160,16 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900">Hi! I'm Kwame 👋</p>
                 <p className="text-xs text-gray-600 mt-1">Need help? Click here to chat with me!</p>
+                <button
+                  onClick={() => handleDismissPreview(true)}
+                  className="text-xs text-gray-500 hover:text-gray-700 mt-1 underline"
+                >
+                  Don't show again
+                </button>
               </div>
               <button
-                onClick={() => setShowPreview(false)}
-                className="text-gray-400 hover:text-gray-600"
+                onClick={() => handleDismissPreview(true)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>

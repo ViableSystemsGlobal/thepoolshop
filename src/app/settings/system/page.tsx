@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
+import { useCompany } from "@/contexts/company-context";
 import { 
   ArrowLeft,
   Palette,
@@ -38,14 +39,17 @@ const colorOptions = [
 export default function SystemSettingsPage() {
   const { themeColor, setThemeColor, getThemeClasses, customLogo, setCustomLogo } = useTheme();
   const { success, error: showError } = useToast();
+  const { companyName: contextCompanyName, description: contextDescription, favicon, refreshCompanyData } = useCompany();
   const [previewMode, setPreviewMode] = useState(false);
   const [previewColor, setPreviewColor] = useState(themeColor);
   const [originalColor, setOriginalColor] = useState(themeColor);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [chatBackground, setChatBackground] = useState<string>("");
   const [isUploadingChatBg, setIsUploadingChatBg] = useState(false);
-  const [companyName, setCompanyName] = useState("AdPools Group");
-  const [description, setDescription] = useState("A practical, single-tenant system for sales and distribution management");
+  const [companyName, setCompanyName] = useState(contextCompanyName);
+  const [description, setDescription] = useState(contextDescription);
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Load chat background on mount
   useEffect(() => {
@@ -132,6 +136,74 @@ export default function SystemSettingsPage() {
   const removeLogo = () => {
     setCustomLogo(null);
     success("Logo Removed", "The default logo will be shown.");
+  };
+
+  const handleFaviconUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showError("Invalid File", "Please select an image file (PNG, ICO, SVG recommended)");
+      return;
+    }
+
+    if (file.size > 1 * 1024 * 1024) {
+      showError("File Too Large", "Favicon should be smaller than 1MB");
+      return;
+    }
+
+    setIsUploadingFavicon(true);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'favicon');
+
+    try {
+      const response = await fetch('/api/settings/company', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        success("Favicon Updated", "Your favicon has been successfully updated.");
+        await refreshCompanyData();
+      } else {
+        throw new Error('Upload failed');
+      }
+    } catch (error) {
+      showError("Upload Failed", "Failed to upload favicon.");
+    } finally {
+      setIsUploadingFavicon(false);
+    }
+  };
+
+  const saveCompanySettings = async () => {
+    try {
+      setIsSavingSettings(true);
+      const response = await fetch('/api/settings/company', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyName,
+          description,
+          favicon
+        }),
+      });
+
+      if (response.ok) {
+        success('Company settings saved successfully');
+        await refreshCompanyData();
+      } else {
+        throw new Error('Failed to save settings');
+      }
+    } catch (error) {
+      showError('Error', 'Failed to save company settings');
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
   const handleChatBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -446,6 +518,53 @@ export default function SystemSettingsPage() {
                 placeholder="Enter company description"
                 rows={3}
               />
+            </div>
+
+            {/* Favicon Upload */}
+            <div>
+              <Label>Favicon</Label>
+              <div className="flex items-center space-x-4 mt-2">
+                {favicon && (
+                  <div className="flex items-center space-x-2">
+                    <img 
+                      src={favicon} 
+                      alt="Current favicon" 
+                      className="w-8 h-8 rounded"
+                    />
+                    <span className="text-sm text-gray-600">Current favicon</span>
+                  </div>
+                )}
+                
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFaviconUpload}
+                  className="hidden"
+                  id="favicon-upload"
+                  disabled={isUploadingFavicon}
+                />
+                <label
+                  htmlFor="favicon-upload"
+                  className={`inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer ${isUploadingFavicon ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {isUploadingFavicon ? 'Uploading...' : 'Upload Favicon'}
+                </label>
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                PNG, ICO, or SVG. Max 1MB. 32x32px or 16x16px recommended.
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex justify-end pt-4 border-t border-gray-200">
+              <Button
+                onClick={saveCompanySettings}
+                disabled={isSavingSettings}
+                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+              >
+                {isSavingSettings ? 'Saving...' : 'Save Company Settings'}
+              </Button>
             </div>
           </CardContent>
         </Card>

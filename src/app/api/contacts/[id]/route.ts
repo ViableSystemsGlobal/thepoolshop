@@ -9,27 +9,17 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = (session.user as any).id;
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const contact = await prisma.contact.findFirst({
+    const contact = await prisma.contact.findUnique({
       where: {
-        id: params.id,
-        account: {
-          ownerId: userId,
-        },
+        id: params.id
       },
       include: {
-        account: {
-          select: { id: true, name: true, type: true },
-        },
-      },
+        account: true
+      }
     });
 
     if (!contact) {
@@ -52,12 +42,7 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const userId = (session.user as any).id;
-    if (!userId) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -68,47 +53,28 @@ export async function PUT(
       email,
       phone,
       position,
+      department,
+      role,
+      accountId
     } = body;
 
-    // Check if contact exists and belongs to user's account
-    const existingContact = await prisma.contact.findFirst({
-      where: {
-        id: params.id,
-        account: {
-          ownerId: userId,
-        },
-      },
-    });
-
-    if (!existingContact) {
-      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
-    }
-
     const contact = await prisma.contact.update({
-      where: { id: params.id },
+      where: {
+        id: params.id
+      },
       data: {
         firstName,
         lastName,
         email,
         phone,
         position,
+        department,
+        role,
+        accountId
       },
       include: {
-        account: {
-          select: { id: true, name: true, type: true },
-        },
-      },
-    });
-
-    // Log activity
-    await prisma.activity.create({
-      data: {
-        entityType: 'Contact',
-        entityId: contact.id,
-        action: 'updated',
-        details: { changes: body },
-        userId: userId,
-      },
+        account: true
+      }
     });
 
     return NextResponse.json(contact);
@@ -127,45 +93,17 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const userId = (session.user as any).id;
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if contact exists and belongs to user's account
-    const existingContact = await prisma.contact.findFirst({
-      where: {
-        id: params.id,
-        account: {
-          ownerId: userId,
-        },
-      },
-    });
-
-    if (!existingContact) {
-      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
     }
 
     await prisma.contact.delete({
-      where: { id: params.id },
+      where: {
+        id: params.id
+      }
     });
 
-    // Log activity
-    await prisma.activity.create({
-      data: {
-        entityType: 'Contact',
-        entityId: params.id,
-        action: 'deleted',
-        details: { contact: existingContact },
-        userId: userId,
-      },
-    });
-
-    return NextResponse.json({ message: 'Contact deleted successfully' });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting contact:', error);
     return NextResponse.json(

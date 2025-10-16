@@ -149,6 +149,13 @@ const navigation = [
     module: "reports"
   },
   { 
+    name: "AI Business Analyst", 
+    href: "/ai-analyst", 
+    icon: BarChart3,
+    badge: null,
+    module: "ai_analyst"
+  },
+  { 
     name: "Settings", 
     href: "/settings", 
     icon: Settings,
@@ -166,6 +173,7 @@ const navigation = [
       { name: "Business Settings", href: "/settings/business", icon: Building, module: "business-settings" },
       { name: "Google Maps", href: "/settings/google-maps", icon: MapPin, module: "google-maps" },
       { name: "Credit Monitoring", href: "/settings/credit-monitoring", icon: CreditCard, module: "credit-monitoring" },
+      { name: "AI Settings", href: "/settings/ai", icon: BarChart3, module: "ai-settings" },
       { name: "System Settings", href: "/settings/system", icon: Settings, module: "system-settings" },
     ]
   },

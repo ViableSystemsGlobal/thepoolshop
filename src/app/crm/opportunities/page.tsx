@@ -13,6 +13,7 @@ import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { ConfirmationModal } from '@/components/modals/confirmation-modal';
+import { EditOpportunityModal } from '@/components/modals/edit-opportunity-modal';
 
 interface Opportunity {
   id: string;
@@ -48,6 +49,8 @@ export default function OpportunitiesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -364,6 +367,16 @@ export default function OpportunitiesPage() {
       )
     );
     success('Recommendation completed! Great job!');
+  };
+
+  const handleEditOpportunity = (opportunity: Opportunity) => {
+    setSelectedOpportunity(opportunity);
+    setShowEditModal(true);
+  };
+
+  const handleEditModalClose = () => {
+    setShowEditModal(false);
+    setSelectedOpportunity(null);
   };
 
   // Redirect to sign-in if not authenticated
@@ -733,7 +746,7 @@ export default function OpportunitiesPage() {
                                 {
                                   label: 'Edit',
                                   icon: <Edit className="w-4 h-4" />,
-                                  onClick: () => console.log('Edit opportunity'),
+                                  onClick: () => handleEditOpportunity(opportunity),
                                 },
                                 {
                                   label: 'Create Quote',
@@ -867,6 +880,14 @@ export default function OpportunitiesPage() {
         message={confirmationModal.message}
         onConfirm={confirmationModal.onConfirm}
         onClose={closeConfirmation}
+      />
+
+      {/* Edit Opportunity Modal */}
+      <EditOpportunityModal
+        isOpen={showEditModal}
+        onClose={handleEditModalClose}
+        opportunity={selectedOpportunity}
+        onSave={fetchOpportunities}
       />
     </MainLayout>
   );

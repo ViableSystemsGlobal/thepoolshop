@@ -1,44 +1,39 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useCompany } from '@/contexts/company-context';
 
 export function DynamicFavicon() {
-  const [faviconUrl, setFaviconUrl] = useState<string>('');
+  const { companyName, favicon } = useCompany();
 
   useEffect(() => {
-    // Load favicon from settings
-    const loadFavicon = async () => {
-      try {
-        const response = await fetch('/api/settings/branding');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.favicon) {
-            setFaviconUrl(data.favicon);
-            updateFavicon(data.favicon);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading favicon:', error);
-      }
-    };
-
-    loadFavicon();
-  }, []);
-
-  const updateFavicon = (url: string) => {
-    // Remove existing favicon
-    const existingFavicon = document.querySelector('link[rel="icon"]');
-    if (existingFavicon) {
-      existingFavicon.remove();
+    // Update document title with company name
+    if (companyName && companyName !== 'AdPools Group') {
+      const originalTitle = document.title;
+      const baseTitle = originalTitle.includes(' - ') 
+        ? originalTitle.split(' - ').slice(1).join(' - ') 
+        : originalTitle;
+      
+      document.title = `${companyName} - ${baseTitle}`;
     }
 
-    // Add new favicon
-    const link = document.createElement('link');
-    link.rel = 'icon';
-    link.type = 'image/x-icon';
-    link.href = url;
-    document.head.appendChild(link);
-  };
+    // Update favicon using a safer approach
+    if (favicon) {
+      // Use a more React-friendly approach by updating the existing favicon
+      const existingFavicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+      if (existingFavicon) {
+        // Just update the href with cache-busting parameter
+        existingFavicon.href = `${favicon}?v=${Date.now()}`;
+      } else {
+        // Only create new favicon if none exists
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.type = 'image/x-icon';
+        link.href = `${favicon}?v=${Date.now()}`;
+        document.head.appendChild(link);
+      }
+    }
+  }, [companyName, favicon]);
 
   // This component doesn't render anything visible
   return null;

@@ -601,6 +601,7 @@ export default function OpportunitiesPage() {
           </Card>
         </div>
       )}
+      </div>
     </MainLayout>
   );
 }
