@@ -215,6 +215,49 @@ export async function PUT(
       subject: quotation.subject
     });
 
+    // Check if we need to create an opportunity (when quotation is updated with accountId and has leadId)
+    if (accountId && existingQuotation.leadId && !existingQuotation.opportunityId) {
+      console.log('🔍 Creating opportunity from updated quotation with leadId:', existingQuotation.leadId);
+      
+      // Update lead status to CONVERTED_TO_OPPORTUNITY
+      await prisma.lead.update({
+        where: { id: existingQuotation.leadId },
+        data: {
+          status: 'CONVERTED_TO_OPPORTUNITY',
+          dealValue: quotation.total,
+          probability: 25, // Default probability when quote is sent
+        },
+      });
+
+      // Create an Opportunity
+      const lead = await prisma.lead.findUnique({
+        where: { id: existingQuotation.leadId },
+        select: { firstName: true, lastName: true, company: true },
+      });
+
+      const opportunityName = lead?.company || `${lead?.firstName} ${lead?.lastName}` || 'Untitled Opportunity';
+
+      const opportunity = await prisma.opportunity.create({
+        data: {
+          name: opportunityName,
+          stage: 'QUOTE_SENT',
+          value: quotation.total,
+          probability: 25,
+          accountId: accountId,
+          leadId: existingQuotation.leadId,
+          ownerId: userId,
+        },
+      });
+
+      console.log('✅ Created opportunity from updated quotation:', opportunity.id);
+
+      // Link the quotation to the opportunity
+      await prisma.quotation.update({
+        where: { id: quotation.id },
+        data: { opportunityId: opportunity.id },
+      });
+    }
+
     // Update line items only if lines are provided
     if (lines.length > 0) {
       // Delete existing lines
