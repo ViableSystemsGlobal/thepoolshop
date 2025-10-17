@@ -12,24 +12,53 @@ import { X, Calendar, DollarSign, Percent, Building2, User, Mail, Phone } from '
 
 interface Opportunity {
   id: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-  subject?: string;
-  source?: string;
-  status: string;
-  dealValue?: number;
+  name: string;
+  stage: string;
+  value?: number;
   probability?: number;
-  expectedCloseDate?: string;
-  notes?: string;
+  closeDate?: string;
+  wonDate?: string;
+  lostReason?: string;
+  accountId?: string;
+  leadId?: string;
+  ownerId: string;
+  agentId?: string;
   createdAt: string;
+  updatedAt: string;
   owner: {
     id: string;
     name: string;
     email: string;
   };
+  account?: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    type: string;
+  };
+  lead?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    company: string;
+  };
+  quotations: Array<{
+    id: string;
+    number: string;
+    status: string;
+    total: number;
+    createdAt: string;
+  }>;
+  invoices: Array<{
+    id: string;
+    number: string;
+    status: string;
+    total: number;
+    createdAt: string;
+  }>;
 }
 
 interface EditOpportunityModalProps {
@@ -39,11 +68,10 @@ interface EditOpportunityModalProps {
   onSave: () => void;
 }
 
-const statusOptions = [
-  { value: 'NEW_OPPORTUNITY', label: 'New Opportunity' },
+const stageOptions = [
   { value: 'QUOTE_SENT', label: 'Quote Sent' },
+  { value: 'QUOTE_REVIEWED', label: 'Quote Reviewed' },
   { value: 'NEGOTIATION', label: 'Negotiation' },
-  { value: 'CONTRACT_SIGNED', label: 'Contract Signed' },
   { value: 'WON', label: 'Won' },
   { value: 'LOST', label: 'Lost' },
 ];
@@ -54,18 +82,12 @@ export function EditOpportunityModal({ isOpen, onClose, opportunity, onSave }: E
   const { success, error: showError } = useToast();
 
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    company: '',
-    subject: '',
-    source: '',
-    status: 'NEW_OPPORTUNITY',
-    dealValue: '',
+    name: '',
+    stage: 'QUOTE_SENT',
+    value: '',
     probability: '',
-    expectedCloseDate: '',
-    notes: '',
+    closeDate: '',
+    lostReason: '',
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -73,19 +95,13 @@ export function EditOpportunityModal({ isOpen, onClose, opportunity, onSave }: E
   useEffect(() => {
     if (opportunity) {
       setFormData({
-        firstName: opportunity.firstName || '',
-        lastName: opportunity.lastName || '',
-        email: opportunity.email || '',
-        phone: opportunity.phone || '',
-        company: opportunity.company || '',
-        subject: opportunity.subject || '',
-        source: opportunity.source || '',
-        status: opportunity.status || 'NEW_OPPORTUNITY',
-        dealValue: opportunity.dealValue?.toString() || '',
+        name: opportunity.name || '',
+        stage: opportunity.stage || 'QUOTE_SENT',
+        value: opportunity.value?.toString() || '',
         probability: opportunity.probability?.toString() || '',
-        expectedCloseDate: opportunity.expectedCloseDate ? 
-          new Date(opportunity.expectedCloseDate).toISOString().split('T')[0] : '',
-        notes: opportunity.notes || '',
+        closeDate: opportunity.closeDate ? 
+          new Date(opportunity.closeDate).toISOString().split('T')[0] : '',
+        lostReason: opportunity.lostReason || '',
       });
     }
   }, [opportunity]);
@@ -110,18 +126,12 @@ export function EditOpportunityModal({ isOpen, onClose, opportunity, onSave }: E
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          company: formData.company,
-          subject: formData.subject,
-          source: formData.source,
-          status: formData.status,
-          dealValue: formData.dealValue ? parseFloat(formData.dealValue) : null,
+          name: formData.name,
+          stage: formData.stage,
+          value: formData.value ? parseFloat(formData.value) : null,
           probability: formData.probability ? parseInt(formData.probability) : null,
-          expectedCloseDate: formData.expectedCloseDate || null,
-          notes: formData.notes,
+          closeDate: formData.closeDate || null,
+          lostReason: formData.lostReason || null,
         }),
       });
 
@@ -165,85 +175,39 @@ export function EditOpportunityModal({ isOpen, onClose, opportunity, onSave }: E
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Contact Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium flex items-center">
-                <User className="h-5 w-5 mr-2" />
-                Contact Information
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="firstName">First Name *</Label>
-                  <Input
-                    id="firstName"
-                    value={formData.firstName}
-                    onChange={(e) => handleInputChange('firstName', e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="lastName">Last Name *</Label>
-                  <Input
-                    id="lastName"
-                    value={formData.lastName}
-                    onChange={(e) => handleInputChange('lastName', e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Company Information */}
+            {/* Opportunity Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium flex items-center">
                 <Building2 className="h-5 w-5 mr-2" />
-                Company Information
+                Opportunity Information
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="company">Company</Label>
+                  <Label htmlFor="name">Opportunity Name *</Label>
                   <Input
-                    id="company"
-                    value={formData.company}
-                    onChange={(e) => handleInputChange('company', e.target.value)}
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="source">Source</Label>
-                  <Input
-                    id="source"
-                    value={formData.source}
-                    onChange={(e) => handleInputChange('source', e.target.value)}
-                  />
+                  <Label htmlFor="stage">Stage *</Label>
+                  <select
+                    id="stage"
+                    value={formData.stage}
+                    onChange={(e) => handleInputChange('stage', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    {stageOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="subject">Subject</Label>
-                <Input
-                  id="subject"
-                  value={formData.subject}
-                  onChange={(e) => handleInputChange('subject', e.target.value)}
-                />
               </div>
             </div>
 
@@ -256,28 +220,13 @@ export function EditOpportunityModal({ isOpen, onClose, opportunity, onSave }: E
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <Label htmlFor="status">Status</Label>
-                  <select
-                    id="status"
-                    value={formData.status}
-                    onChange={(e) => handleInputChange('status', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {statusOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="dealValue">Deal Value</Label>
+                  <Label htmlFor="value">Deal Value</Label>
                   <Input
-                    id="dealValue"
+                    id="value"
                     type="number"
                     step="0.01"
-                    value={formData.dealValue}
-                    onChange={(e) => handleInputChange('dealValue', e.target.value)}
+                    value={formData.value}
+                    onChange={(e) => handleInputChange('value', e.target.value)}
                     placeholder="0.00"
                   />
                 </div>
@@ -293,32 +242,29 @@ export function EditOpportunityModal({ isOpen, onClose, opportunity, onSave }: E
                     placeholder="0"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="closeDate">Expected Close Date</Label>
+                  <Input
+                    id="closeDate"
+                    type="date"
+                    value={formData.closeDate}
+                    onChange={(e) => handleInputChange('closeDate', e.target.value)}
+                  />
+                </div>
               </div>
               
-              <div>
-                <Label htmlFor="expectedCloseDate">Expected Close Date</Label>
-                <Input
-                  id="expectedCloseDate"
-                  type="date"
-                  value={formData.expectedCloseDate}
-                  onChange={(e) => handleInputChange('expectedCloseDate', e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Notes</h3>
-              <div>
-                <Label htmlFor="notes">Additional Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => handleInputChange('notes', e.target.value)}
-                  rows={4}
-                  placeholder="Add any additional notes about this opportunity..."
-                />
-              </div>
+              {formData.stage === 'LOST' && (
+                <div>
+                  <Label htmlFor="lostReason">Lost Reason</Label>
+                  <Textarea
+                    id="lostReason"
+                    value={formData.lostReason}
+                    onChange={(e) => handleInputChange('lostReason', e.target.value)}
+                    rows={3}
+                    placeholder="Explain why this opportunity was lost..."
+                  />
+                </div>
+              )}
             </div>
 
             {/* Form Actions */}

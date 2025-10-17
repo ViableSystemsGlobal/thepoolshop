@@ -109,7 +109,7 @@ export const downloadQuotationAsPDF = async (
     const customerPhone = quotation.account?.phone || quotation.distributor?.phone || quotation.lead?.phone || '';
     
     // Calculate if discount column should be shown
-    const hasDiscounts = quotation.lines?.some(line => line.discount > 0) || false;
+    const hasDiscounts = quotation.lines?.some((line: any) => line.discount > 0) || false;
     
     // Create the HTML content matching the preview layout exactly
     const htmlContent = `
@@ -456,8 +456,25 @@ export const downloadQuotationAsPDF = async (
     
     // Wait for content to load, then trigger print dialog
     printWindow.onload = () => {
-      printWindow.print();
-      printWindow.close();
+      // Small delay to ensure content is fully rendered
+      setTimeout(() => {
+        try {
+          if (printWindow && !printWindow.closed) {
+            printWindow.print();
+            // Don't close immediately - let user interact with print dialog
+            setTimeout(() => {
+              if (printWindow && !printWindow.closed) {
+                printWindow.close();
+              }
+            }, 1000);
+          }
+        } catch (error) {
+          console.error('Error printing:', error);
+          if (printWindow && !printWindow.closed) {
+            printWindow.close();
+          }
+        }
+      }, 100);
     };
     
     successHandler("Quotation ready for download/printing");

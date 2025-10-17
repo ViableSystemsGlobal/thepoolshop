@@ -36,28 +36,38 @@ interface Product {
 
 interface Opportunity {
   id: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  leadType: 'INDIVIDUAL' | 'COMPANY';
-  company?: string;
-  subject?: string;
-  source?: string;
-  status: string;
-  assignedTo?: User[];
-  interestedProducts?: Product[];
-  followUpDate?: string;
-  notes?: string;
-  dealValue?: number;
+  name: string;
+  stage: string;
+  value?: number;
   probability?: number;
-  expectedCloseDate?: string;
+  closeDate?: string;
+  wonDate?: string;
+  lostReason?: string;
+  accountId?: string;
+  leadId?: string;
+  ownerId: string;
+  agentId?: string;
   createdAt: string;
   updatedAt: string;
   owner: {
     id: string;
     name: string;
     email: string;
+  };
+  account?: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    type: string;
+  };
+  lead?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    company: string;
   };
   quotations?: Array<{
     id: string;

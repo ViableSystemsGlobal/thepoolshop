@@ -95,7 +95,7 @@ export async function PUT(
     // }
 
     // const userId = (session.user as any).id;
-    const userId = 'cm3v4lhkz0000k0bqbwl1f7gm'; // TEMPORARY: Hardcoded user ID for testing
+    const userId = 'cmfpufpb500008zi346h5hntw'; // TEMPORARY: Hardcoded user ID for testing (correct user ID)
     const body = await request.json();
     
     
@@ -216,14 +216,40 @@ export async function PUT(
     });
 
     // Check if we need to create an opportunity (when quotation is updated with accountId and has leadId)
-    if (accountId && existingQuotation.leadId && !existingQuotation.opportunityId) {
+    if (accountId && existingQuotation.leadId && !(existingQuotation as any).opportunityId) {
       console.log('🔍 Creating opportunity from updated quotation with leadId:', existingQuotation.leadId);
+      
+      // Verify that the user exists
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+      
+      if (!user) {
+        console.log('❌ User not found:', userId);
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        );
+      }
+      
+      // Verify that the account exists
+      const account = await prisma.account.findUnique({
+        where: { id: accountId }
+      });
+      
+      if (!account) {
+        console.log('❌ Account not found:', accountId);
+        return NextResponse.json(
+          { error: 'Account not found' },
+          { status: 404 }
+        );
+      }
       
       // Update lead status to CONVERTED_TO_OPPORTUNITY
       await prisma.lead.update({
         where: { id: existingQuotation.leadId },
         data: {
-          status: 'CONVERTED_TO_OPPORTUNITY',
+          status: 'CONVERTED_TO_OPPORTUNITY' as any,
           dealValue: quotation.total,
           probability: 25, // Default probability when quote is sent
         },
@@ -240,13 +266,13 @@ export async function PUT(
       const opportunity = await prisma.opportunity.create({
         data: {
           name: opportunityName,
-          stage: 'QUOTE_SENT',
+          stage: 'QUOTE_SENT' as any,
           value: quotation.total,
           probability: 25,
           accountId: accountId,
           leadId: existingQuotation.leadId,
           ownerId: userId,
-        },
+        } as any,
       });
 
       console.log('✅ Created opportunity from updated quotation:', opportunity.id);
@@ -254,7 +280,7 @@ export async function PUT(
       // Link the quotation to the opportunity
       await prisma.quotation.update({
         where: { id: quotation.id },
-        data: { opportunityId: opportunity.id },
+        data: { opportunityId: opportunity.id } as any,
       });
     }
 
