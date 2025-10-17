@@ -110,7 +110,23 @@ export function AddPaymentModal({
   };
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    // For amount fields, enforce 2 decimal places
+    if (field === 'amount') {
+      // Remove any non-numeric characters except decimal point
+      const numericValue = value.replace(/[^0-9.]/g, '');
+      
+      // If it contains a decimal point, limit to 2 decimal places
+      if (numericValue.includes('.')) {
+        const [integer, decimal] = numericValue.split('.');
+        const limitedDecimal = decimal ? decimal.substring(0, 2) : '';
+        const finalValue = integer + (limitedDecimal ? '.' + limitedDecimal : '');
+        setFormData(prev => ({ ...prev, [field]: finalValue }));
+      } else {
+        setFormData(prev => ({ ...prev, [field]: numericValue }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   const addAllocation = () => {
@@ -137,9 +153,30 @@ export function AddPaymentModal({
   };
 
   const updateAllocation = (index: number, field: string, value: string | number) => {
-    setAllocations(prev => prev.map((alloc, i) => 
-      i === index ? { ...alloc, [field]: value } : alloc
-    ));
+    // For amount fields, enforce 2 decimal places
+    if (field === 'amount' && typeof value === 'string') {
+      // Remove any non-numeric characters except decimal point
+      const numericValue = value.replace(/[^0-9.]/g, '');
+      
+      // If it contains a decimal point, limit to 2 decimal places
+      if (numericValue.includes('.')) {
+        const [integer, decimal] = numericValue.split('.');
+        const limitedDecimal = decimal ? decimal.substring(0, 2) : '';
+        const finalValue = parseFloat(integer + (limitedDecimal ? '.' + limitedDecimal : ''));
+        setAllocations(prev => prev.map((alloc, i) => 
+          i === index ? { ...alloc, [field]: finalValue } : alloc
+        ));
+      } else {
+        const finalValue = parseFloat(numericValue) || 0;
+        setAllocations(prev => prev.map((alloc, i) => 
+          i === index ? { ...alloc, [field]: finalValue } : alloc
+        ));
+      }
+    } else {
+      setAllocations(prev => prev.map((alloc, i) => 
+        i === index ? { ...alloc, [field]: value } : alloc
+      ));
+    }
   };
 
   const getTotalAllocated = () => {
@@ -335,7 +372,7 @@ export function AddPaymentModal({
                         min="0"
                         max={allocation.maxAmount}
                         value={allocation.amount}
-                        onChange={(e) => updateAllocation(index, 'amount', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => updateAllocation(index, 'amount', e.target.value)}
                         placeholder="Amount"
                       />
                     </div>
