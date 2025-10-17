@@ -15,6 +15,7 @@ import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { ConfirmationModal } from '@/components/modals/confirmation-modal';
 import { EditOpportunityModal } from '@/components/modals/edit-opportunity-modal';
 import { MiniLineChart } from '@/components/ui/mini-line-chart';
+import { SkeletonTable, SkeletonMetricCard } from '@/components/ui/skeleton';
 
 interface Opportunity {
   id: string;
@@ -501,7 +502,7 @@ export default function OpportunitiesPage() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading...</div>
+          <SkeletonMetricCard />
         </div>
       </MainLayout>
     );
@@ -584,7 +585,7 @@ export default function OpportunitiesPage() {
                   <p className="text-xs font-medium text-gray-600">Total Opportunities</p>
                   <div className={`p-1.5 rounded-full bg-${theme.primaryBg}`}>
                     <FileBarChart className={`w-3.5 h-3.5 text-${theme.primary}`} />
-                  </div>
+                </div>
                 </div>
                 <div className="flex items-end justify-between">
                   <p className="text-lg font-bold text-gray-900">{opportunities.length}</p>
@@ -594,16 +595,16 @@ export default function OpportunitiesPage() {
                     width={50} 
                     height={18} 
                   />
-                </div>
-              </Card>
-              
+              </div>
+            </Card>
+            
               {/* Pipeline Value */}
               <Card className="p-3">
                 <div className="flex items-center justify-between mb-1.5">
                   <p className="text-xs font-medium text-gray-600">Pipeline Value</p>
                   <div className="p-1.5 rounded-full bg-blue-100">
                     <DollarSign className="w-3.5 h-3.5 text-blue-600" />
-                  </div>
+                </div>
                 </div>
                 <div className="flex items-end justify-between">
                   <p className="text-lg font-bold text-blue-600">{formatCurrencyAmount(calculatePipelineValue())}</p>
@@ -613,9 +614,9 @@ export default function OpportunitiesPage() {
                     width={50} 
                     height={18} 
                   />
-                </div>
-              </Card>
-              
+              </div>
+            </Card>
+            
               {/* Closed Revenue */}
               <Card className="p-3">
                 <div className="flex items-center justify-between mb-1.5">
@@ -634,13 +635,13 @@ export default function OpportunitiesPage() {
                   />
                 </div>
               </Card>
-            </div>
+              </div>
             
             {/* Additional Metrics Row - 4 cards */}
             <div className="grid grid-cols-4 gap-3">
               <Card className="p-3">
-                <div className="flex items-center justify-between">
-                  <div>
+              <div className="flex items-center justify-between">
+                <div>
                     <p className="text-xs font-medium text-gray-600">Projected Close</p>
                     <p className="text-lg font-bold text-purple-600">{calculateProjectedClose()}</p>
                   </div>
@@ -658,34 +659,34 @@ export default function OpportunitiesPage() {
                   </div>
                   <div className="p-1.5 rounded-full bg-yellow-100">
                     <FileBarChart className="w-4 h-4 text-yellow-600" />
-                  </div>
                 </div>
-              </Card>
-              
+              </div>
+            </Card>
+            
               <Card className="p-3">
-                <div className="flex items-center justify-between">
-                  <div>
+              <div className="flex items-center justify-between">
+                <div>
                     <p className="text-xs font-medium text-gray-600">Won Deals</p>
                     <p className="text-lg font-bold text-emerald-600">{opportunities.filter(o => o.stage === 'WON').length}</p>
-                  </div>
+                </div>
                   <div className="p-1.5 rounded-full bg-emerald-100">
                     <CheckCircle className="w-4 h-4 text-emerald-600" />
-                  </div>
                 </div>
-              </Card>
-              
+              </div>
+            </Card>
+            
               <Card className="p-3">
-                <div className="flex items-center justify-between">
-                  <div>
+              <div className="flex items-center justify-between">
+                <div>
                     <p className="text-xs font-medium text-gray-600">Lost Deals</p>
                     <p className="text-lg font-bold text-red-600">{opportunities.filter(o => o.stage === 'LOST').length}</p>
                   </div>
                   <div className="p-1.5 rounded-full bg-red-100">
                     <XCircle className="w-4 h-4 text-red-600" />
-                  </div>
+                </div>
                 </div>
               </Card>
-            </div>
+              </div>
           </div>
         </div>
 
@@ -984,10 +985,7 @@ export default function OpportunitiesPage() {
 
           {/* Loading State */}
           {loading && (
-            <Card className="p-12 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-500">Loading opportunities...</p>
-            </Card>
+            <SkeletonTable rows={8} columns={6} />
           )}
         </div>
       </div>

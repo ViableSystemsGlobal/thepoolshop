@@ -10,6 +10,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { useTheme } from '@/contexts/theme-context';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import Link from 'next/link';
+import { SkeletonMetricCard } from '@/components/ui/skeleton';
 
 interface CRMStats {
   leads: number;
@@ -72,8 +73,26 @@ export default function CRMDashboard() {
   if (status === 'loading') {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading...</div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-lg p-6 shadow-sm border animate-pulse">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-24"></div>
+                    <div className="h-3 bg-gray-200 rounded w-32"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </MainLayout>
     );

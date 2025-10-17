@@ -14,6 +14,7 @@ import { useToast } from '@/contexts/toast-context';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { DataTable } from '@/components/ui/data-table';
 import { AddContactModal } from '@/components/modals/add-contact-modal';
+import { SkeletonTable, SkeletonMetricCard } from '@/components/ui/skeleton';
 
 interface Contact {
   id: string;
@@ -139,8 +140,14 @@ export default function ContactsPage() {
   if (status === 'loading') {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading...</div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+          </div>
+          <SkeletonTable rows={8} columns={6} />
         </div>
       </MainLayout>
     );
@@ -316,7 +323,7 @@ export default function ContactsPage() {
           </div>
 
           {loading ? (
-            <div className="text-center py-8">Loading contacts...</div>
+            <SkeletonTable rows={8} columns={6} />
           ) : (
             <DataTable
               data={contacts}

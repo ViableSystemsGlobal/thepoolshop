@@ -16,6 +16,7 @@ import { EditAccountModal } from '@/components/modals/edit-account-modal';
 import { ConfirmDeleteModal } from '@/components/modals/confirm-delete-modal';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { DataTable } from '@/components/ui/data-table';
+import { SkeletonTable, SkeletonMetricCard } from '@/components/ui/skeleton';
 
 interface Account {
   id: string;
@@ -147,8 +148,14 @@ export default function AccountsPage() {
   if (status === 'loading') {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading...</div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+          </div>
+          <SkeletonTable rows={8} columns={6} />
         </div>
       </MainLayout>
     );
@@ -423,7 +430,7 @@ export default function AccountsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-8">Loading accounts...</div>
+          <SkeletonTable rows={8} columns={6} />
         ) : (
           <DataTable
             data={accounts}

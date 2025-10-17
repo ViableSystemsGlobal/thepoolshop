@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { SendInvoiceModal } from "../../components/modals/send-invoice-modal";
+import { SkeletonTable, SkeletonMetricCard } from "@/components/ui/skeleton";
 import { 
   Plus, 
   Search, 
@@ -463,11 +464,31 @@ export default function InvoicesPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {loading ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                        Loading invoices...
-                      </td>
-                    </tr>
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-6 py-4">
+                          <div className="h-4 bg-gray-200 rounded w-20"></div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="h-4 bg-gray-200 rounded w-48"></div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="h-4 bg-gray-200 rounded w-32"></div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="h-4 bg-gray-200 rounded w-20"></div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="h-4 bg-gray-200 rounded w-24"></div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="h-8 w-8 bg-gray-200 rounded"></div>
+                        </td>
+                      </tr>
+                    ))
                   ) : filteredInvoices.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-6 py-12 text-center">

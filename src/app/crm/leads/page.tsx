@@ -18,6 +18,7 @@ import { ConfirmDeleteModal } from '@/components/modals/confirm-delete-modal';
 import { ConvertToOpportunityModal } from '@/components/modals/convert-to-opportunity-modal';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { DataTable } from '@/components/ui/data-table';
+import { SkeletonTable, SkeletonMetricCard } from '@/components/ui/skeleton';
 
 interface User {
   id: string;
@@ -643,7 +644,7 @@ export default function LeadsPage() {
           </div>
 
         {loading ? (
-          <div className="text-center py-8">Loading leads...</div>
+          <SkeletonTable rows={8} columns={5} />
         ) : (
           <DataTable
             data={leads}

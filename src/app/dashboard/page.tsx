@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { useTheme } from "@/contexts/theme-context"
 import { MiniLineChart } from "@/components/ui/mini-line-chart"
 import { DashboardAICard } from "@/components/dashboard-ai-card"
+import { SkeletonMetricCard, SkeletonCard, SkeletonChart } from "@/components/ui/skeleton"
 import { 
   Package, 
   Users, 
@@ -223,83 +224,94 @@ export default function Dashboard() {
 
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Products</CardTitle>
-              <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
-                <Package className={`h-4 w-4 text-${theme.primary}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{loading ? '...' : metrics.totalProducts}</div>
-              <div className="flex items-center justify-between mt-1">
-                <div className="flex items-center text-xs text-gray-500">
-                  <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
-                  Last 7 days
-                </div>
-                <MiniLineChart data={trends.productsTrend} color="#16a34a" width={80} height={24} />
-              </div>
-            </CardContent>
-          </Card>
+          {loading ? (
+            <>
+              <SkeletonMetricCard />
+              <SkeletonMetricCard />
+              <SkeletonMetricCard />
+              <SkeletonMetricCard />
+            </>
+          ) : (
+            <>
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Total Products</CardTitle>
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
+                    <Package className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-gray-900">{metrics.totalProducts}</div>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center text-xs text-gray-500">
+                      <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
+                      Last 7 days
+                    </div>
+                    <MiniLineChart data={trends.productsTrend} color="#16a34a" width={80} height={24} />
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Active Customers</CardTitle>
-              <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
-                <Users className={`h-4 w-4 text-${theme.primary}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{loading ? '...' : metrics.totalCustomers}</div>
-              <div className="flex items-center justify-between mt-1">
-                <div className="flex items-center text-xs text-gray-500">
-                  <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
-                  Last 7 days
-                </div>
-                <MiniLineChart data={trends.customersTrend} color="#16a34a" width={80} height={24} />
-              </div>
-            </CardContent>
-          </Card>
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Active Customers</CardTitle>
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
+                    <Users className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-gray-900">{metrics.totalCustomers}</div>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center text-xs text-gray-500">
+                      <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
+                      Last 7 days
+                    </div>
+                    <MiniLineChart data={trends.customersTrend} color="#16a34a" width={80} height={24} />
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Pending Quotations</CardTitle>
-              <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
-                <FileText className={`h-4 w-4 text-${theme.primary}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{loading ? '...' : metrics.pendingQuotations}</div>
-              <div className="flex items-center justify-between mt-1">
-                <div className="flex items-center text-xs text-gray-500">
-                  <ArrowDownRight className="h-3 w-3 mr-1 text-green-500" />
-                  Last 7 days
-                </div>
-                <MiniLineChart data={trends.quotationsTrend} color="#16a34a" width={80} height={24} />
-              </div>
-            </CardContent>
-          </Card>
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Pending Quotations</CardTitle>
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
+                    <FileText className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-gray-900">{metrics.pendingQuotations}</div>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center text-xs text-gray-500">
+                      <ArrowDownRight className="h-3 w-3 mr-1 text-green-500" />
+                      Last 7 days
+                    </div>
+                    <MiniLineChart data={trends.quotationsTrend} color="#16a34a" width={80} height={24} />
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Monthly Revenue</CardTitle>
-              <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
-                <TrendingUp className={`h-4 w-4 text-${theme.primary}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">
-                {loading ? '...' : `GH₵${(metrics.monthlyRevenue / 1000).toFixed(1)}K`}
-              </div>
-              <div className="flex items-center justify-between mt-1">
-                <div className="flex items-center text-xs text-gray-500">
-                  <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
-                  Last 7 days
-                </div>
-                <MiniLineChart data={trends.revenueTrend} color="#16a34a" width={80} height={24} />
-              </div>
-            </CardContent>
-          </Card>
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Monthly Revenue</CardTitle>
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
+                    <TrendingUp className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {`GH₵${(metrics.monthlyRevenue / 1000).toFixed(1)}K`}
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center text-xs text-gray-500">
+                      <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
+                      Last 7 days
+                    </div>
+                    <MiniLineChart data={trends.revenueTrend} color="#16a34a" width={80} height={24} />
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
 
         {/* Main Content Grid */}
@@ -453,12 +465,16 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Clock className="h-8 w-8 text-gray-400 animate-pulse" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Loading...</h3>
-                  <p className="text-gray-500 text-sm">Fetching recent activity</p>
+                <div className="space-y-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center space-x-4 p-3 rounded-lg bg-gray-50">
+                      <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
+                        <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : recentActivity.length === 0 ? (
                 <div className="text-center py-12">

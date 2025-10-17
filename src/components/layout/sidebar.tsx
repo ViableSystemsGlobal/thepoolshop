@@ -8,6 +8,7 @@ import { useTheme } from "@/contexts/theme-context";
 import { useNavigationLoading } from "@/hooks/use-navigation-loading";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useSession } from "next-auth/react";
+import { SkeletonSidebar } from "@/components/ui/skeleton";
 import {
   LayoutDashboard,
   Users,
@@ -192,8 +193,13 @@ export default function Sidebar() {
   const { getThemeClasses, customLogo } = useTheme();
   const theme = getThemeClasses();
   const { navigateWithLoading } = useNavigationLoading();
-  const { canAccess } = useAbilities();
+  const { canAccess, isLoading: abilitiesLoading } = useAbilities();
   const { data: session } = useSession();
+
+  // Show skeleton loading while abilities are loading
+  if (abilitiesLoading) {
+    return <SkeletonSidebar />;
+  }
 
   // Helper function to get proper background classes
   const getBackgroundClasses = (isActive: boolean, isHover: boolean = false) => {

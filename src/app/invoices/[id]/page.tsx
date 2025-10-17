@@ -346,7 +346,7 @@ export default function ViewInvoicePage() {
                       invoice.paymentStatus === 'PAID' ? 'text-green-600' : 'text-gray-400'
                     }`} />
                   </div>
-                  <div>
+          <div>
                     <h3 className="font-medium text-gray-900">Get Paid</h3>
                     <p className="text-sm text-gray-500">Status: {invoice.paymentStatus === 'PAID' ? 'Paid' : 'Pending'}</p>
                   </div>
@@ -435,7 +435,7 @@ export default function ViewInvoicePage() {
           </div>
         </div>
 
-        {/* Main Content */}
+          {/* Main Content */}
         {activeTab === 'invoice' && (
           <div className="space-y-6">
             {/* Invoice Header */}
@@ -448,12 +448,12 @@ export default function ViewInvoicePage() {
                       <span>Issue Date: {new Date(invoice.issueDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                       <span>Due Date: {new Date(invoice.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                     </div>
-                  </div>
+                      </div>
                   <div className="text-right">
                     <div className="text-2xl font-bold text-gray-900 mb-2">#{invoice.number}</div>
                     {getStatusBadge(invoice.status)}
-                  </div>
-                </div>
+                      </div>
+                      </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Billed To */}
@@ -481,7 +481,7 @@ export default function ViewInvoicePage() {
                       </div>
                       <div className="text-gray-600">
                         {invoice.account?.phone || invoice.distributor?.phone || invoice.lead?.phone}
-                      </div>
+                        </div>
                     </div>
                   </div>
 
@@ -498,12 +498,12 @@ export default function ViewInvoicePage() {
                           alt="QR Code" 
                           className="w-full h-full object-contain"
                         />
-                      </div>
+                </div>
                     ) : (
                       <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center mx-auto">
                         <QrCode className="h-12 w-12 text-gray-400" />
-                      </div>
-                    )}
+                  </div>
+                )}
                   </div>
                 </div>
               </CardContent>
@@ -563,30 +563,30 @@ export default function ViewInvoicePage() {
 
         {/* Other Tabs Content */}
         {activeTab === 'receipt' && (
-          <Card>
+            <Card>
             <CardContent className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Receipt Summary</h2>
               <p className="text-gray-600">Receipt information will be displayed here.</p>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
         )}
 
         {activeTab === 'credit' && (
-          <Card>
+              <Card>
             <CardContent className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Credit Note Summary</h2>
               <p className="text-gray-600">Credit note information will be displayed here.</p>
-            </CardContent>
-          </Card>
-        )}
+                </CardContent>
+              </Card>
+            )}
 
         {activeTab === 'attachment' && (
-          <Card>
+            <Card>
             <CardContent className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Attachments</h2>
               <p className="text-gray-600">Invoice attachments will be displayed here.</p>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
         )}
       </div>
 

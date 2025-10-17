@@ -27,20 +27,31 @@ export function LoadingBar({ isLoading, className = '' }: LoadingBarProps) {
 
   return (
     <div 
-      className={`fixed inset-0 bg-white z-50 flex items-center justify-center ${className}`}
-      style={{ zIndex: 9999 }}
+      className={`fixed top-0 left-0 right-0 bg-transparent z-50 overflow-hidden ${className}`}
+      style={{ zIndex: 9999, height: '3px' }}
     >
-      <div className="flex flex-col items-center space-y-4">
-        {/* YouTube-style loading spinner */}
-        <div className="relative">
-          <div className="w-12 h-12 border-4 border-gray-200 rounded-full animate-spin border-t-gray-600"></div>
-        </div>
-        
-        {/* Simple loading text */}
-        <div className="text-gray-600 text-sm font-medium">
-          Loading...
-        </div>
-      </div>
+      <div 
+        className="h-full bg-blue-600 w-full"
+        style={{
+          animation: 'loading-bar 1.5s ease-in-out infinite',
+          transform: 'translateX(-100%)'
+        }}
+      />
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes loading-bar {
+            0% {
+              transform: translateX(-100%);
+            }
+            50% {
+              transform: translateX(0%);
+            }
+            100% {
+              transform: translateX(100%);
+            }
+          }
+        `
+      }} />
     </div>
   );
 }

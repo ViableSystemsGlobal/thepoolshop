@@ -23,6 +23,7 @@ import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { DataTable } from "@/components/ui/data-table";
 import { GRNGenerationModal } from "@/components/modals/grn-generation-modal";
 import { BarcodeDisplay } from "@/components/ui/barcode-display";
+import { SkeletonTable, SkeletonCard } from "@/components/ui/skeleton";
 import { 
   Plus, 
   Search, 
@@ -824,7 +825,7 @@ export default function ProductsPage() {
         </div>
 
         {isLoading ? (
-          <div className="text-center py-8">Loading products...</div>
+          <SkeletonTable rows={10} columns={6} />
         ) : (
           <DataTable
             data={products}
