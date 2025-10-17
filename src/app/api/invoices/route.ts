@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
         lines: {
           include: {
             product: {
-              select: { id: true, name: true, sku: true },
+              select: { id: true, name: true, sku: true, images: true },
             },
           },
         },
