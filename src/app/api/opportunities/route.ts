@@ -214,6 +214,7 @@ export async function POST(request: NextRequest) {
       success: true,
       opportunity,
     });
+    */
   } catch (error) {
     console.error('Error creating opportunity:', error);
     return NextResponse.json(
