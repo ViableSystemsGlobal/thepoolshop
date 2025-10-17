@@ -5,15 +5,26 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
+    console.log('🔍 Opportunity API: Session check:', { 
+      hasSession: !!session, 
+      hasUser: !!session?.user, 
+      hasUserId: !!session?.user?.id,
+      userId: session?.user?.id 
+    });
+    
     if (!session?.user?.id) {
+      console.log('❌ Opportunity API: Unauthorized - no session or user ID');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const opportunity = await prisma.opportunity.findUnique({
+    const params = await context.params;
+    
+    // Opportunities are Leads with specific statuses
+    const opportunity = await prisma.lead.findUnique({
       where: {
         id: params.id
       },
@@ -27,15 +38,61 @@ export async function GET(
         },
         quotations: {
           include: {
-            contact: true,
-            account: true
+            billingContact: true,
+            shippingContact: true,
+            account: true,
+            lines: {
+              include: {
+                product: true
+              }
+            }
           }
-        }
+        },
+        tasks: {
+          include: {
+            assignee: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            },
+            creator: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+        comments: true,
+        files: true,
+        emails: true,
+        sms: true,
+        products: {
+          include: {
+            product: true
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+        meetings: true
       }
     });
 
     if (!opportunity) {
       return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 });
+    }
+
+    // Verify it's actually an opportunity (has opportunity status)
+    const opportunityStatuses = ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'];
+    if (!opportunityStatuses.includes(opportunity.status)) {
+      return NextResponse.json({ error: 'Not an opportunity' }, { status: 404 });
     }
 
     return NextResponse.json(opportunity);
@@ -50,7 +107,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -58,6 +115,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const params = await context.params;
     const body = await request.json();
     const {
       firstName,
@@ -111,7 +169,8 @@ export async function PUT(
       }
     }
 
-    const opportunity = await prisma.opportunity.update({
+    // Opportunities are Leads with specific statuses
+    const opportunity = await prisma.lead.update({
       where: {
         id: params.id
       },
@@ -152,7 +211,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -160,12 +219,47 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await prisma.opportunity.delete({
+    const params = await context.params;
+    
+    // Check if opportunity has quotations or invoices
+    const opportunity = await prisma.lead.findUnique({
+      where: { id: params.id },
+      include: {
+        quotations: true,
+        invoices: true
+      }
+    });
+
+    if (!opportunity) {
+      return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 });
+    }
+
+    // If there are quotations or invoices, unlink them first
+    if (opportunity.quotations && opportunity.quotations.length > 0) {
+      await prisma.quotation.updateMany({
+        where: { leadId: params.id },
+        data: { leadId: null }
+      });
+      console.log(`🔗 Unlinked ${opportunity.quotations.length} quotations from opportunity`);
+    }
+
+    if (opportunity.invoices && opportunity.invoices.length > 0) {
+      await prisma.invoice.updateMany({
+        where: { leadId: params.id },
+        data: { leadId: null }
+      });
+      console.log(`🔗 Unlinked ${opportunity.invoices.length} invoices from opportunity`);
+    }
+    
+    // Now delete the opportunity (Lead)
+    // This will cascade delete: tasks, comments, files, emails, SMS, products, meetings
+    await prisma.lead.delete({
       where: {
         id: params.id
       }
     });
 
+    console.log('✅ Opportunity deleted successfully');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting opportunity:', error);

@@ -279,14 +279,19 @@ export default function OpportunitiesPage() {
     
     showConfirmation(
       'Delete Opportunities',
-      `Are you sure you want to delete ${selectedOpportunities.size} opportunity(ies)? This action cannot be undone.`,
+      `Are you sure you want to delete ${selectedOpportunities.size} opportunity(ies)? This will also delete all associated tasks, comments, files, emails, SMS, and meetings. Quotations and invoices will be unlinked.`,
       async () => {
         try {
           const deletePromises = Array.from(selectedOpportunities).map(id =>
-            fetch(`/api/opportunities/${id}`, { method: 'DELETE' })
+            fetch(`/api/opportunities/${id}`, { 
+              method: 'DELETE',
+              credentials: 'include'
+            })
           );
           
-          await Promise.all(deletePromises);
+          const results = await Promise.all(deletePromises);
+          const successCount = results.filter(r => r.ok).length;
+          const failCount = results.length - successCount;
           
           // Refresh opportunities
           await fetchOpportunities();
@@ -295,7 +300,12 @@ export default function OpportunitiesPage() {
           setSelectedOpportunities(new Set());
           setIsAllSelected(false);
           
-          success(`Successfully deleted ${selectedOpportunities.size} opportunity(ies)`);
+          if (successCount > 0) {
+            success(`Successfully deleted ${successCount} opportunity(ies)`);
+          }
+          if (failCount > 0) {
+            error(`Failed to delete ${failCount} opportunity(ies)`);
+          }
         } catch (err) {
           console.error('Error deleting opportunities:', err);
           error('Failed to delete opportunities');
@@ -377,6 +387,34 @@ export default function OpportunitiesPage() {
   const handleEditModalClose = () => {
     setShowEditModal(false);
     setSelectedOpportunity(null);
+  };
+
+  const handleDeleteOpportunity = async (opportunity: Opportunity) => {
+    showConfirmation(
+      'Delete Opportunity',
+      `Are you sure you want to delete the opportunity "${opportunity.firstName} ${opportunity.lastName}"? This will also delete all associated tasks, comments, files, emails, SMS, and meetings. Quotations and invoices will be unlinked.`,
+      async () => {
+        try {
+          const response = await fetch(`/api/opportunities/${opportunity.id}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+
+          if (response.ok) {
+            success('Opportunity deleted successfully');
+            fetchOpportunities(); // Refresh the list
+          } else {
+            const data = await response.json();
+            error(data.error || 'Failed to delete opportunity');
+          }
+        } catch (err) {
+          console.error('Error deleting opportunity:', err);
+          error('Failed to delete opportunity');
+        } finally {
+          closeConfirmation();
+        }
+      }
+    );
   };
 
   // Redirect to sign-in if not authenticated
@@ -757,7 +795,7 @@ export default function OpportunitiesPage() {
                                 {
                                   label: 'Delete',
                                   icon: <Trash2 className="w-4 h-4" />,
-                                  onClick: () => console.log('Delete opportunity'),
+                                  onClick: () => handleDeleteOpportunity(opportunity),
                                   className: 'text-red-600',
                                 },
                               ]}

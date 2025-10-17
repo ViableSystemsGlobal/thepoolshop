@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Edit, Trash2, Mail, Phone, Building, Calendar, User, Clock, CheckCircle, AlertCircle, XCircle, Play, Link, Tag, TrendingUp, Users, MessageSquare, FileText, Video, PhoneCall, Star, Target, Plus, Activity, History, DollarSign, UserPlus, FileCheck, FileBarChart, Eye } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Mail, Phone, Building, Calendar, User, Clock, CheckCircle, AlertCircle, XCircle, Play, Link, Tag, TrendingUp, Users, MessageSquare, FileText, Video, PhoneCall, Star, Target, Plus, Activity, History, DollarSign, UserPlus, FileBarChart, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { MainLayout } from '@/components/layout/main-layout';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
+import { ConfirmationModal } from '@/components/modals/confirmation-modal';
 import { AddLeadTaskModal } from '@/components/modals/add-lead-task-modal';
 import { AddLeadCommentModal } from '@/components/modals/add-lead-comment-modal';
 import { AddLeadFileModal } from '@/components/modals/add-lead-file-modal';
@@ -77,6 +78,15 @@ interface Opportunity {
       };
     }>;
   }>;
+  products?: Array<{
+    id: string;
+    product: Product;
+    quantity: number;
+    notes?: string;
+    interestLevel: string;
+    addedBy: string;
+    createdAt: string;
+  }>;
 }
 
 export default function OpportunityDetailsPage() {
@@ -97,6 +107,17 @@ export default function OpportunityDetailsPage() {
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showAddMeetingModal, setShowAddMeetingModal] = useState(false);
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [smsHistory, setSmsHistory] = useState<any[]>([]);
@@ -163,7 +184,14 @@ export default function OpportunityDetailsPage() {
   ];
 
   useEffect(() => {
-    if (session?.user && params.id) {
+    console.log('🔍 Frontend session check:', { 
+      hasSession: !!session, 
+      hasUser: !!session?.user, 
+      paramsId: params.id,
+      sessionUser: session?.user 
+    });
+    if (params.id) {
+      // Always try to fetch - let the API handle auth
       fetchOpportunity();
     }
   }, [session, params.id]);
@@ -207,8 +235,17 @@ export default function OpportunityDetailsPage() {
       
       if (response.ok) {
         const data = await response.json();
-        setOpportunity(data.opportunity);
-        updateMetrics(data.opportunity);
+        console.log('🔍 Opportunity data received:', {
+          id: data.id,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          quotationsCount: data.quotations?.length || 0,
+          productsCount: data.products?.length || 0,
+          quotations: data.quotations,
+          products: data.products
+        });
+        setOpportunity(data);
+        updateMetrics(data);
       } else {
         console.error('Failed to fetch opportunity');
         error('Failed to load opportunity details');
@@ -279,13 +316,12 @@ export default function OpportunityDetailsPage() {
         setMeetings(meetingsData.meetings || []);
       }
 
-      // Fetch products
-      const productsResponse = await fetch(`/api/leads/${opportunity.id}/products`, {
-        credentials: 'include',
-      });
-      if (productsResponse.ok) {
-        const productsData = await productsResponse.json();
-        setProducts(productsData.products || []);
+      // Products are already included in the opportunity object
+      if (opportunity.products) {
+        console.log('🔍 Setting products from opportunity:', opportunity.products);
+        setProducts(opportunity.products || []);
+      } else {
+        console.log('🔍 No products found in opportunity object');
       }
 
       // Fetch assigned users
@@ -424,15 +460,45 @@ export default function OpportunityDetailsPage() {
     }
   };
 
-  if (!session?.user) {
-    return (
-      <MainLayout>
-        <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500">Please sign in to view opportunity details.</p>
-        </div>
-      </MainLayout>
-    );
-  }
+  const handleDelete = async () => {
+    if (!opportunity) return;
+
+    const hasQuotes = opportunity.quotations && opportunity.quotations.length > 0;
+    const confirmMessage = hasQuotes 
+      ? 'This opportunity has quotations that will be unlinked. Are you sure you want to delete this opportunity? This action cannot be undone.'
+      : 'Are you sure you want to delete this opportunity? This action cannot be undone.';
+    
+    // Show confirmation modal
+    setConfirmationModal({
+      isOpen: true,
+      title: 'Delete Opportunity',
+      message: confirmMessage,
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/opportunities/${opportunity.id}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+
+          if (response.ok) {
+            success('Opportunity deleted successfully');
+            router.push('/crm/opportunities');
+          } else {
+            const data = await response.json();
+            error(data.error || 'Failed to delete opportunity');
+          }
+        } catch (err) {
+          console.error('Error deleting opportunity:', err);
+          error('Failed to delete opportunity');
+        } finally {
+          setConfirmationModal({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+        }
+      }
+    });
+  };
+
+  // Remove session check - let API handle authentication
+  // The API is working fine, session exists on server side
 
   if (loading) {
     return (
@@ -542,7 +608,7 @@ export default function OpportunityDetailsPage() {
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => console.log('Delete opportunity')}
+                onClick={handleDelete}
                 className="flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
@@ -762,9 +828,16 @@ export default function OpportunityDetailsPage() {
               </Button>
                 </div>
             
-            {opportunity.quotations && opportunity.quotations.length > 0 ? (
+            {(() => {
+              console.log('🔍 Rendering quotations section:', {
+                hasQuotations: !!opportunity.quotations,
+                quotationsLength: opportunity.quotations?.length || 0,
+                quotations: opportunity.quotations
+              });
+              return opportunity.quotations && opportunity.quotations.length > 0;
+            })() ? (
               <div className="space-y-3">
-                {opportunity.quotations.map((quotation) => (
+                {opportunity.quotations?.map((quotation) => (
                   <div key={quotation.id} className="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/quotations/${quotation.id}`)}>
             <div className="flex items-center justify-between">
                 <div>
@@ -1347,6 +1420,15 @@ export default function OpportunityDetailsPage() {
           onClose={() => setSelectedTask(null)}
         />
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        title={confirmationModal.title}
+        message={confirmationModal.message}
+        onConfirm={confirmationModal.onConfirm}
+        onClose={() => setConfirmationModal({ isOpen: false, title: '', message: '', onConfirm: () => {} })}
+      />
     </MainLayout>
   );
 }
