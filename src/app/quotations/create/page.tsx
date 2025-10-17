@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -163,6 +163,7 @@ export default function CreateQuotationPage() {
     company: string;
   } | null>(null);
   const [leadProductsLoaded, setLeadProductsLoaded] = useState(false);
+  const leadProductsLoadingRef = useRef(false);
 
   // Address selection state
   const [addresses, setAddresses] = useState<any[]>([]);
@@ -208,7 +209,8 @@ export default function CreateQuotationPage() {
   // Fetch lead's interested products
   const fetchLeadProducts = async (leadId: string) => {
     // Prevent duplicate loading
-    if (leadProductsLoaded) return;
+    if (leadProductsLoadingRef.current) return;
+    leadProductsLoadingRef.current = true;
     
     try {
       console.log('🚀 STARTING: Fetching products for lead:', leadId);
@@ -267,6 +269,8 @@ export default function CreateQuotationPage() {
     } catch (error) {
       console.error('Error fetching lead products:', error);
       // Don't show error - products are optional
+    } finally {
+      leadProductsLoadingRef.current = false;
     }
   };
 
@@ -1552,10 +1556,10 @@ AdPools System`,
                               <div className="flex items-center space-x-2">
                                 <ProductImage product={{ id: line.productId, name: line.productName, sku: line.sku, price: line.unitPrice, images: products.find(p => p.id === line.productId)?.images }} size="xs" />
                                 <div>
-                                  <div className="font-medium text-gray-900">{line.productName}</div>
-                                  {line.sku && (
-                                    <div className="text-xs text-gray-500">SKU: {line.sku}</div>
-                                  )}
+                              <div className="font-medium text-gray-900">{line.productName}</div>
+                              {line.sku && (
+                                <div className="text-xs text-gray-500">SKU: {line.sku}</div>
+                              )}
                                 </div>
                               </div>
                             </div>
