@@ -1292,11 +1292,6 @@ export default function LeadDetailsPage() {
                     </p>
                   </div>
                 ))}
-                {products.length > 3 && (
-                  <p className="text-sm text-gray-500 text-center py-2">
-                    +{products.length - 3} more products
-                  </p>
-                )}
               </div>
             ) : (
               <div className="text-center py-8">
