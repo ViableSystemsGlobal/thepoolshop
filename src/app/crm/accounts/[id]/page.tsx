@@ -6,7 +6,6 @@ import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, Edit, Trash2, Users, TrendingUp, FileText, Receipt, Building2, Mail, Phone, MapPin, Globe, Calendar, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { MainLayout } from '@/components/layout/main-layout';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
@@ -285,14 +284,14 @@ export default function AccountDetailsPage() {
     }
   }, [status, router]);
 
-  // Show loading while checking authentication
-  if (status === 'loading' || loading) {
+  // Don't show loading skeleton during navigation
+  if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading...</div>
+          <div className="text-lg">Loading account data...</div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
@@ -303,7 +302,7 @@ export default function AccountDetailsPage() {
 
   if (!account) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Account not found</h2>
@@ -314,12 +313,12 @@ export default function AccountDetailsPage() {
             </Button>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -753,6 +752,6 @@ export default function AccountDetailsPage() {
           onSuccess={handleAddressSuccess}
         />
       )}
-    </MainLayout>
+    </>
   );
 }

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -573,14 +572,14 @@ export default function MyTasksPage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
             <p className="mt-2 text-gray-600">Loading your tasks...</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
@@ -594,7 +593,7 @@ export default function MyTasksPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1131,6 +1130,6 @@ export default function MyTasksPage() {
           </>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

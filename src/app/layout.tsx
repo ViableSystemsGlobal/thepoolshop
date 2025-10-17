@@ -9,6 +9,7 @@ import { ToastContainer } from "@/components/toast-container";
 import { HydrationBoundary } from "@/components/hydration-boundary";
 import { TaskNotificationStarter } from "@/components/task-notification-starter";
 import { DynamicFavicon } from "@/components/dynamic-favicon";
+import { AppLayout } from "@/components/layout/app-layout";
 
 export const metadata: Metadata = {
   title: "Sales Management System",
@@ -34,7 +35,9 @@ export default function RootLayout({
                         <AuthSessionProvider>
                           <TaskNotificationStarter />
                           <DynamicFavicon />
-                          {children}
+                          <AppLayout>
+                            {children}
+                          </AppLayout>
                           <ToastContainer />
                         </AuthSessionProvider>
                       </CompanyProvider>

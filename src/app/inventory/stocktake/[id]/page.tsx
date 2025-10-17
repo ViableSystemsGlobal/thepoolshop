@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -210,17 +209,17 @@ export default function StocktakeDetailPage({ params }: { params: Promise<{ id: 
   
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="text-center py-12">Loading...</div>
-      </MainLayout>
+      </>
     );
   }
   
   if (!session) {
     return (
-      <MainLayout>
+      <>
         <div className="text-center py-12 text-red-500">Session not found</div>
-      </MainLayout>
+      </>
     );
   }
   
@@ -228,7 +227,7 @@ export default function StocktakeDetailPage({ params }: { params: Promise<{ id: 
   const itemsWithVariance = session.items.filter(item => item.variance !== 0).length;
   
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -455,7 +454,7 @@ export default function StocktakeDetailPage({ params }: { params: Promise<{ id: 
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </>
   );
 }
 

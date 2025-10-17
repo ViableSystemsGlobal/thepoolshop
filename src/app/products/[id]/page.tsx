@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MainLayout } from "@/components/layout/main-layout";
 import { formatCurrency } from "@/lib/utils";
 import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol } from "@/components/ui/currency-toggle";
 import { EditProductModal } from "@/components/modals/edit-product-modal";
@@ -659,20 +658,20 @@ export default function ProductDetailsPage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading product details...</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (error || !product) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
@@ -684,7 +683,7 @@ export default function ProductDetailsPage() {
             </Button>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
@@ -749,7 +748,7 @@ export default function ProductDetailsPage() {
       : 'in-stock';
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -2052,7 +2051,7 @@ export default function ProductDetailsPage() {
         productPrice={product.originalPrice || product.price}
         productCurrency={product.originalPriceCurrency || product.baseCurrency || 'GHS'}
       />
-    </MainLayout>
+    </>
   );
 }
 

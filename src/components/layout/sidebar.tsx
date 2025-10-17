@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useTheme } from "@/contexts/theme-context";
-import { useNavigationLoading } from "@/hooks/use-navigation-loading";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useSession } from "next-auth/react";
 import { SkeletonSidebar } from "@/components/ui/skeleton";
@@ -190,14 +189,70 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const [collapsed, setCollapsed] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const { getThemeClasses, customLogo } = useTheme();
   const theme = getThemeClasses();
-  const { navigateWithLoading } = useNavigationLoading();
-  const { canAccess, isLoading: abilitiesLoading } = useAbilities();
-  const { data: session } = useSession();
+  const { canAccess, loading: abilitiesLoading } = useAbilities();
+  const { data: session, status: sessionStatus } = useSession();
 
-  // Show skeleton loading while abilities are loading
-  if (abilitiesLoading) {
+  // Show skeleton loading during initial load, while abilities are loading, or session is loading
+  useEffect(() => {
+    if (sessionStatus !== 'loading' && !abilitiesLoading) {
+      // Add a small delay to ensure skeleton shows during hard refresh
+      const timer = setTimeout(() => {
+        setIsInitialLoad(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [sessionStatus, abilitiesLoading]);
+
+  // Define isActive function before using it in useEffect
+  const isActive = (href: string) => {
+    if (pathname === href) return true;
+    
+    // Special case for /tasks routes
+    if (href === "/tasks") {
+      // Only match if we're exactly on /tasks, not on /tasks/my or other sub-routes
+      return pathname === "/tasks";
+    }
+    
+    // Special case for /products - only match exact /products, not /products/labels
+    if (href === "/products") {
+      return pathname === "/products";
+    }
+    
+    // For other child routes, only match if it's a direct child (not a grandchild)
+    if (pathname.startsWith(href + "/")) {
+      const remainingPath = pathname.slice(href.length + 1);
+      // Only match if there's no additional path segments (direct child)
+      return !remainingPath.includes("/");
+    }
+    
+    return false;
+  };
+
+  // Auto-expand sections when on child pages
+  useEffect(() => {
+    const shouldExpandSections: string[] = [];
+    
+    navigation.forEach(section => {
+      if (section.children) {
+        const hasActiveChild = section.children.some(child => isActive(child.href));
+        if (hasActiveChild) {
+          shouldExpandSections.push(section.name);
+        }
+      }
+    });
+    
+    if (shouldExpandSections.length > 0) {
+      setExpandedSections(prev => {
+        const newExpanded = [...new Set([...prev, ...shouldExpandSections])];
+        return newExpanded;
+      });
+    }
+  }, [pathname]);
+
+  if (isInitialLoad || abilitiesLoading || sessionStatus === 'loading') {
     return <SkeletonSidebar />;
   }
 
@@ -286,51 +341,6 @@ export default function Sidebar() {
     );
   };
 
-  const isActive = (href: string) => {
-    if (pathname === href) return true;
-    
-    // Special case for /tasks routes
-    if (href === "/tasks") {
-      // Only match if we're exactly on /tasks, not on /tasks/my or other sub-routes
-      return pathname === "/tasks";
-    }
-    
-    // Special case for /products - only match exact /products, not /products/labels
-    if (href === "/products") {
-      return pathname === "/products";
-    }
-    
-    // For other child routes, only match if it's a direct child (not a grandchild)
-    if (pathname.startsWith(href + "/")) {
-      const remainingPath = pathname.slice(href.length + 1);
-      // Only match if there's no additional path segments (direct child)
-      return !remainingPath.includes("/");
-    }
-    
-    return false;
-  };
-
-  // Auto-expand sections when on child pages
-  useEffect(() => {
-    const shouldExpandSections: string[] = [];
-    
-    navigation.forEach(section => {
-      if (section.children) {
-        const hasActiveChild = section.children.some(child => isActive(child.href));
-        if (hasActiveChild) {
-          shouldExpandSections.push(section.name);
-        }
-      }
-    });
-    
-    if (shouldExpandSections.length > 0) {
-      setExpandedSections(prev => {
-        const newExpanded = [...new Set([...prev, ...shouldExpandSections])];
-        return newExpanded;
-      });
-    }
-  }, [pathname]);
-
   return (
     <div className={cn(
       "flex h-full flex-col bg-white border-r border-gray-200 transition-all duration-200",
@@ -387,8 +397,8 @@ export default function Sidebar() {
                   )}
                 </button>
               ) : (
-                <button
-                  onClick={() => item.href && navigateWithLoading(item.href)}
+                <Link
+                  href={item.href || '#'}
                   className={cn(
                     "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full text-left",
                     isActiveItem
@@ -398,7 +408,7 @@ export default function Sidebar() {
                 >
                   <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                   {!collapsed && item.name}
-                </button>
+                </Link>
               )}
 
               {/* Children */}
@@ -422,9 +432,9 @@ export default function Sidebar() {
                       return canAccess(child.module);
                     })
                     .map((child) => (
-                    <button
+                    <Link
                       key={child.name}
-                      onClick={() => navigateWithLoading(child.href)}
+                      href={child.href}
                       className={cn(
                         "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full text-left",
                         isActive(child.href)
@@ -434,7 +444,7 @@ export default function Sidebar() {
                     >
                       <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
                       {child.name}
-                    </button>
+                    </Link>
                   ))}
                 </div>
               )}

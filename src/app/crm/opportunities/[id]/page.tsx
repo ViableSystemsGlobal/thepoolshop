@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
-import { MainLayout } from '@/components/layout/main-layout';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { ConfirmationModal } from '@/components/modals/confirmation-modal';
 import { AddLeadTaskModal } from '@/components/modals/add-lead-task-modal';
@@ -512,28 +511,28 @@ export default function OpportunityDetailsPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!opportunity) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <p className="text-gray-500">Opportunity not found.</p>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   const stageInfo = getStageInfo(opportunity.status);
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="mb-8">
@@ -1439,6 +1438,6 @@ export default function OpportunityDetailsPage() {
         onConfirm={confirmationModal.onConfirm}
         onClose={() => setConfirmationModal({ isOpen: false, title: '', message: '', onConfirm: () => {} })}
       />
-    </MainLayout>
+    </>
   );
 }

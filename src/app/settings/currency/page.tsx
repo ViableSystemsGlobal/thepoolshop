@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useToast } from "@/contexts/toast-context";
 import { 
   DollarSign, 
@@ -139,19 +138,19 @@ export default function CurrencySettingsPage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="p-6">
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <p className="text-gray-600 ml-3">Loading currency settings...</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -396,6 +395,6 @@ export default function CurrencySettingsPage() {
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </>
   );
 }

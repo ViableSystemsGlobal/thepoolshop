@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { MainLayout } from '@/components/layout/main-layout';
 import { useAbilities } from '@/hooks/use-abilities';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -285,7 +284,7 @@ export default function TaskTemplatesPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -558,6 +557,6 @@ export default function TaskTemplatesPage() {
           </div>
         </div>
       )}
-    </MainLayout>
+    </>
   );
 }

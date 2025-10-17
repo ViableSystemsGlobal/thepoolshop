@@ -8,13 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
-import { MainLayout } from '@/components/layout/main-layout';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
 import { DataTable } from '@/components/ui/data-table';
 import { AddContactModal } from '@/components/modals/add-contact-modal';
-import { SkeletonTable, SkeletonMetricCard } from '@/components/ui/skeleton';
+import { SkeletonTable } from '@/components/ui/skeleton';
 
 interface Contact {
   id: string;
@@ -136,22 +135,7 @@ export default function ContactsPage() {
     }
   }, [session, searchTerm]);
 
-  // Show loading while checking authentication
-  if (status === 'loading') {
-    return (
-      <MainLayout>
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <SkeletonMetricCard />
-            <SkeletonMetricCard />
-            <SkeletonMetricCard />
-            <SkeletonMetricCard />
-          </div>
-          <SkeletonTable rows={8} columns={6} />
-        </div>
-      </MainLayout>
-    );
-  }
+  // Don't show loading skeleton during navigation - just redirect if needed
 
   // Don't render if not authenticated
   if (status === 'unauthenticated') {
@@ -225,7 +209,7 @@ export default function ContactsPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -463,6 +447,6 @@ export default function ContactsPage() {
           />
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

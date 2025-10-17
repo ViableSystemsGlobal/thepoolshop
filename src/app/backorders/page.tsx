@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
 import { DataTable } from "@/components/ui/data-table";
@@ -303,19 +302,19 @@ export default function BackordersPage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="p-6">
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <p className="text-gray-600 ml-3">Loading backorders...</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -770,6 +769,6 @@ export default function BackordersPage() {
           </div>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

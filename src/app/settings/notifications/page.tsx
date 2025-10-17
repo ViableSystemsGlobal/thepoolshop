@@ -9,7 +9,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { useSession } from 'next-auth/react';
-import { MainLayout } from '@/components/layout/main-layout';
 import { 
   Mail, 
   MessageSquare, 
@@ -695,19 +694,19 @@ export default function NotificationSettingsPage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-500" />
             <p className="text-gray-500">Loading notification settings...</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -2073,6 +2072,6 @@ export default function NotificationSettingsPage() {
             </Card>
           </div>
         )}
-    </MainLayout>
+    </>
   );
 }

@@ -10,7 +10,6 @@ declare global {
     google: typeof google;
   }
 }
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/contexts/toast-context';
@@ -470,22 +469,22 @@ Check system for details.`;
     }
   };
 
-  if (status === 'loading' || loading) {
+  if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading route details...</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!route) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-gray-600">Route not found</p>
@@ -498,12 +497,12 @@ Check system for details.`;
             </Button>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -720,6 +719,6 @@ Check system for details.`;
           </div>
         </div>
       </div>
-    </MainLayout>
+    </>
   );
 }

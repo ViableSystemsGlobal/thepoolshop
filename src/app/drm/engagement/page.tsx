@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from '@/contexts/theme-context';
 import { useAbilities } from '@/hooks/use-abilities';
 import { useToast } from '@/contexts/toast-context';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -287,7 +286,7 @@ export default function EngagementPage() {
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -643,6 +642,6 @@ export default function EngagementPage() {
           </div>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

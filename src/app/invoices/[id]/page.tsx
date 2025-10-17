@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/contexts/toast-context";
 import { useTheme } from "@/contexts/theme-context";
@@ -250,21 +249,21 @@ export default function ViewInvoicePage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-gray-500">Loading invoice...</div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!invoice) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-gray-500">Invoice not found</div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
@@ -274,7 +273,7 @@ export default function ViewInvoicePage() {
                       'Unknown Customer';
 
   return (
-    <MainLayout>
+    <>
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -610,6 +609,6 @@ export default function ViewInvoicePage() {
           }}
         />
       )}
-    </MainLayout>
+    </>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/contexts/toast-context";
@@ -972,7 +971,7 @@ AdPools System`,
   });
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1627,7 +1626,7 @@ AdPools System`,
           </div>
         </div>
       </div>
-    </MainLayout>
+    </>
   );
 }
 

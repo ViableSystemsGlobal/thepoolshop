@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/contexts/theme-context";
@@ -697,7 +696,7 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -719,12 +718,12 @@ export default function ReportsPage() {
             ))}
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -2810,6 +2809,6 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

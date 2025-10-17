@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useTheme } from "@/contexts/theme-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -149,7 +148,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -365,6 +364,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </>
   );
 }

@@ -11,7 +11,6 @@ import { useToast } from '@/contexts/toast-context';
 import { EditLeadModal } from '@/components/modals/edit-lead-modal';
 import { ConfirmDeleteModal } from '@/components/modals/confirm-delete-modal';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
-import { MainLayout } from '@/components/layout/main-layout';
 import { AddLeadTaskModal } from '@/components/modals/add-lead-task-modal';
 import { AddLeadCommentModal } from '@/components/modals/add-lead-comment-modal';
 import { AddLeadFileModal } from '@/components/modals/add-lead-file-modal';
@@ -967,17 +966,17 @@ export default function LeadDetailsPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-gray-500">Loading lead details...</div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!lead) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Lead not found</h2>
@@ -988,12 +987,12 @@ export default function LeadDetailsPage() {
             </Button>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="mb-8">
@@ -1863,6 +1862,6 @@ export default function LeadDetailsPage() {
           }}
         />
       )}
-    </MainLayout>
+    </>
   );
 }

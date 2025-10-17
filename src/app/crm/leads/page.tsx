@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
-import { MainLayout } from '@/components/layout/main-layout';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { AddLeadModal } from '@/components/modals/add-lead-modal';
@@ -166,16 +165,7 @@ export default function LeadsPage() {
     fetchLeads();
   }, [searchTerm, statusFilter]);
 
-  // Show loading while checking authentication
-  if (status === 'loading') {
-    return (
-      <MainLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading...</div>
-        </div>
-      </MainLayout>
-    );
-  }
+  // Don't show loading skeleton during navigation
 
   // Don't render if not authenticated
   if (status === 'unauthenticated') {
@@ -507,7 +497,7 @@ export default function LeadsPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
         <div>
@@ -1187,6 +1177,6 @@ export default function LeadsPage() {
         />
       )}
       </div>
-    </MainLayout>
+    </>
   );
 }

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { MainLayout } from "@/components/layout/main-layout";
 import { AddCategoryModal } from "@/components/modals/add-category-modal";
 import { 
   Plus, 
@@ -84,7 +83,7 @@ export default function CategoriesPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -273,6 +272,6 @@ export default function CategoriesPage() {
         }}
       />
       </div>
-    </MainLayout>
+    </>
   );
 }

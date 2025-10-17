@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -385,7 +384,7 @@ export default function EditQuotationPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="space-y-6">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -394,13 +393,13 @@ export default function EditQuotationPage() {
             </div>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!quotation) {
     return (
-      <MainLayout>
+      <>
         <div className="space-y-6">
           <div className="text-center">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -414,12 +413,12 @@ export default function EditQuotationPage() {
             </Link>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -977,6 +976,6 @@ export default function EditQuotationPage() {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </>
   );
 }

@@ -6,7 +6,6 @@ import { useRouter, useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/theme-context';
 import { useAbilities } from '@/hooks/use-abilities';
 import { useToast } from '@/contexts/toast-context';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
@@ -377,21 +376,21 @@ export default function DistributorDetailsPage() {
   // Show loading state
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading distributor details...</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   // Show error state
   if (!distributor) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-gray-600">Distributor not found</p>
@@ -403,7 +402,7 @@ export default function DistributorDetailsPage() {
             </Button>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
@@ -413,7 +412,7 @@ export default function DistributorDetailsPage() {
   const profileImage = distributor.images?.find(img => img.imageType === 'PROFILE_PICTURE');
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -1437,6 +1436,6 @@ export default function DistributorDetailsPage() {
           onUploaded={loadDocuments}
         />
       )}
-    </MainLayout>
+    </>
   );
 }

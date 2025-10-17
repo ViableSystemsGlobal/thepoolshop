@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from '@/contexts/theme-context';
 import { useAbilities } from '@/hooks/use-abilities';
 import { useToast } from '@/contexts/toast-context';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -324,29 +323,29 @@ export default function DistributorLeadsPage() {
   // Show loading while session is being fetched
   if (session === undefined) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!session?.user) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Authentication Required</h2>
             <p className="text-gray-600">Please sign in to access distributor leads.</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -678,6 +677,6 @@ export default function DistributorLeadsPage() {
         lead={selectedLead}
       />
       
-    </MainLayout>
+    </>
   );
 }

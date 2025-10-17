@@ -5,7 +5,6 @@ import { useRouter, useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { downloadQuotationAsPDF } from '@/lib/quotation-download';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SendQuoteModal } from '@/components/modals/send-quote-modal';
@@ -265,7 +264,7 @@ export default function ViewQuotationPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="p-6">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -274,13 +273,13 @@ export default function ViewQuotationPage() {
             </div>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!quotation) {
     return (
-      <MainLayout>
+      <>
         <div className="p-6">
           <div className="text-center">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -292,14 +291,14 @@ export default function ViewQuotationPage() {
             </Button>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   const customer = quotation.account || quotation.distributor;
 
   return (
-    <MainLayout>
+    <>
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -790,6 +789,6 @@ export default function ViewQuotationPage() {
           }}
         />
       )}
-    </MainLayout>
+    </>
   );
 }

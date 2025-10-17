@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
 import { AddCategoryModal } from "@/components/modals/add-category-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,7 +114,7 @@ export default function CategoriesSettingsPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -359,6 +358,6 @@ export default function CategoriesSettingsPage() {
           }}
         />
       </div>
-    </MainLayout>
+    </>
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarcodeDisplay } from '@/components/barcode-display';
@@ -187,7 +186,7 @@ export default function ProductLabelsPage() {
   };
   
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
@@ -324,7 +323,7 @@ export default function ProductLabelsPage() {
           </Card>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }
 

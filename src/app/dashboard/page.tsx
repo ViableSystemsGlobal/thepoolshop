@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/contexts/theme-context"
@@ -194,7 +193,7 @@ export default function Dashboard() {
   };
   
   return (
-    <MainLayout>
+    <>
       <div className="space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -531,6 +530,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </>
   )
 }

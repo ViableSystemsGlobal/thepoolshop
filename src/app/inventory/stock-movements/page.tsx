@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { MainLayout } from "@/components/layout/main-layout";
 import { StockMovementsClient } from "./stock-movements-client";
 
 export default async function StockMovementsPage() {
@@ -33,8 +32,8 @@ export default async function StockMovementsPage() {
   }
 
   return (
-    <MainLayout>
+    <>
       <StockMovementsClient initialMovements={movements} />
-    </MainLayout>
+    </>
   );
 }

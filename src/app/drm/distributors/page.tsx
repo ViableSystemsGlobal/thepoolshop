@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from '@/contexts/theme-context';
 import { useAbilities } from '@/hooks/use-abilities';
 import { useToast } from '@/contexts/toast-context';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -233,32 +232,32 @@ export default function DistributorsPage() {
   // Show loading state while session is being checked
   if (loading && !session?.user) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading distributors...</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   // Show sign in message only if we're sure there's no session
   if (!loading && !session?.user) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-gray-600">Please sign in to access distributors.</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -666,6 +665,6 @@ export default function DistributorsPage() {
           }}
         />
       </div>
-    </MainLayout>
+    </>
   );
 }

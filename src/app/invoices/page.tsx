@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/contexts/toast-context";
@@ -289,7 +288,7 @@ export default function InvoicesPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -618,6 +617,6 @@ export default function InvoicesPage() {
           />
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

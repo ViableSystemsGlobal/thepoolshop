@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/contexts/toast-context";
 import { useTheme } from "@/contexts/theme-context";
@@ -226,7 +225,7 @@ export default function ReturnsPage() {
   const availableReasons = Object.values(ReturnReason);
 
   return (
-    <MainLayout>
+    <>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Returns</h1>
         <button
@@ -543,7 +542,7 @@ export default function ReturnsPage() {
         confirmText="Delete"
         cancelText="Cancel"
       />
-    </MainLayout>
+    </>
   );
 }
 

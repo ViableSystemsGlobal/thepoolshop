@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -173,17 +172,17 @@ export default function DistributorLeadDetailsPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!lead) {
     return (
-      <MainLayout>
+      <>
         <div className="text-center py-12">
           <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Distributor Lead Not Found</h2>
@@ -192,7 +191,7 @@ export default function DistributorLeadDetailsPage() {
             Back to Distributor Leads
           </Button>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
@@ -395,7 +394,7 @@ export default function DistributorLeadDetailsPage() {
   ];
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -966,6 +965,6 @@ export default function DistributorLeadDetailsPage() {
           leadEmail={lead.email}
         />
       )}
-    </MainLayout>
+    </>
   );
 }

@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from '@/contexts/theme-context';
 import { useAbilities } from '@/hooks/use-abilities';
 import { useToast } from '@/contexts/toast-context';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -184,13 +183,13 @@ export default function RoutesMappingPage() {
   // Defer gate until session exists to avoid false negatives on first paint
   if (session && !abilitiesLoading && !hasAbility('routes-mapping', 'view')) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-gray-600">You don't have permission to access routes and mapping.</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
@@ -262,30 +261,30 @@ export default function RoutesMappingPage() {
 
   if (authStatus === 'loading') {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (authStatus === 'unauthenticated') {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-gray-600">Please sign in to access routes and mapping.</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -907,6 +906,6 @@ export default function RoutesMappingPage() {
         }}
         route={selectedRoute}
       />
-    </MainLayout>
+    </>
   );
 }

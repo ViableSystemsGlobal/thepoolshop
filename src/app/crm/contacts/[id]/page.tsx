@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { MainLayout } from '@/components/layout/main-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -104,7 +103,7 @@ export default function ContactDetailsPage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="space-y-6">
           <div className="flex items-center space-x-4">
             <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
@@ -121,13 +120,13 @@ export default function ContactDetailsPage() {
             </div>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!contact) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -139,12 +138,12 @@ export default function ContactDetailsPage() {
             </Button>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -367,6 +366,6 @@ export default function ContactDetailsPage() {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </>
   );
 }

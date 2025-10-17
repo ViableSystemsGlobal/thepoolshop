@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
 import { formatCurrency } from "@/lib/utils";
@@ -335,18 +334,18 @@ export default function PriceListDetailsPage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="p-6 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
           <p className="mt-2 text-gray-600">Loading price list details...</p>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!priceList) {
     return (
-      <MainLayout>
+      <>
         <div className="p-6 text-center">
           <p className="text-gray-600">Price list not found</p>
           <Button 
@@ -356,12 +355,12 @@ export default function PriceListDetailsPage() {
             Back to Price Lists
           </Button>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -732,6 +731,6 @@ export default function PriceListDetailsPage() {
           />
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

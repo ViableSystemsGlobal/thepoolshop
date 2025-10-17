@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/contexts/toast-context";
 import { useTheme } from "@/contexts/theme-context";
@@ -388,16 +387,16 @@ export default function EditInvoicePage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="text-gray-500">Loading invoice...</div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="flex h-screen bg-gray-50">
         {/* Left Panel - Form */}
         <div className="w-1/2 p-6 overflow-y-auto scrollbar-hide">
@@ -773,6 +772,6 @@ export default function EditInvoicePage() {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </>
   );
 }

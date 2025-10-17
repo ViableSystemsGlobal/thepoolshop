@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MainLayout } from "@/components/layout/main-layout";
 import { AddWarehouseModal } from "@/components/modals/add-warehouse-modal";
 import { EditWarehouseModal } from "@/components/modals/edit-warehouse-modal";
 import { useToast } from "@/contexts/toast-context";
@@ -155,7 +154,7 @@ export default function WarehousesPage() {
   const inactiveWarehouses = filteredWarehouses.filter(w => !w.isActive).length;
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -434,6 +433,6 @@ export default function WarehousesPage() {
         onSuccess={handleWarehouseSuccess}
         warehouse={selectedWarehouse}
       />
-    </MainLayout>
+    </>
   );
 }

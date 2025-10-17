@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
-import { MainLayout } from '@/components/layout/main-layout';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { AIRecommendationCard } from '@/components/ai-recommendation-card';
@@ -146,16 +145,16 @@ export default function OpportunitiesPage() {
 
   if (!session?.user) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <p className="text-gray-500">Please sign in to view opportunities.</p>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Left Sidebar - AI Card */}
         <div className="lg:col-span-1">
@@ -602,6 +601,6 @@ export default function OpportunitiesPage() {
         </div>
       )}
       </div>
-    </MainLayout>
+    </>
   );
 }

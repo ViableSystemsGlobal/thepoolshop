@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useToast } from "@/contexts/toast-context";
 import { useTheme } from "@/contexts/theme-context";
 import { 
@@ -385,7 +384,7 @@ export default function UserManagementPage() {
   });
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -786,6 +785,6 @@ export default function UserManagementPage() {
           onConfirmationTextChange={deleteConfirmation.updateConfirmationText}
         />
       </div>
-    </MainLayout>
+    </>
   );
 }

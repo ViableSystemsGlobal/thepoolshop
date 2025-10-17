@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
-import { MainLayout } from '@/components/layout/main-layout';
 import { useTheme } from '@/contexts/theme-context';
 import { useToast } from '@/contexts/toast-context';
 import { AddAccountModal } from '@/components/modals/add-account-modal';
@@ -144,22 +143,7 @@ export default function AccountsPage() {
     fetchAccounts();
   }, [searchTerm, typeFilter]);
 
-  // Show loading while checking authentication
-  if (status === 'loading') {
-    return (
-      <MainLayout>
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <SkeletonMetricCard />
-            <SkeletonMetricCard />
-            <SkeletonMetricCard />
-            <SkeletonMetricCard />
-          </div>
-          <SkeletonTable rows={8} columns={6} />
-        </div>
-      </MainLayout>
-    );
-  }
+  // Don't show loading skeleton during navigation
 
   // Don't render if not authenticated
   if (status === 'unauthenticated') {
@@ -324,7 +308,7 @@ export default function AccountsPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
@@ -608,6 +592,6 @@ export default function AccountsPage() {
         />
       )}
       </div>
-    </MainLayout>
+    </>
   );
 }

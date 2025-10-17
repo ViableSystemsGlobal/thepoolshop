@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/toast-context";
 import { useTheme } from "@/contexts/theme-context";
@@ -175,7 +174,7 @@ export default function PaymentsPage() {
   });
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -430,6 +429,6 @@ export default function PaymentsPage() {
         variant="danger"
         isLoading={deleting}
       />
-    </MainLayout>
+    </>
   );
 }

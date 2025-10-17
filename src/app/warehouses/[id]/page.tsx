@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MainLayout } from "@/components/layout/main-layout";
 import { useToast } from "@/contexts/toast-context";
 import { formatCurrency } from "@/lib/utils";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
@@ -475,20 +474,20 @@ export default function WarehouseDetailsPage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <>
         <div className="p-6">
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <p className="text-gray-600 ml-3">Loading warehouse details...</p>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   if (!warehouse) {
     return (
-      <MainLayout>
+      <>
         <div className="p-6">
           <div className="text-center py-8">
             <Building className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -500,12 +499,12 @@ export default function WarehouseDetailsPage() {
             </Button>
           </div>
         </div>
-      </MainLayout>
+      </>
     );
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="p-6">
         <div className="space-y-6">
           {/* Header */}
@@ -1235,6 +1234,6 @@ export default function WarehouseDetailsPage() {
         onSuccess={handleEditSuccess}
         warehouse={warehouse}
       />
-    </MainLayout>
+    </>
   );
 }

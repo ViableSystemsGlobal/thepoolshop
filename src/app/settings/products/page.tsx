@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   ArrowLeft,
@@ -71,7 +70,7 @@ export default function ProductSettingsPage() {
   );
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -308,6 +307,6 @@ export default function ProductSettingsPage() {
           </Card>
         </div>
       </div>
-    </MainLayout>
+    </>
   );
 }
