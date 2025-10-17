@@ -56,7 +56,7 @@ interface Commission {
 }
 
 export default function CommissionsPage() {
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { success, error: showError } = useToast();
   
@@ -343,7 +343,7 @@ export default function CommissionsPage() {
             <p className="text-gray-600">Track and manage sales commissions</p>
           </div>
           <Button
-            style={{ backgroundColor: theme.primary, color: 'white' }}
+            style={{ backgroundColor: getThemeColor(), color: 'white' }}
             className="hover:opacity-90"
           >
             <Download className="h-4 w-4 mr-2" />

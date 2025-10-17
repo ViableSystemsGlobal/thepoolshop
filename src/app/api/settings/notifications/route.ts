@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getCompanyNameFromSystemSettings } from "@/lib/company-settings";
 
 // Helper function to get setting value from database or environment
 async function getSettingValue(key: string, defaultValue: string = ''): Promise<string> {
@@ -144,7 +145,7 @@ export async function PUT(request: NextRequest) {
         
         await saveSetting('SMTP_ENCRYPTION', settings.email.smtp.encryption || 'tls');
         await saveSetting('SMTP_FROM_ADDRESS', settings.email.smtp.fromAddress || '');
-        await saveSetting('SMTP_FROM_NAME', settings.email.smtp.fromName || 'AdPools Group');
+        await saveSetting('SMTP_FROM_NAME', settings.email.smtp.fromName || await getCompanyNameFromSystemSettings());
       }
 
       // Save email notification types

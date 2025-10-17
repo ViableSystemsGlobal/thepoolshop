@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getCompanyName } from "@/lib/company-settings";
 import { NotificationService } from "./notification-service";
 
 export class NotificationProcessor {
@@ -95,7 +96,7 @@ export class NotificationProcessor {
       const smtpUsername = await this.getSettingValue('SMTP_USERNAME', '');
       const smtpPassword = await this.getSettingValue('SMTP_PASSWORD', '');
       const smtpFromAddress = await this.getSettingValue('SMTP_FROM_ADDRESS', '');
-      const smtpFromName = await this.getSettingValue('SMTP_FROM_NAME', 'AdPools Group');
+      const smtpFromName = await this.getSettingValue('SMTP_FROM_NAME', await getCompanyName());
       const smtpEncryption = await this.getSettingValue('SMTP_ENCRYPTION', 'tls');
 
       if (!smtpHost || !smtpUsername || !smtpPassword || !smtpFromAddress) {

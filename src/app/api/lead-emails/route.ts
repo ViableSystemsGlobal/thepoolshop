@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getCompanyName } from '@/lib/company-settings';
 import nodemailer from 'nodemailer';
 
 // Helper function to get setting value
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
       const smtpUsername = await getSettingValue('SMTP_USERNAME', '');
       const smtpPassword = await getSettingValue('SMTP_PASSWORD', '');
       const smtpFromAddress = await getSettingValue('SMTP_FROM_ADDRESS', '');
-      const smtpFromName = await getSettingValue('SMTP_FROM_NAME', 'AdPools Group');
+      const smtpFromName = await getSettingValue('SMTP_FROM_NAME', await getCompanyName());
       const smtpEncryption = await getSettingValue('SMTP_ENCRYPTION', 'tls');
 
       if (!smtpHost || !smtpUsername || !smtpPassword || !smtpFromAddress) {

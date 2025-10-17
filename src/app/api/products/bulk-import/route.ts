@@ -19,6 +19,7 @@ function parseCSV(content: string): any[] {
       'SKU': 'sku', 'sku': 'sku', 'product_sku': 'sku',
       'Name': 'name', 'name': 'name', 'product_name': 'name',
       'Description': 'description', 'description': 'description', 'product_description': 'description',
+      'Type': 'type', 'type': 'type', 'item_type': 'type',
       'Price': 'price', 'price': 'price', 'selling_price': 'price',
       'Cost': 'cost', 'cost': 'cost', 'cost_price': 'cost', 'purchase_price': 'cost',
       'Quantity': 'quantity', 'quantity': 'quantity', 'stock_quantity': 'quantity',
@@ -28,9 +29,13 @@ function parseCSV(content: string): any[] {
       'UOM Sell': 'uom_sell', 'uom_sell': 'uom_sell', 'unit_sell': 'uom_sell',
       'Active': 'active', 'active': 'active',
       'Barcode': 'barcode', 'barcode': 'barcode', 'product_barcode': 'barcode',
-      'Supplier Barcode': 'supplier_barcode', 'supplier_barcode': 'supplier_barcode',
+      'Barcode Type': 'barcode_type', 'barcode_type': 'barcode_type',
       'Supplier Name': 'supplier_name', 'supplier_name': 'supplier_name',
-      'Supplier SKU': 'supplier_sku', 'supplier_sku': 'supplier_sku'
+      'Supplier SKU': 'supplier_sku', 'supplier_sku': 'supplier_sku',
+      'Supplier Barcode': 'supplier_barcode', 'supplier_barcode': 'supplier_barcode',
+      'Service Code': 'service_code', 'service_code': 'service_code',
+      'Duration': 'duration', 'duration': 'duration',
+      'Category': 'category', 'category': 'category', 'category_name': 'category'
     };
     
     const rows = [];
@@ -186,31 +191,69 @@ export async function POST(request: NextRequest) {
             }
           }
           
+          // Determine product type
+          const productType = (row.type || 'PRODUCT').toUpperCase();
+          const isService = productType === 'SERVICE';
+          
+          // Handle category lookup
+          let categoryId = defaultCategory.id;
+          if (row.category?.trim()) {
+            const category = await prisma.category.findFirst({
+              where: { name: { contains: row.category.trim() } }
+            });
+            if (category) {
+              categoryId = category.id;
+            }
+          }
+
           const productData = {
-            name: row.name || `Imported Product ${Date.now()}`,
-            sku: productSku,
-            description: row.description || "Imported from bulk upload",
-            barcode: primaryBarcode,
-            barcodeType: primaryBarcode ? barcodeType : null,
-            generateBarcode: !row.barcode,
+            type: productType as any,
+            name: row.name || `Imported ${isService ? 'Service' : 'Product'} ${Date.now()}`,
+            sku: isService ? null : productSku, // Services can have null SKU
+            serviceCode: isService ? (row.service_code || row.sku || `SERV-${Date.now()}`) : null,
+            description: row.description || `Imported ${isService ? 'service' : 'product'} from bulk upload`,
+            barcode: isService ? null : primaryBarcode, // Services don't have barcodes
+            barcodeType: isService ? null : (primaryBarcode ? (barcodeType as any) : null),
+            generateBarcode: !isService && !row.barcode,
             price: parseFloat(row.price || '0') || 0,
             cost: costPrice,
             originalPrice: parseFloat(row.price || '0') || 0,
             originalCost: costPrice,
             originalPriceCurrency: row.import_currency || 'USD',
             originalCostCurrency: row.import_currency || 'USD',
-            categoryId: defaultCategory.id,
+            categoryId: categoryId,
             active: row.active === 'true' || row.active === '1' || row.active === 'yes' || row.active === '' || row.active === undefined,
-            uomBase: row.uom_base || 'pcs',
-            uomSell: row.uom_sell || 'pcs'
+            uomBase: row.uom_base || (isService ? 'hours' : 'pcs'),
+            uomSell: row.uom_sell || (isService ? 'hours' : 'pcs'),
+            duration: isService ? row.duration : null
           };
 
           const product = await prisma.product.create({
             data: productData
           });
           
+          // Handle supplier information
+          if (row.supplier_name?.trim()) {
+            try {
+              await prisma.productSupplier.create({
+                data: {
+                  productId: product.id,
+                  supplierName: row.supplier_name.trim(),
+                  supplierSku: row.supplier_sku?.trim() || null,
+                  supplierBarcode: row.supplier_barcode?.trim() || null,
+                  cost: costPrice,
+                  isPreferred: true,
+                  isActive: true,
+                  notes: 'Imported from bulk upload'
+                }
+              });
+            } catch (err) {
+              console.error('Error adding supplier information:', err);
+            }
+          }
+
           // If supplier barcode is different from primary, add as additional
-          if (row.supplier_barcode?.trim() && row.supplier_barcode !== primaryBarcode) {
+          if (row.supplier_barcode?.trim() && row.supplier_barcode !== primaryBarcode && !isService) {
             try {
               const supplierBarcodeType = detectBarcodeType(row.supplier_barcode);
               
@@ -232,23 +275,25 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Create stock item for the product
-          const initialQuantity = parseFloat(row.quantity || '0') || 0;
-          const totalValue = initialQuantity * costPrice;
-          const reorderPoint = parseFloat(row.reorder_point || '0') || 0;
-          
-          await prisma.stockItem.create({
-            data: {
-              productId: product.id,
-              warehouseId: defaultWarehouse.id,
-              quantity: initialQuantity,
-              reserved: 0,
-              available: initialQuantity,
-              averageCost: productData.cost || 0,
-              totalValue: totalValue,
-              reorderPoint: reorderPoint
-            }
-          });
+          // Create stock item for products only (not services)
+          if (!isService) {
+            const initialQuantity = parseFloat(row.quantity || '0') || 0;
+            const totalValue = initialQuantity * costPrice;
+            const reorderPoint = parseFloat(row.reorder_point || '0') || 0;
+            
+            await prisma.stockItem.create({
+              data: {
+                productId: product.id,
+                warehouseId: defaultWarehouse.id,
+                quantity: initialQuantity,
+                reserved: 0,
+                available: initialQuantity,
+                averageCost: productData.cost || 0,
+                totalValue: totalValue,
+                reorderPoint: reorderPoint
+              }
+            });
+          }
 
           result.success++;
         } catch (rowError) {

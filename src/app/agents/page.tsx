@@ -51,7 +51,7 @@ interface Agent {
 }
 
 export default function AgentsPage() {
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { success, error: showError } = useToast();
   
@@ -318,7 +318,7 @@ export default function AgentsPage() {
           </div>
           <Link href="/agents/new">
             <Button
-              style={{ backgroundColor: theme.primary, color: 'white' }}
+              style={{ backgroundColor: getThemeColor(), color: 'white' }}
               className="hover:opacity-90"
             >
               <Plus className="h-4 w-4 mr-2" />

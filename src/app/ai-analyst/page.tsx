@@ -18,7 +18,7 @@ interface Message {
 }
 
 export default function AIAnalystPage() {
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { error: showError } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -40,7 +40,7 @@ export default function AIAnalystPage() {
       {
         id: "welcome",
         role: "assistant",
-        content: `👋 Hi there! I'm Jane, your AI Business Analyst.\n\nI can help you understand your business data and provide insights. Try asking me:\n\n• "What's my revenue this month?"\n• "Show me top 5 customers"\n• "Which products are low on stock?"\n• "What's my conversion rate?"\n• "How many leads did we get?"\n• "Show me my best selling products"\n• "What's my win rate?"\n• "How many orders are pending?"`,
+        content: `👋 Hi there! I'm Jayne, your AI Business Analyst.\n\nI can help you understand your business data and provide insights. Try asking me:\n\n• "What's my revenue this month?"\n• "Show me top 5 customers"\n• "Which products are low on stock?"\n• "What's my conversion rate?"\n• "How many leads did we get?"\n• "Show me my best selling products"\n• "What's my win rate?"\n• "How many orders are pending?"`,
         timestamp: new Date(),
       },
     ]);
@@ -113,11 +113,11 @@ export default function AIAnalystPage() {
           <div className="flex items-center space-x-3">
             <div
               className="p-3 rounded-lg"
-              style={{ backgroundColor: `${theme.primary}20` }}
+              style={{ backgroundColor: `${getThemeColor()}20` }}
             >
               <Sparkles
                 className="h-6 w-6"
-                style={{ color: theme.primary }}
+                style={{ color: getThemeColor() }}
               />
             </div>
             <div>
@@ -125,7 +125,7 @@ export default function AIAnalystPage() {
                 AI Business Analyst
               </h1>
               <p className="text-gray-600">
-                Ask Jane anything about your business data and get intelligent insights
+                Ask Jayne anything about your business data and get intelligent insights
               </p>
             </div>
           </div>
@@ -136,7 +136,7 @@ export default function AIAnalystPage() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Bot className="h-5 w-5" />
-              <span>Chat with Jane</span>
+              <span>Chat with Jayne</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -159,7 +159,7 @@ export default function AIAnalystPage() {
                         className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                           message.role === "user"
                             ? "bg-gray-200"
-                            : `bg-${theme.primaryBg}`
+                            : "bg-gray-100"
                         }`}
                       >
                         {message.role === "user" ? (
@@ -167,7 +167,7 @@ export default function AIAnalystPage() {
                         ) : (
                           <Bot
                             className="h-4 w-4"
-                            style={{ color: theme.primary }}
+                            style={{ color: getThemeColor() }}
                           />
                         )}
                       </div>
@@ -201,11 +201,11 @@ export default function AIAnalystPage() {
                   <div className="flex justify-start">
                     <div className="flex items-start space-x-3 max-w-[80%]">
                       <div
-                        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-${theme.primaryBg}`}
+                        className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gray-100"
                       >
                         <Bot
                           className="h-4 w-4"
-                          style={{ color: theme.primary }}
+                          style={{ color: getThemeColor() }}
                         />
                       </div>
                       <div className="rounded-lg p-4 bg-white border border-gray-200">
@@ -240,7 +240,7 @@ export default function AIAnalystPage() {
                 <Button
                   onClick={handleSend}
                   disabled={!input.trim() || isLoading}
-                  style={{ backgroundColor: theme.primary, color: "white" }}
+                  style={{ backgroundColor: getThemeColor(), color: "white" }}
                   className="hover:opacity-90"
                 >
                   <Send className="h-4 w-4" />

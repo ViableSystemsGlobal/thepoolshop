@@ -5,6 +5,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { prisma } from '@/lib/prisma';
+import { getCompanyName } from '@/lib/company-settings';
 import nodemailer from 'nodemailer';
 
 // Global error handler for unhandled promise rejections
@@ -17,15 +18,15 @@ process.on('uncaughtException', (error) => {
 });
 
 // Helper function to get setting value
-async function getSettingValue(key: string): Promise<string | null> {
+async function getSettingValue(key: string, defaultValue: string = ''): Promise<string> {
   try {
     const setting = await (prisma as any).systemSettings.findUnique({
       where: { key }
     });
-    return setting?.value || null;
+    return setting?.value || defaultValue;
   } catch (error) {
     console.error(`Error fetching setting ${key}:`, error);
-    return null;
+    return defaultValue;
   }
 }
 
@@ -35,7 +36,7 @@ async function sendSMS(phone: string, message: string): Promise<boolean> {
     console.log('📱 Starting SMS send process...');
     const smsUsername = await getSettingValue('SMS_USERNAME');
     const smsPassword = await getSettingValue('SMS_PASSWORD');
-    const smsSenderId = await getSettingValue('SMS_SENDER_ID', 'AdPools');
+    const smsSenderId = await getSettingValue('SMS_SENDER_ID', await getCompanyName());
     
     console.log('📱 SMS Settings:', { 
       hasUsername: !!smsUsername, 
@@ -59,7 +60,7 @@ async function sendSMS(phone: string, message: string): Promise<boolean> {
         username: smsUsername,
         password: smsPassword,
         destination: phone,
-        source: smsSenderId,
+        source: smsSenderId || 'ADPOOLS',
         message: message
       })
     });
@@ -88,7 +89,7 @@ async function sendEmail(to: string, subject: string, message: string): Promise<
     const smtpUsername = await getSettingValue('SMTP_USERNAME');
     const smtpPassword = await getSettingValue('SMTP_PASSWORD');
     const smtpFromAddress = await getSettingValue('SMTP_FROM_ADDRESS');
-    const smtpFromName = await getSettingValue('SMTP_FROM_NAME', 'AdPools Group');
+    const smtpFromName = await getSettingValue('SMTP_FROM_NAME', await getCompanyName());
     const smtpEncryption = await getSettingValue('SMTP_ENCRYPTION', 'tls');
     
     console.log('📧 Email Settings:', { 
