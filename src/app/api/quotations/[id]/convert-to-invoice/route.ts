@@ -174,17 +174,19 @@ export async function POST(
     });
 
     // Update opportunity status to WON if it exists
-    if (quotation.opportunityId) {
+    if ((quotation as any).opportunityId) {
       await prisma.opportunity.update({
-        where: { id: quotation.opportunityId },
+        where: { id: (quotation as any).opportunityId },
         data: {
-          stage: 'WON',
+          stage: 'WON' as any,
+          value: invoice.total, // Update the deal value to match the invoice total
+          probability: 100, // Set probability to 100% when won
           wonDate: new Date(),
           updatedAt: new Date()
-        }
+        } as any
       });
 
-      console.log('🎉 Updated opportunity status to WON');
+      console.log('🎉 Updated opportunity status to WON with value:', invoice.total, 'and probability: 100%');
     }
 
     // Keep lead status as is (CONVERTED_TO_OPPORTUNITY) - it's already converted

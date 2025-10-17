@@ -76,15 +76,16 @@ export function AddPaymentModal({
   useEffect(() => {
     // Pre-select invoice if provided
     if (preSelectedInvoice && allocations.length === 0) {
+      const roundedAmount = Math.round(preSelectedInvoice.amountDue * 100) / 100;
       setAllocations([{
         invoiceId: preSelectedInvoice.id,
         invoiceNumber: preSelectedInvoice.number,
-        amount: preSelectedInvoice.amountDue,
+        amount: roundedAmount,
         maxAmount: preSelectedInvoice.amountDue
       }]);
       setFormData(prev => ({
         ...prev,
-        amount: preSelectedInvoice.amountDue.toString()
+        amount: roundedAmount.toString()
       }));
     }
   }, [preSelectedInvoice, allocations.length]);
@@ -140,10 +141,13 @@ export function AddPaymentModal({
     }
 
     const firstAvailable = availableInvoices[0];
+    const paymentAmount = parseFloat(formData.amount) || 0;
+    const allocationAmount = Math.min(firstAvailable.amountDue, paymentAmount);
+    
     setAllocations(prev => [...prev, {
       invoiceId: firstAvailable.id,
       invoiceNumber: firstAvailable.number,
-      amount: Math.min(firstAvailable.amountDue, parseFloat(formData.amount) || 0),
+      amount: Math.round(allocationAmount * 100) / 100, // Round to 2 decimal places
       maxAmount: firstAvailable.amountDue
     }]);
   };
@@ -153,7 +157,7 @@ export function AddPaymentModal({
   };
 
   const updateAllocation = (index: number, field: string, value: string | number) => {
-    // For amount fields, enforce 2 decimal places
+    // For amount fields, enforce 2 decimal places and max amount validation
     if (field === 'amount' && typeof value === 'string') {
       // Remove any non-numeric characters except decimal point
       const numericValue = value.replace(/[^0-9.]/g, '');
@@ -162,14 +166,30 @@ export function AddPaymentModal({
       if (numericValue.includes('.')) {
         const [integer, decimal] = numericValue.split('.');
         const limitedDecimal = decimal ? decimal.substring(0, 2) : '';
-        const finalValue = parseFloat(integer + (limitedDecimal ? '.' + limitedDecimal : ''));
+        const finalValue = Math.round(parseFloat(integer + (limitedDecimal ? '.' + limitedDecimal : '')) * 100) / 100;
+        
+        // Get the current allocation to check maxAmount
+        const currentAllocation = allocations[index];
+        const maxAllowed = currentAllocation?.maxAmount || 0;
+        
+        // If the value exceeds the maximum, cap it at the maximum
+        const cappedValue = finalValue > maxAllowed ? maxAllowed : finalValue;
+        
         setAllocations(prev => prev.map((alloc, i) => 
-          i === index ? { ...alloc, [field]: finalValue } : alloc
+          i === index ? { ...alloc, [field]: cappedValue } : alloc
         ));
       } else {
-        const finalValue = parseFloat(numericValue) || 0;
+        const finalValue = Math.round((parseFloat(numericValue) || 0) * 100) / 100;
+        
+        // Get the current allocation to check maxAmount
+        const currentAllocation = allocations[index];
+        const maxAllowed = currentAllocation?.maxAmount || 0;
+        
+        // If the value exceeds the maximum, cap it at the maximum
+        const cappedValue = finalValue > maxAllowed ? maxAllowed : finalValue;
+        
         setAllocations(prev => prev.map((alloc, i) => 
-          i === index ? { ...alloc, [field]: finalValue } : alloc
+          i === index ? { ...alloc, [field]: cappedValue } : alloc
         ));
       }
     } else {
@@ -180,12 +200,12 @@ export function AddPaymentModal({
   };
 
   const getTotalAllocated = () => {
-    return allocations.reduce((sum, alloc) => sum + alloc.amount, 0);
+    return Math.round(allocations.reduce((sum, alloc) => sum + alloc.amount, 0) * 100) / 100;
   };
 
   const getUnallocatedAmount = () => {
     const paymentAmount = parseFloat(formData.amount) || 0;
-    return paymentAmount - getTotalAllocated();
+    return Math.round((paymentAmount - getTotalAllocated()) * 100) / 100;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -193,7 +213,7 @@ export function AddPaymentModal({
     setLoading(true);
 
     try {
-      const paymentAmount = parseFloat(formData.amount);
+      const paymentAmount = Math.round(parseFloat(formData.amount) * 100) / 100;
       
       if (!paymentAmount || paymentAmount <= 0) {
         error('Please enter a valid payment amount');
@@ -218,7 +238,7 @@ export function AddPaymentModal({
           notes: formData.notes || null,
           invoiceAllocations: allocations.map(alloc => ({
             invoiceId: alloc.invoiceId,
-            amount: alloc.amount,
+            amount: Math.round(alloc.amount * 100) / 100,
             notes: alloc.notes || null
           }))
         })
@@ -370,7 +390,6 @@ export function AddPaymentModal({
                         type="number"
                         step="0.01"
                         min="0"
-                        max={allocation.maxAmount}
                         value={allocation.amount}
                         onChange={(e) => updateAllocation(index, 'amount', e.target.value)}
                         placeholder="Amount"
