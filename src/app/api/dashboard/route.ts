@@ -16,6 +16,21 @@ export async function GET(request: NextRequest) {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    
+    // Calculate dates for last 7 days trend data
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      date.setHours(0, 0, 0, 0);
+      return date;
+    });
+    
+    const last8Days = Array.from({ length: 8 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (7 - i));
+      date.setHours(0, 0, 0, 0);
+      return date;
+    });
 
     // Fetch all metrics in parallel
     const [
@@ -47,7 +62,7 @@ export async function GET(request: NextRequest) {
       // Monthly Revenue (Paid Invoices)
       prisma.invoice.aggregate({
         where: {
-          status: 'PAID' as any,
+          paymentStatus: 'PAID' as any,
           createdAt: {
             gte: startOfMonth
           }
@@ -60,7 +75,7 @@ export async function GET(request: NextRequest) {
       // Last Month Revenue for comparison
       prisma.invoice.aggregate({
         where: {
-          status: 'PAID' as any,
+          paymentStatus: 'PAID' as any,
           createdAt: {
             gte: startOfLastMonth,
             lte: endOfLastMonth
@@ -81,7 +96,7 @@ export async function GET(request: NextRequest) {
       prisma.stockItem.count({
         where: {
           quantity: {
-            lte: prisma.stockItem.fields.reorderPoint
+            lte: 10 // Default reorder point threshold
           }
         }
       }),
@@ -118,6 +133,74 @@ export async function GET(request: NextRequest) {
       timestamp: quote.createdAt,
       amount: quote.total
     }));
+    
+    // Fetch trend data for last 7 days
+    const productsTrend = await Promise.all(
+      last7Days.map(async (date, index) => {
+        const nextDate = index < last7Days.length - 1 ? last7Days[index + 1] : new Date();
+        const count = await prisma.product.count({
+          where: {
+            createdAt: {
+              gte: date,
+              lt: nextDate
+            }
+          }
+        });
+        return count;
+      })
+    );
+    
+    const customersTrend = await Promise.all(
+      last7Days.map(async (date, index) => {
+        const nextDate = index < last7Days.length - 1 ? last7Days[index + 1] : new Date();
+        const count = await prisma.account.count({
+          where: {
+            createdAt: {
+              gte: date,
+              lt: nextDate
+            }
+          }
+        });
+        return count;
+      })
+    );
+    
+    const quotationsTrend = await Promise.all(
+      last7Days.map(async (date, index) => {
+        const nextDate = index < last7Days.length - 1 ? last7Days[index + 1] : new Date();
+        const count = await prisma.quotation.count({
+          where: {
+            status: {
+              in: ['DRAFT', 'SENT']
+            },
+            createdAt: {
+              gte: date,
+              lt: nextDate
+            }
+          }
+        });
+        return count;
+      })
+    );
+    
+    const revenueTrend = await Promise.all(
+      last7Days.map(async (date, index) => {
+        const nextDate = index < last7Days.length - 1 ? last7Days[index + 1] : new Date();
+        const result = await prisma.invoice.aggregate({
+          where: {
+            paymentStatus: 'PAID' as any,
+            createdAt: {
+              gte: date,
+              lt: nextDate
+            }
+          },
+          _sum: {
+            total: true
+          }
+        });
+        return result._sum.total || 0;
+      })
+    );
 
     return NextResponse.json({
       metrics: {
@@ -126,6 +209,12 @@ export async function GET(request: NextRequest) {
         pendingQuotations,
         monthlyRevenue: monthlyRevenue._sum.total || 0,
         revenueChange: Math.round(revenueChange * 100) / 100
+      },
+      trends: {
+        productsTrend,
+        customersTrend,
+        quotationsTrend,
+        revenueTrend
       },
       shortcuts: {
         approvals: pendingApprovals,

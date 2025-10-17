@@ -19,7 +19,7 @@ interface CurrencyToggleProps {
 }
 
 const CURRENCIES: Currency[] = [
-  { code: 'GHS', name: 'Ghana Cedi', symbol: '₵' },
+  { code: 'GHS', name: 'Ghana Cedi', symbol: 'GH₵' },
   { code: 'USD', name: 'US Dollar', symbol: '$' },
   { code: 'EUR', name: 'Euro', symbol: '€' },
 ];

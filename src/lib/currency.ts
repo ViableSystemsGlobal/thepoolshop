@@ -165,7 +165,7 @@ export function formatCurrency(
 export function getCurrencySymbol(currencyCode: string): string {
   const symbols: Record<string, string> = {
     'USD': '$',
-    'GHS': '₵',
+    'GHS': 'GH₵',
     'EUR': '€',
     'GBP': '£',
     'NGN': '₦',

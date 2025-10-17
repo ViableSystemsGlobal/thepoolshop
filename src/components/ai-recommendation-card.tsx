@@ -12,6 +12,8 @@ interface Recommendation {
   description: string;
   priority: 'high' | 'medium' | 'low';
   completed: boolean;
+  action?: string;
+  href?: string;
 }
 
 interface AIRecommendationCardProps {

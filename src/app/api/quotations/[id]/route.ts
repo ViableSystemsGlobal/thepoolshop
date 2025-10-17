@@ -55,6 +55,11 @@ export async function GET(
             }
           }
         },
+        invoices: {
+          select: { id: true, number: true, createdAt: true, status: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       } as any,
     });
 

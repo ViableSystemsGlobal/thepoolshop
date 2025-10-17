@@ -1,9 +1,13 @@
 "use client"
 
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/contexts/theme-context"
+import { MiniLineChart } from "@/components/ui/mini-line-chart"
+import { DashboardAICard } from "@/components/dashboard-ai-card"
 import { 
   Package, 
   Users, 
@@ -12,12 +16,141 @@ import {
   Plus,
   Eye,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Clock,
+  DollarSign,
+  ShoppingCart,
+  CreditCard,
+  BarChart3,
+  Settings,
+  UserPlus,
+  Receipt,
+  Building2,
+  Calendar
 } from "lucide-react"
+
+interface DashboardData {
+  metrics: {
+    totalProducts: number;
+    totalCustomers: number;
+    pendingQuotations: number;
+    monthlyRevenue: number;
+    revenueChange: number;
+  };
+  trends: {
+    productsTrend: number[];
+    customersTrend: number[];
+    quotationsTrend: number[];
+    revenueTrend: number[];
+  };
+  recentActivity: Array<{
+    id: string;
+    type: string;
+    title: string;
+    description: string;
+    timestamp: string;
+    amount: number;
+  }>;
+}
 
 export default function Dashboard() {
   const { getThemeClasses } = useTheme()
   const theme = getThemeClasses()
+  const router = useRouter()
+  
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const response = await fetch('/api/dashboard');
+        if (response.ok) {
+          const data = await response.json();
+          setDashboardData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchDashboardData();
+  }, []);
+  
+  // Default values while loading or if fetch fails
+  const metrics = dashboardData?.metrics || {
+    totalProducts: 0,
+    totalCustomers: 0,
+    pendingQuotations: 0,
+    monthlyRevenue: 0,
+    revenueChange: 0
+  };
+  
+  const trends = dashboardData?.trends || {
+    productsTrend: [0],
+    customersTrend: [0],
+    quotationsTrend: [0],
+    revenueTrend: [0]
+  };
+  
+  const recentActivity = dashboardData?.recentActivity || [];
+  
+  // AI Recommendations for Dashboard
+  const aiRecommendations = [
+    {
+      id: 'follow-up-quotations',
+      title: 'Follow up on pending quotations',
+      description: `${metrics.pendingQuotations} quotations need attention`,
+      priority: 'high' as const,
+      action: 'View Quotations',
+      href: '/quotations',
+      completed: false
+    },
+    {
+      id: 'update-prices',
+      title: 'Update product prices',
+      description: 'Price list needs review for better margins',
+      priority: 'medium' as const,
+      action: 'Manage Prices',
+      href: '/price-lists',
+      completed: false
+    },
+    {
+      id: 'contact-leads',
+      title: 'Contact new leads',
+      description: 'New leads waiting for follow-up',
+      priority: 'high' as const,
+      action: 'View Leads',
+      href: '/crm/leads',
+      completed: false
+    },
+    {
+      id: 'low-stock-alert',
+      title: 'Check low stock items',
+      description: '24 items need restocking',
+      priority: 'medium' as const,
+      action: 'View Stock',
+      href: '/inventory/stock',
+      completed: false
+    },
+    {
+      id: 'revenue-optimization',
+      title: 'Optimize revenue streams',
+      description: 'Analyze top-performing products',
+      priority: 'low' as const,
+      action: 'View Analytics',
+      href: '/reports',
+      completed: false
+    }
+  ];
+  
+  const handleRecommendationComplete = (id: string) => {
+    console.log('Recommendation completed:', id);
+  };
+  
   return (
     <MainLayout>
       <div className="space-y-8">
@@ -28,11 +161,19 @@ export default function Dashboard() {
             <p className="text-gray-600 mt-1">Welcome back! Here's what's happening with your business today.</p>
           </div>
           <div className="flex items-center space-x-3">
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => router.push('/quotations/create')}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Quick Add
             </Button>
-            <Button size="sm" className={`bg-${theme.primary} hover:bg-${theme.primaryDark}`}>
+            <Button 
+              size="sm" 
+              className={`bg-${theme.primary} hover:bg-${theme.primaryDark}`}
+              onClick={() => router.push('/products/create')}
+            >
               <Plus className="h-4 w-4 mr-2" />
               New Product
             </Button>
@@ -49,10 +190,13 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">0</div>
-              <div className="flex items-center text-xs text-gray-500 mt-1">
-                <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
-                +0% from last month
+              <div className="text-2xl font-bold text-gray-900">{loading ? '...' : metrics.totalProducts}</div>
+              <div className="flex items-center justify-between mt-1">
+                <div className="flex items-center text-xs text-gray-500">
+                  <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
+                  Last 7 days
+                </div>
+                <MiniLineChart data={trends.productsTrend} color="#16a34a" width={80} height={24} />
               </div>
             </CardContent>
           </Card>
@@ -65,10 +209,13 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">0</div>
-              <div className="flex items-center text-xs text-gray-500 mt-1">
-                <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
-                +0% from last month
+              <div className="text-2xl font-bold text-gray-900">{loading ? '...' : metrics.totalCustomers}</div>
+              <div className="flex items-center justify-between mt-1">
+                <div className="flex items-center text-xs text-gray-500">
+                  <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
+                  Last 7 days
+                </div>
+                <MiniLineChart data={trends.customersTrend} color="#16a34a" width={80} height={24} />
               </div>
             </CardContent>
           </Card>
@@ -81,10 +228,13 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">0</div>
-              <div className="flex items-center text-xs text-gray-500 mt-1">
-                <ArrowDownRight className="h-3 w-3 mr-1 text-red-500" />
-                -0% from last month
+              <div className="text-2xl font-bold text-gray-900">{loading ? '...' : metrics.pendingQuotations}</div>
+              <div className="flex items-center justify-between mt-1">
+                <div className="flex items-center text-xs text-gray-500">
+                  <ArrowDownRight className="h-3 w-3 mr-1 text-green-500" />
+                  Last 7 days
+                </div>
+                <MiniLineChart data={trends.quotationsTrend} color="#16a34a" width={80} height={24} />
               </div>
             </CardContent>
           </Card>
@@ -97,10 +247,15 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">$0</div>
-              <div className="flex items-center text-xs text-gray-500 mt-1">
-                <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
-                +0% from last month
+              <div className="text-2xl font-bold text-gray-900">
+                {loading ? '...' : `GH₵${(metrics.monthlyRevenue / 1000).toFixed(1)}K`}
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <div className="flex items-center text-xs text-gray-500">
+                  <ArrowUpRight className="h-3 w-3 mr-1 text-green-500" />
+                  Last 7 days
+                </div>
+                <MiniLineChart data={trends.revenueTrend} color="#16a34a" width={80} height={24} />
               </div>
             </CardContent>
           </Card>
@@ -117,7 +272,11 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full justify-start h-12 text-left" variant="outline">
+              <Button 
+                className="w-full justify-start h-12 text-left" 
+                variant="outline"
+                onClick={() => router.push('/products/create')}
+              >
                 <div className="flex items-center w-full">
                   <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
                     <Plus className={`h-4 w-4 text-${theme.primary}`} />
@@ -129,7 +288,11 @@ export default function Dashboard() {
                 </div>
               </Button>
               
-              <Button className="w-full justify-start h-12 text-left" variant="outline">
+              <Button 
+                className="w-full justify-start h-12 text-left" 
+                variant="outline"
+                onClick={() => router.push('/quotations/create')}
+              >
                 <div className="flex items-center w-full">
                   <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
                     <FileText className={`h-4 w-4 text-${theme.primary}`} />
@@ -141,7 +304,11 @@ export default function Dashboard() {
                 </div>
               </Button>
               
-              <Button className="w-full justify-start h-12 text-left" variant="outline">
+              <Button 
+                className="w-full justify-start h-12 text-left" 
+                variant="outline"
+                onClick={() => router.push('/crm/accounts/create')}
+              >
                 <div className="flex items-center w-full">
                   <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
                     <Users className={`h-4 w-4 text-${theme.primary}`} />
@@ -149,6 +316,86 @@ export default function Dashboard() {
                   <div>
                     <div className="font-medium text-gray-900">Add New Customer</div>
                     <div className="text-sm text-gray-500">Register a new customer account</div>
+                  </div>
+                </div>
+              </Button>
+              
+              <Button 
+                className="w-full justify-start h-12 text-left" 
+                variant="outline"
+                onClick={() => router.push('/invoices/create')}
+              >
+                <div className="flex items-center w-full">
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
+                    <Receipt className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Create Invoice</div>
+                    <div className="text-sm text-gray-500">Generate a new invoice for payment</div>
+                  </div>
+                </div>
+              </Button>
+              
+              <Button 
+                className="w-full justify-start h-12 text-left" 
+                variant="outline"
+                onClick={() => router.push('/crm/leads/create')}
+              >
+                <div className="flex items-center w-full">
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
+                    <UserPlus className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Add New Lead</div>
+                    <div className="text-sm text-gray-500">Capture a new sales lead</div>
+                  </div>
+                </div>
+              </Button>
+              
+              <Button 
+                className="w-full justify-start h-12 text-left" 
+                variant="outline"
+                onClick={() => router.push('/inventory/stock-movements')}
+              >
+                <div className="flex items-center w-full">
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
+                    <ShoppingCart className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Stock Movement</div>
+                    <div className="text-sm text-gray-500">Record inventory movements</div>
+                  </div>
+                </div>
+              </Button>
+              
+              <Button 
+                className="w-full justify-start h-12 text-left" 
+                variant="outline"
+                onClick={() => router.push('/drm/distributors/create')}
+              >
+                <div className="flex items-center w-full">
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
+                    <Building2 className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Add Distributor</div>
+                    <div className="text-sm text-gray-500">Register a new distributor</div>
+                  </div>
+                </div>
+              </Button>
+              
+              <Button 
+                className="w-full justify-start h-12 text-left" 
+                variant="outline"
+                onClick={() => router.push('/tasks/create')}
+              >
+                <div className="flex items-center w-full">
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
+                    <Calendar className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Create Task</div>
+                    <div className="text-sm text-gray-500">Add a new task or reminder</div>
                   </div>
                 </div>
               </Button>
@@ -164,61 +411,65 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FileText className="h-8 w-8 text-gray-400" />
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="h-8 w-8 text-gray-400 animate-pulse" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Loading...</h3>
+                  <p className="text-gray-500 text-sm">Fetching recent activity</p>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h3>
-                <p className="text-gray-500 text-sm">Start by adding your first product or customer</p>
-              </div>
+              ) : recentActivity.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FileText className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h3>
+                  <p className="text-gray-500 text-sm">Start by adding your first product or customer</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentActivity.map((activity) => (
+                    <div 
+                      key={activity.id}
+                      className="flex items-start space-x-3 p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/quotations/${activity.id}`)}
+                    >
+                      <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
+                        <FileText className={`h-4 w-4 text-${theme.primary}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {activity.title}
+                          </p>
+                          <div className="flex items-center text-xs text-gray-500">
+                            GH₵{activity.amount.toFixed(2)}
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-500 truncate">
+                          {activity.description}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(activity.timestamp).toLocaleDateString()} at {new Date(activity.timestamp).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Top 5 Actions Today */}
-          <Card className="border-0 shadow-sm bg-white lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-gray-900">Top 5 Actions Today</CardTitle>
-              <CardDescription className="text-gray-600">
-                AI-suggested actions to improve your sales
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start space-x-3 p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className={`w-2 h-2 bg-${theme.primary} rounded-full mt-2 flex-shrink-0`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-sm">Follow up on pending quotations</p>
-                    <p className="text-xs text-gray-500 mt-1">3 quotations need attention</p>
-                  </div>
-                  <Button size="sm" variant="ghost" className={`text-${theme.primary} hover:text-${theme.primaryDark}`}>
-                    <Eye className="h-3 w-3" />
-                  </Button>
-                </div>
-                
-                <div className="flex items-start space-x-3 p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className={`w-2 h-2 bg-${theme.primary} rounded-full mt-2 flex-shrink-0`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-sm">Update product prices</p>
-                    <p className="text-xs text-gray-500 mt-1">Price list needs review</p>
-                  </div>
-                  <Button size="sm" variant="ghost" className={`text-${theme.primary} hover:text-${theme.primaryDark}`}>
-                    <Eye className="h-3 w-3" />
-                  </Button>
-                </div>
-                
-                <div className="flex items-start space-x-3 p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className={`w-2 h-2 bg-${theme.primary} rounded-full mt-2 flex-shrink-0`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-sm">Contact new leads</p>
-                    <p className="text-xs text-gray-500 mt-1">5 new leads waiting</p>
-                  </div>
-                  <Button size="sm" variant="ghost" className={`text-${theme.primary} hover:text-${theme.primaryDark}`}>
-                    <Eye className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* AI Actions Today */}
+          <div className="lg:col-span-1">
+            <DashboardAICard
+              title="Dashboard AI"
+              subtitle="Your intelligent business assistant"
+              recommendations={aiRecommendations}
+              onRecommendationComplete={handleRecommendationComplete}
+            />
+          </div>
         </div>
       </div>
     </MainLayout>

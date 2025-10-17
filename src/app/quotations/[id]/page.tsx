@@ -72,6 +72,12 @@ interface Quotation {
     email: string;
   };
   lines: LineItem[];
+  invoices?: Array<{
+    id: string;
+    number: string;
+    createdAt: string;
+    status: string;
+  }>;
 }
 
 export default function ViewQuotationPage() {
@@ -140,24 +146,24 @@ export default function ViewQuotationPage() {
       if (!response.ok) {
         const errorData = await response.json();
         
-        // If invoice already exists, show a more helpful message with a link
+        // If invoice already exists, show a confirmation modal to navigate to it
         if (errorData.error?.includes('already exists')) {
           const invoiceId = errorData.invoiceId;
           const invoiceNumber = errorData.invoiceNumber;
           
           if (invoiceId) {
-            showError(
-              `Invoice ${invoiceNumber} already exists for this quotation. ` +
-              `Click here to view it.`,
-              {
-                action: {
-                  label: 'View Invoice',
-                  onClick: () => router.push(`/invoices/${invoiceId}`)
-                }
-              }
-            );
+            // Show confirmation modal with navigation option
+            if (window.confirm(
+              `This quotation has already been converted to Invoice ${invoiceNumber}.\n\n` +
+              `Would you like to view the invoice now?`
+            )) {
+              router.push(`/invoices/${invoiceId}`);
+            }
           } else {
-            showError('This quotation has already been converted to an invoice. Please check your invoices list.');
+            showError(
+              'Already Converted',
+              'This quotation has already been converted to an invoice. Please check your invoices list.'
+            );
           }
           return;
         }
@@ -279,18 +285,34 @@ export default function ViewQuotationPage() {
               Send Email
             </Button>
             {quotation.status === 'ACCEPTED' && (
-              <Button 
-                onClick={handleConvertToInvoice}
-                disabled={convertingToInvoice}
-                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-                style={{
-                  backgroundColor: theme.primary,
-                  color: 'white'
-                }}
-              >
-                <Receipt className="h-4 w-4 mr-2" />
-                {convertingToInvoice ? 'Converting...' : 'Convert to Invoice'}
-              </Button>
+              <>
+                {quotation.invoices && quotation.invoices.length > 0 ? (
+                  <Button 
+                    onClick={() => router.push(`/invoices/${quotation.invoices![0].id}`)}
+                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                    style={{
+                      backgroundColor: theme.primary,
+                      color: 'white'
+                    }}
+                  >
+                    <Receipt className="h-4 w-4 mr-2" />
+                    View Invoice {quotation.invoices[0].number}
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleConvertToInvoice}
+                    disabled={convertingToInvoice}
+                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                    style={{
+                      backgroundColor: theme.primary,
+                      color: 'white'
+                    }}
+                  >
+                    <Receipt className="h-4 w-4 mr-2" />
+                    {convertingToInvoice ? 'Converting...' : 'Convert to Invoice'}
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -481,24 +503,40 @@ export default function ViewQuotationPage() {
                   <Button 
                     variant="outline" 
                     className="w-full"
-                    onClick={() => router.push(`/quotations?send=${quotation.id}`)}
+                    onClick={() => setShowSendModal(true)}
                   >
                     <Mail className="h-4 w-4 mr-2" />
                     Send Email
                   </Button>
                   {quotation.status === 'ACCEPTED' && (
-                    <Button 
-                      onClick={handleConvertToInvoice}
-                      disabled={convertingToInvoice}
-                      className={`w-full bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
-                      style={{
-                        backgroundColor: theme.primary,
-                        color: 'white'
-                      }}
-                    >
-                      <Receipt className="h-4 w-4 mr-2" />
-                      {convertingToInvoice ? 'Converting...' : 'Convert to Invoice'}
-                    </Button>
+                    <>
+                      {quotation.invoices && quotation.invoices.length > 0 ? (
+                        <Button 
+                          onClick={() => router.push(`/invoices/${quotation.invoices![0].id}`)}
+                          className={`w-full bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
+                          style={{
+                            backgroundColor: theme.primary,
+                            color: 'white'
+                          }}
+                        >
+                          <Receipt className="h-4 w-4 mr-2" />
+                          View Invoice {quotation.invoices[0].number}
+                        </Button>
+                      ) : (
+                        <Button 
+                          onClick={handleConvertToInvoice}
+                          disabled={convertingToInvoice}
+                          className={`w-full bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
+                          style={{
+                            backgroundColor: theme.primary,
+                            color: 'white'
+                          }}
+                        >
+                          <Receipt className="h-4 w-4 mr-2" />
+                          {convertingToInvoice ? 'Converting...' : 'Convert to Invoice'}
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>

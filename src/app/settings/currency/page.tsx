@@ -187,7 +187,7 @@ export default function CurrencySettingsPage() {
                   onChange={(e) => setBaseCurrency(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="GHS">GHS - Ghana Cedi (₵)</option>
+                  <option value="GHS">GHS - Ghana Cedi (GH₵)</option>
                   <option value="USD">USD - US Dollar ($)</option>
                   <option value="EUR">EUR - Euro (€)</option>
                 </select>
