@@ -143,11 +143,6 @@ export default function ProductLabelsPage() {
             .barcode-container {
               margin: 8px 0;
             }
-            .product-price {
-              font-size: 14px;
-              font-weight: bold;
-              margin-top: 4px;
-            }
             @media print {
               .label-grid {
                 gap: 10px;
@@ -164,7 +159,6 @@ export default function ProductLabelsPage() {
                 <div class="barcode-container">
                   <svg id="barcode-${product.id}"></svg>
                 </div>
-                ${product.price ? `<div class="product-price">GHS ${product.price.toFixed(2)}</div>` : ''}
               </div>
             `).join('')}
           </div>
@@ -305,11 +299,6 @@ export default function ProductLabelsPage() {
                       fontSize={12}
                       showActions={false}
                     />
-                    {product.price && (
-                      <div className="text-center font-bold mt-2">
-                        GHS {product.price.toFixed(2)}
-                      </div>
-                    )}
                   </CardContent>
                 )}
                 

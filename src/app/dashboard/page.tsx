@@ -26,7 +26,10 @@ import {
   UserPlus,
   Receipt,
   Building2,
-  Calendar
+  Calendar,
+  User,
+  Target,
+  CheckCircle
 } from "lucide-react"
 
 interface DashboardData {
@@ -149,6 +152,44 @@ export default function Dashboard() {
   
   const handleRecommendationComplete = (id: string) => {
     console.log('Recommendation completed:', id);
+  };
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'quotation':
+        return <FileText className={`h-4 w-4 text-${theme.primary}`} />;
+      case 'invoice':
+        return <Receipt className={`h-4 w-4 text-${theme.primary}`} />;
+      case 'customer':
+        return <User className={`h-4 w-4 text-${theme.primary}`} />;
+      case 'lead':
+        return <Target className={`h-4 w-4 text-${theme.primary}`} />;
+      case 'product':
+        return <Package className={`h-4 w-4 text-${theme.primary}`} />;
+      case 'payment':
+        return <CheckCircle className={`h-4 w-4 text-${theme.primary}`} />;
+      default:
+        return <FileText className={`h-4 w-4 text-${theme.primary}`} />;
+    }
+  };
+
+  const getActivityNavigation = (type: string, id: string) => {
+    switch (type) {
+      case 'quotation':
+        return `/quotations/${id}`;
+      case 'invoice':
+        return `/invoices/${id}`;
+      case 'customer':
+        return `/crm/accounts/${id}`;
+      case 'lead':
+        return `/crm/leads/${id}`;
+      case 'product':
+        return `/products/${id}`;
+      case 'payment':
+        return `/payments`; // Navigate to payments list
+      default:
+        return `/quotations/${id}`;
+    }
   };
   
   return (
@@ -431,21 +472,23 @@ export default function Dashboard() {
                 <div className="space-y-3">
                   {recentActivity.map((activity) => (
                     <div 
-                      key={activity.id}
+                      key={`${activity.type}-${activity.id}`}
                       className="flex items-start space-x-3 p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/quotations/${activity.id}`)}
+                      onClick={() => router.push(getActivityNavigation(activity.type, activity.id))}
                     >
                       <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
-                        <FileText className={`h-4 w-4 text-${theme.primary}`} />
+                        {getActivityIcon(activity.type)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {activity.title}
                           </p>
-                          <div className="flex items-center text-xs text-gray-500">
-                            GH₵{activity.amount.toFixed(2)}
-                          </div>
+                          {activity.amount > 0 && (
+                            <div className="flex items-center text-xs text-gray-500">
+                              GH₵{activity.amount.toFixed(2)}
+                            </div>
+                          )}
                         </div>
                         <p className="text-sm text-gray-500 truncate">
                           {activity.description}

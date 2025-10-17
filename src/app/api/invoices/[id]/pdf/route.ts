@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Helper function to parse product images
+const parseProductImages = (images: string | null | undefined): string[] => {
+  if (!images) return [];
+  if (typeof images === 'string') {
+    try {
+      return JSON.parse(images);
+    } catch (e) {
+      return [];
+    }
+  }
+  if (Array.isArray(images)) {
+    return images;
+  }
+  return [];
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -46,7 +62,7 @@ export async function GET(
         lines: {
           include: {
             product: {
-              select: { id: true, name: true, sku: true, price: true }
+              select: { id: true, name: true, sku: true, price: true, images: true }
             }
           }
         },
@@ -258,6 +274,22 @@ export async function GET(
           .row-description {
             padding: 12px 8px;
             border-right: 1px solid #f3f4f6;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          
+          .product-image {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            object-fit: cover;
+            background-color: #e5e7eb;
+            flex-shrink: 0;
+          }
+          
+          .product-details {
+            flex: 1;
           }
           
           .row-sku {
@@ -444,9 +476,18 @@ export async function GET(
                   <div class="table-row">
                     <div class="row-number">${index + 1}</div>
                     <div class="row-description">
-                      ${line.product?.name || line.productName || `Item ${index + 1}`}
-                      ${line.product?.sku || line.sku ? `<div class="row-sku">SKU: ${line.product?.sku || line.sku}</div>` : ''}
-                      ${line.description ? `<div class="row-sku">${line.description}</div>` : ''}
+                      ${(() => {
+                        const images = parseProductImages(line.product?.images);
+                        const imageUrl = images.length > 0 ? images[0] : '';
+                        return imageUrl 
+                          ? `<img src="${imageUrl}" alt="Product" class="product-image" onerror="this.style.display='none'" />` 
+                          : '';
+                      })()}
+                      <div class="product-details">
+                        ${line.product?.name || line.productName || `Item ${index + 1}`}
+                        ${line.product?.sku || line.sku ? `<div class="row-sku">SKU: ${line.product?.sku || line.sku}</div>` : ''}
+                        ${line.description ? `<div class="row-sku">${line.description}</div>` : ''}
+                      </div>
                     </div>
                     <div class="row-other">${line.quantity}</div>
                     <div class="row-other">GH₵${line.unitPrice.toFixed(2)}</div>

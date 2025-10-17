@@ -59,6 +59,7 @@ const statusColors = {
   NEW: 'bg-blue-100 text-blue-800',
   CONTACTED: 'bg-yellow-100 text-yellow-800',
   QUALIFIED: 'bg-green-100 text-green-800',
+  QUOTE_SENT: 'bg-indigo-100 text-indigo-800',
   CONVERTED: 'bg-purple-100 text-purple-800',
   LOST: 'bg-red-100 text-red-800',
 };
@@ -635,6 +636,7 @@ export default function LeadsPage() {
               <option value="">All Status</option>
               <option value="NEW">New</option>
               <option value="QUALIFIED">Qualified</option>
+              <option value="QUOTE_SENT">Quote Sent</option>
               <option value="CONVERTED">Converted</option>
               <option value="LOST">Lost</option>
             </select>
@@ -828,6 +830,7 @@ export default function LeadsPage() {
               <option value="">All Status</option>
               <option value="NEW">New</option>
               <option value="QUALIFIED">Qualified</option>
+              <option value="QUOTE_SENT">Quote Sent</option>
               <option value="CONVERTED">Converted</option>
               <option value="LOST">Lost</option>
             </select>

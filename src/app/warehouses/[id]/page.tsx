@@ -44,6 +44,58 @@ import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { EditWarehouseModal } from "@/components/modals/edit-warehouse-modal";
 
+// Helper function to parse product images
+const parseProductImages = (images: string | null | undefined): string[] => {
+  if (!images) return [];
+  if (typeof images === 'string') {
+    try {
+      return JSON.parse(images);
+    } catch (e) {
+      return [];
+    }
+  }
+  if (Array.isArray(images)) {
+    return images;
+  }
+  return [];
+};
+
+// Product Image Component
+const ProductImage = ({ product, size = 'sm' }: { product: Product; size?: 'xs' | 'sm' | 'md' }) => {
+  const images = parseProductImages(product.images);
+  const sizeClasses = {
+    xs: 'h-6 w-6',
+    sm: 'h-8 w-8', 
+    md: 'h-10 w-10'
+  };
+  
+  return (
+    <div className={`${sizeClasses[size]} rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0`}>
+      {images.length > 0 ? (
+        <>
+          <img
+            src={images[0]}
+            alt={product.name}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+              if (nextElement) {
+                nextElement.style.display = 'flex';
+              }
+            }}
+          />
+          <div className="h-full w-full flex items-center justify-center" style={{display: 'none'}}>
+            <Package className="h-3 w-3 text-gray-500" />
+          </div>
+        </>
+      ) : (
+        <Package className="h-3 w-3 text-gray-500" />
+      )}
+    </div>
+  );
+};
+
 interface Warehouse {
   id: string;
   name: string;
@@ -62,6 +114,7 @@ interface Product {
   name: string;
   sku: string;
   cost: number;
+  images?: string | null; // JSON string in database, will be parsed to string[]
   category: {
     name: string;
   };
@@ -712,8 +765,8 @@ export default function WarehouseDetailsPage() {
                           <tr key={product.id} className="border-b hover:bg-gray-50">
                             <td className="py-3 px-4">
                               <div className="flex items-center">
-                                <div className="p-2 rounded-lg bg-purple-100 mr-3">
-                                  <Package className="h-4 w-4 text-purple-600" />
+                                <div className="mr-3">
+                                  <ProductImage product={product} size="sm" />
                                 </div>
                                 <div>
                                   <div className="font-medium text-gray-900">{product.name}</div>

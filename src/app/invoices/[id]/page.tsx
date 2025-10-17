@@ -31,6 +31,59 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { AddPaymentModal } from "@/components/modals/add-payment-modal";
+import { Package } from "lucide-react";
+
+// Helper function to parse product images
+const parseProductImages = (images: string | null | undefined): string[] => {
+  if (!images) return [];
+  if (typeof images === 'string') {
+    try {
+      return JSON.parse(images);
+    } catch (e) {
+      return [];
+    }
+  }
+  if (Array.isArray(images)) {
+    return images;
+  }
+  return [];
+};
+
+// Product Image Component
+const ProductImage = ({ images, name, size = 'sm' }: { images?: string | null; name: string; size?: 'xs' | 'sm' | 'md' }) => {
+  const imageArray = parseProductImages(images);
+  const sizeClasses = {
+    xs: 'h-6 w-6',
+    sm: 'h-8 w-8', 
+    md: 'h-10 w-10'
+  };
+  
+  return (
+    <div className={`${sizeClasses[size]} rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0`}>
+      {imageArray.length > 0 ? (
+        <>
+          <img
+            src={imageArray[0]}
+            alt={name}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+              if (nextElement) {
+                nextElement.style.display = 'flex';
+              }
+            }}
+          />
+          <div className="h-full w-full flex items-center justify-center" style={{display: 'none'}}>
+            <Package className="h-3 w-3 text-gray-500" />
+          </div>
+        </>
+      ) : (
+        <Package className="h-3 w-3 text-gray-500" />
+      )}
+    </div>
+  );
+};
 
 interface Invoice {
   id: string;
@@ -75,6 +128,7 @@ interface Invoice {
     unitPrice: number;
     discount: number;
     lineTotal: number;
+    images?: string | null;
   }>;
   quotation?: {
     id: string;
@@ -106,7 +160,17 @@ export default function ViewInvoicePage() {
       const response = await fetch(`/api/invoices/${params.id}`);
       if (response.ok) {
         const data = await response.json();
-        setInvoice(data.invoice);
+        // Map line items to include images from product
+        const mappedInvoice = {
+          ...data.invoice,
+          lines: data.invoice.lines.map((line: any) => ({
+            ...line,
+            productName: line.product?.name || 'Product',
+            sku: line.product?.sku || '',
+            images: line.product?.images || null
+          }))
+        };
+        setInvoice(mappedInvoice);
       } else {
         showError("Failed to load invoice");
         router.push('/invoices');
@@ -469,7 +533,12 @@ export default function ViewInvoicePage() {
                         <tr key={line.id}>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">Product</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{line.productName}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900">
+                            <div className="flex items-center space-x-3">
+                              <ProductImage images={line.images} name={line.productName} size="sm" />
+                              <span>{line.productName}</span>
+                            </div>
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{line.quantity}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">GH₵{line.unitPrice.toFixed(2)}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">GH₵{line.discount.toFixed(2)}</td>

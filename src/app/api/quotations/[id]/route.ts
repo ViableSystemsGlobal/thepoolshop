@@ -51,7 +51,7 @@ export async function GET(
         lines: {
           include: {
             product: {
-              select: { id: true, name: true, sku: true, price: true }
+              select: { id: true, name: true, sku: true, price: true, images: true }
             }
           }
         },

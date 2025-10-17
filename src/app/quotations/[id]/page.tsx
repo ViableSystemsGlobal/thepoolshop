@@ -25,6 +25,58 @@ import {
   QrCode
 } from 'lucide-react';
 
+// Helper function to parse product images
+const parseProductImages = (images: string | null | undefined): string[] => {
+  if (!images) return [];
+  if (typeof images === 'string') {
+    try {
+      return JSON.parse(images);
+    } catch (e) {
+      return [];
+    }
+  }
+  if (Array.isArray(images)) {
+    return images;
+  }
+  return [];
+};
+
+// Product Image Component
+const ProductImage = ({ images, name, size = 'sm' }: { images?: string | null; name: string; size?: 'xs' | 'sm' | 'md' }) => {
+  const imageArray = parseProductImages(images);
+  const sizeClasses = {
+    xs: 'h-6 w-6',
+    sm: 'h-8 w-8', 
+    md: 'h-10 w-10'
+  };
+  
+  return (
+    <div className={`${sizeClasses[size]} rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0`}>
+      {imageArray.length > 0 ? (
+        <>
+          <img
+            src={imageArray[0]}
+            alt={name}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+              if (nextElement) {
+                nextElement.style.display = 'flex';
+              }
+            }}
+          />
+          <div className="h-full w-full flex items-center justify-center" style={{display: 'none'}}>
+            <Package className="h-3 w-3 text-gray-500" />
+          </div>
+        </>
+      ) : (
+        <Package className="h-3 w-3 text-gray-500" />
+      )}
+    </div>
+  );
+};
+
 interface LineItem {
   id: string;
   productId?: string;
@@ -35,6 +87,8 @@ interface LineItem {
   discount: number;
   taxes: any[];
   lineTotal: number;
+  sku?: string;
+  images?: string | null;
 }
 
 interface Quotation {
@@ -116,7 +170,8 @@ export default function ViewQuotationPage() {
           ...line,
           productName: line.product?.name || `Product ${line.productId}`,
           description: line.product?.description || '',
-          sku: line.product?.sku || ''
+          sku: line.product?.sku || '',
+          images: line.product?.images || null
         }))
       };
       
@@ -388,13 +443,18 @@ export default function ViewQuotationPage() {
                       {quotation.lines.map((line, index) => (
                         <tr key={line.id} className="border-b">
                           <td className="py-3">
-                            <div className="font-medium">{line.productName || `Item ${index + 1}`}</div>
-                            {line.sku && (
-                              <div className="text-sm text-gray-500">SKU: {line.sku}</div>
-                            )}
-                            {line.description && (
-                              <div className="text-sm text-gray-600">{line.description}</div>
-                            )}
+                            <div className="flex items-center space-x-3">
+                              <ProductImage images={line.images} name={line.productName || `Item ${index + 1}`} size="sm" />
+                              <div>
+                                <div className="font-medium">{line.productName || `Item ${index + 1}`}</div>
+                                {line.sku && (
+                                  <div className="text-sm text-gray-500">SKU: {line.sku}</div>
+                                )}
+                                {line.description && (
+                                  <div className="text-sm text-gray-600">{line.description}</div>
+                                )}
+                              </div>
+                            </div>
                           </td>
                           <td className="text-center py-3">{line.quantity}</td>
                           <td className="text-right py-3">GH₵{line.unitPrice.toFixed(2)}</td>

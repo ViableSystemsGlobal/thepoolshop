@@ -56,10 +56,28 @@ interface Quotation {
       name: string;
       sku: string;
       price: number;
+      images?: string | null;
     };
     sku?: string;
+    images?: string | null;
   }>;
 }
+
+// Helper function to parse product images
+const parseProductImages = (images: string | null | undefined): string[] => {
+  if (!images) return [];
+  if (typeof images === 'string') {
+    try {
+      return JSON.parse(images);
+    } catch (e) {
+      return [];
+    }
+  }
+  if (Array.isArray(images)) {
+    return images;
+  }
+  return [];
+};
 
 export const downloadQuotationAsPDF = async (
   quotation: any, 
@@ -225,6 +243,20 @@ export const downloadQuotationAsPDF = async (
           .row-description {
             font-weight: 500;
             color: #111;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .product-image {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            object-fit: cover;
+            background-color: #e5e7eb;
+            flex-shrink: 0;
+          }
+          .product-details {
+            flex: 1;
           }
           .row-sku {
             font-size: 12px;
@@ -347,9 +379,18 @@ export const downloadQuotationAsPDF = async (
                   <div class="table-row">
                     <div class="row-number">${index + 1}</div>
                     <div class="row-description">
-                      ${line.product?.name || line.productName || `Item ${index + 1}`}
-                      ${line.product?.sku || line.sku ? `<div class="row-sku">SKU: ${line.product?.sku || line.sku}</div>` : ''}
-                      ${line.description ? `<div class="row-sku">${line.description}</div>` : ''}
+                      ${(() => {
+                        const images = parseProductImages(line.product?.images || line.images);
+                        const imageUrl = images.length > 0 ? images[0] : '';
+                        return imageUrl 
+                          ? `<img src="${imageUrl}" alt="Product" class="product-image" onerror="this.style.display='none'" />` 
+                          : '';
+                      })()}
+                      <div class="product-details">
+                        ${line.product?.name || line.productName || `Item ${index + 1}`}
+                        ${line.product?.sku || line.sku ? `<div class="row-sku">SKU: ${line.product?.sku || line.sku}</div>` : ''}
+                        ${line.description ? `<div class="row-sku">${line.description}</div>` : ''}
+                      </div>
                     </div>
                     <div class="row-other">${line.quantity}</div>
                     <div class="row-other">GHS ${line.unitPrice.toFixed(2)}</div>

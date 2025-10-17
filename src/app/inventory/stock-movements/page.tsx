@@ -14,6 +14,7 @@ export default async function StockMovementsPage() {
             name: true,
             sku: true,
             uomBase: true,
+            images: true,
           }
         },
         stockItem: {

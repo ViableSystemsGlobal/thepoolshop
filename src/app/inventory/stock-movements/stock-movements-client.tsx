@@ -37,6 +37,58 @@ import {
   Undo2
 } from "lucide-react";
 
+// Helper function to parse product images
+const parseProductImages = (images: string | null | undefined): string[] => {
+  if (!images) return [];
+  if (typeof images === 'string') {
+    try {
+      return JSON.parse(images);
+    } catch (e) {
+      return [];
+    }
+  }
+  if (Array.isArray(images)) {
+    return images;
+  }
+  return [];
+};
+
+// Product Image Component
+const ProductImage = ({ product, size = 'sm' }: { product: { id: string; name: string; sku: string; images?: string | null }; size?: 'xs' | 'sm' | 'md' }) => {
+  const images = parseProductImages(product.images);
+  const sizeClasses = {
+    xs: 'h-6 w-6',
+    sm: 'h-8 w-8', 
+    md: 'h-10 w-10'
+  };
+  
+  return (
+    <div className={`${sizeClasses[size]} rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0`}>
+      {images.length > 0 ? (
+        <>
+          <img
+            src={images[0]}
+            alt={product.name}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+              if (nextElement) {
+                nextElement.style.display = 'flex';
+              }
+            }}
+          />
+          <div className="h-full w-full flex items-center justify-center" style={{display: 'none'}}>
+            <Package className="h-3 w-3 text-gray-500" />
+          </div>
+        </>
+      ) : (
+        <Package className="h-3 w-3 text-gray-500" />
+      )}
+    </div>
+  );
+};
+
 interface StockMovement {
   id: string;
   type: string;
@@ -52,6 +104,7 @@ interface StockMovement {
     name: string;
     sku: string;
     uomBase: string;
+    images?: string | null;
   };
   stockItem: {
     id: string;
@@ -574,9 +627,12 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
                 key: 'product',
                 label: 'Product',
                 render: (movement) => (
-                  <div>
-                    <div className="font-medium text-gray-900">{movement.product.name}</div>
-                    <div className="text-sm text-gray-500">{movement.product.sku}</div>
+                  <div className="flex items-center space-x-3">
+                    <ProductImage product={movement.product} size="sm" />
+                    <div>
+                      <div className="font-medium text-gray-900">{movement.product.name}</div>
+                      <div className="text-sm text-gray-500">{movement.product.sku}</div>
+                    </div>
                   </div>
                 )
               },

@@ -32,14 +32,17 @@ export async function GET(request: NextRequest) {
 
     const where: any = {
       ownerId: userId,
-      // Exclude opportunity statuses from leads
-      status: {
-        notIn: ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST']
-      }
     };
 
     if (status) {
+      // If a specific status is requested, use it
       where.status = status;
+    } else {
+      // If no status filter, exclude only advanced opportunity statuses from leads list
+      // Keep QUOTE_SENT leads visible since they're still in the leads table
+      where.status = {
+        notIn: ['NEW_OPPORTUNITY', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST']
+      };
     }
 
     if (search) {

@@ -16,6 +16,7 @@ interface ThemeContextType {
     primaryText: string;
     primaryBorder: string;
   };
+  getThemeColor: () => string;
   customLogo: string | null;
   setCustomLogo: (logo: string | null) => void;
 }
@@ -97,6 +98,18 @@ const themeConfig = {
   },
 };
 
+// Hex color values for charts and other uses
+const themeColorValues = {
+  purple: '#9333ea',
+  blue: '#2563eb',
+  green: '#16a34a',
+  orange: '#ea580c',
+  red: '#dc2626',
+  indigo: '#4f46e5',
+  pink: '#db2777',
+  teal: '#0d9488',
+};
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeColor, setThemeColor] = useState<ThemeColor>('purple');
   const [customLogo, setCustomLogo] = useState<string | null>(null);
@@ -134,12 +147,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return themeConfig[themeColor];
   };
 
+  const getThemeColor = () => {
+    return themeColorValues[themeColor];
+  };
+
   return (
     <ThemeContext.Provider 
       value={{ 
         themeColor, 
         setThemeColor: handleSetThemeColor, 
         getThemeClasses,
+        getThemeColor,
         customLogo,
         setCustomLogo: handleSetCustomLogo
       }}

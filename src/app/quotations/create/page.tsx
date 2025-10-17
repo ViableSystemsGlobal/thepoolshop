@@ -62,6 +62,7 @@ interface Product {
   name: string;
   sku: string;
   price: number;
+  images?: string | null; // JSON string in database, will be parsed to string[]
 }
 
 // Default tax types
@@ -71,6 +72,58 @@ const DEFAULT_TAXES: TaxItem[] = [
   { id: 'getfund', name: 'GETFund', rate: 2.5, amount: 0 },
   { id: 'covid', name: 'COVID-19', rate: 1, amount: 0 },
 ];
+
+// Helper function to parse product images
+const parseProductImages = (images: string | null | undefined): string[] => {
+  if (!images) return [];
+  if (typeof images === 'string') {
+    try {
+      return JSON.parse(images);
+    } catch (e) {
+      return [];
+    }
+  }
+  if (Array.isArray(images)) {
+    return images;
+  }
+  return [];
+};
+
+// Product Image Component
+const ProductImage = ({ product, size = 'sm' }: { product: Product; size?: 'xs' | 'sm' | 'md' }) => {
+  const images = parseProductImages(product.images);
+  const sizeClasses = {
+    xs: 'h-6 w-6',
+    sm: 'h-8 w-8', 
+    md: 'h-10 w-10'
+  };
+  
+  return (
+    <div className={`${sizeClasses[size]} rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0`}>
+      {images.length > 0 ? (
+        <>
+          <img
+            src={images[0]}
+            alt={product.name}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+              if (nextElement) {
+                nextElement.style.display = 'flex';
+              }
+            }}
+          />
+          <div className="h-full w-full flex items-center justify-center" style={{display: 'none'}}>
+            <Package className="h-3 w-3 text-gray-500" />
+          </div>
+        </>
+      ) : (
+        <Package className="h-3 w-3 text-gray-500" />
+      )}
+    </div>
+  );
+};
 
 export default function CreateQuotationPage() {
   const router = useRouter();
@@ -1297,9 +1350,12 @@ AdPools System`,
                             className="w-full text-left px-3 py-2 hover:bg-white rounded-lg transition-colors"
                           >
                             <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-3">
+                                <ProductImage product={product} size="sm" />
                               <div>
                                 <div className="font-medium text-sm text-gray-900">{product.name}</div>
                                 <div className="text-xs text-gray-500">{product.sku}</div>
+                                </div>
                               </div>
                               <div className="text-sm font-medium text-gray-900">
                                 GH₵{product.price?.toLocaleString() || '0'}
@@ -1323,9 +1379,12 @@ AdPools System`,
                     {lines.map((line, index) => (
                       <div key={line.id} className="border border-gray-200 rounded-lg p-4 bg-white">
                         <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
+                          <div className="flex items-center space-x-3 flex-1">
+                            <ProductImage product={{ id: line.productId, name: line.productName, sku: line.sku, price: line.unitPrice, images: products.find(p => p.id === line.productId)?.images }} size="md" />
+                            <div>
                             <div className="font-medium text-sm text-gray-900">{line.productName}</div>
                             <div className="text-xs text-gray-500">{line.sku}</div>
+                            </div>
                           </div>
                           <Button
                             size="sm"
@@ -1490,10 +1549,15 @@ AdPools System`,
                           <div key={line.id} className={`grid grid-cols-12 gap-2 px-3 py-2 text-xs border-b border-gray-100 last:border-0 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                             <div className="col-span-1 text-gray-600">{index + 1}</div>
                             <div className="col-span-4">
-                              <div className="font-medium text-gray-900">{line.productName}</div>
-                              {line.sku && (
-                                <div className="text-xs text-gray-500">SKU: {line.sku}</div>
-                              )}
+                              <div className="flex items-center space-x-2">
+                                <ProductImage product={{ id: line.productId, name: line.productName, sku: line.sku, price: line.unitPrice, images: products.find(p => p.id === line.productId)?.images }} size="xs" />
+                                <div>
+                                  <div className="font-medium text-gray-900">{line.productName}</div>
+                                  {line.sku && (
+                                    <div className="text-xs text-gray-500">SKU: {line.sku}</div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                             <div className="col-span-1 text-gray-600">{line.quantity}</div>
                             <div className="col-span-2 text-gray-600">GH₵{line.unitPrice.toFixed(2)}</div>
