@@ -1250,7 +1250,7 @@ export default function LeadDetailsPage() {
             </div>
             {products.length > 0 ? (
               <div className="max-h-64 overflow-y-auto space-y-3">
-                {products.slice(0, 3).map((product) => (
+                {products.map((product) => (
                   <div key={product.id} className="p-3 bg-blue-50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
