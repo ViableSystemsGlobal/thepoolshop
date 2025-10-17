@@ -23,8 +23,8 @@ export async function GET(
 
     const params = await context.params;
     
-    // Opportunities are Leads with specific statuses
-    const opportunity = await prisma.lead.findUnique({
+    // Fetch from Opportunity table
+    const opportunity = await prisma.opportunity.findUnique({
       where: {
         id: params.id
       },
@@ -34,6 +34,53 @@ export async function GET(
             id: true,
             name: true,
             email: true
+          }
+        },
+        account: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            type: true
+          }
+        },
+        lead: {
+          include: {
+            tasks: {
+              include: {
+                assignee: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true
+                  }
+                },
+                creator: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true
+                  }
+                }
+              },
+              orderBy: {
+                createdAt: 'desc'
+              }
+            },
+            comments: true,
+            files: true,
+            emails: true,
+            sms: true,
+            products: {
+              include: {
+                product: true
+              },
+              orderBy: {
+                createdAt: 'desc'
+              }
+            },
+            meetings: true
           }
         },
         quotations: {
@@ -48,51 +95,21 @@ export async function GET(
             }
           }
         },
-        tasks: {
+        invoices: {
           include: {
-            assignee: {
-              select: {
-                id: true,
-                name: true,
-                email: true
-              }
-            },
-            creator: {
-              select: {
-                id: true,
-                name: true,
-                email: true
+            account: true,
+            lines: {
+              include: {
+                product: true
               }
             }
-          },
-          orderBy: {
-            createdAt: 'desc'
           }
-        },
-        comments: true,
-        files: true,
-        emails: true,
-        sms: true,
-        products: {
-          include: {
-            product: true
-          },
-          orderBy: {
-            createdAt: 'desc'
-          }
-        },
-        meetings: true
+        }
       }
     });
 
     if (!opportunity) {
       return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 });
-    }
-
-    // Verify it's actually an opportunity (has opportunity status)
-    const opportunityStatuses = ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'];
-    if (!opportunityStatuses.includes(opportunity.status)) {
-      return NextResponse.json({ error: 'Not an opportunity' }, { status: 404 });
     }
 
     return NextResponse.json(opportunity);
@@ -118,33 +135,19 @@ export async function PUT(
     const params = await context.params;
     const body = await request.json();
     const {
-      firstName,
-      lastName,
-      email,
-      phone,
-      company,
-      subject,
-      source,
-      status,
-      dealValue,
+      name,
+      stage,
+      value,
       probability,
-      expectedCloseDate,
-      notes
+      closeDate,
+      lostReason
     } = body;
 
-    // Validate required fields
-    if (!firstName || !lastName) {
+    // Validate stage
+    const validStages = ['QUOTE_SENT', 'QUOTE_REVIEWED', 'NEGOTIATION', 'WON', 'LOST'];
+    if (stage && !validStages.includes(stage)) {
       return NextResponse.json(
-        { error: 'First name and last name are required' },
-        { status: 400 }
-      );
-    }
-
-    // Validate status
-    const validStatuses = ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST'];
-    if (status && !validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: 'Invalid status' },
+        { error: 'Invalid stage' },
         { status: 400 }
       );
     }
@@ -159,34 +162,29 @@ export async function PUT(
       }
     }
 
-    // Validate deal value
-    if (dealValue !== null && dealValue !== undefined) {
-      if (dealValue < 0) {
+    // Validate value
+    if (value !== null && value !== undefined) {
+      if (value < 0) {
         return NextResponse.json(
-          { error: 'Deal value must be positive' },
+          { error: 'Value must be positive' },
           { status: 400 }
         );
       }
     }
 
-    // Opportunities are Leads with specific statuses
-    const opportunity = await prisma.lead.update({
+    // Update the opportunity
+    const opportunity = await prisma.opportunity.update({
       where: {
         id: params.id
       },
       data: {
-        firstName,
-        lastName,
-        email,
-        phone,
-        company,
-        subject,
-        source,
-        status,
-        dealValue,
-        probability,
-        expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null,
-        notes
+        ...(name && { name }),
+        ...(stage && { stage }),
+        ...(value !== undefined && { value }),
+        ...(probability !== undefined && { probability }),
+        ...(closeDate && { closeDate: new Date(closeDate) }),
+        ...(lostReason && { lostReason }),
+        ...(stage === 'WON' && { wonDate: new Date() })
       },
       include: {
         owner: {
@@ -194,6 +192,23 @@ export async function PUT(
             id: true,
             name: true,
             email: true
+          }
+        },
+        account: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        lead: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            company: true
           }
         }
       }
@@ -222,7 +237,7 @@ export async function DELETE(
     const params = await context.params;
     
     // Check if opportunity has quotations or invoices
-    const opportunity = await prisma.lead.findUnique({
+    const opportunity = await prisma.opportunity.findUnique({
       where: { id: params.id },
       include: {
         quotations: true,
@@ -237,23 +252,22 @@ export async function DELETE(
     // If there are quotations or invoices, unlink them first
     if (opportunity.quotations && opportunity.quotations.length > 0) {
       await prisma.quotation.updateMany({
-        where: { leadId: params.id },
-        data: { leadId: null }
+        where: { opportunityId: params.id },
+        data: { opportunityId: null }
       });
       console.log(`🔗 Unlinked ${opportunity.quotations.length} quotations from opportunity`);
     }
 
     if (opportunity.invoices && opportunity.invoices.length > 0) {
       await prisma.invoice.updateMany({
-        where: { leadId: params.id },
-        data: { leadId: null }
+        where: { opportunityId: params.id },
+        data: { opportunityId: null }
       });
       console.log(`🔗 Unlinked ${opportunity.invoices.length} invoices from opportunity`);
     }
     
-    // Now delete the opportunity (Lead)
-    // This will cascade delete: tasks, comments, files, emails, SMS, products, meetings
-    await prisma.lead.delete({
+    // Now delete the opportunity
+    await prisma.opportunity.delete({
       where: {
         id: params.id
       }

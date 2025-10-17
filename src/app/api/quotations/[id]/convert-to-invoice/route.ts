@@ -31,6 +31,7 @@ export async function POST(
         account: true,
         distributor: true,
         lead: true,
+        opportunity: true,
         owner: true
       }
     });
@@ -101,6 +102,7 @@ export async function POST(
         accountId: quotation.accountId,
         distributorId: quotation.distributorId,
         leadId: quotation.leadId,
+        opportunityId: quotation.opportunityId,
         ownerId: quotation.ownerId,
         currency: quotation.currency || 'GHS',
         subtotal: quotation.subtotal,
@@ -171,43 +173,22 @@ export async function POST(
       }
     });
 
-    // Update associated lead's status if it exists
-    if (quotation.leadId) {
-      await prisma.lead.update({
-        where: { id: quotation.leadId },
+    // Update opportunity status to WON if it exists
+    if (quotation.opportunityId) {
+      await prisma.opportunity.update({
+        where: { id: quotation.opportunityId },
         data: {
-          status: 'CONVERTED',
+          stage: 'WON',
+          wonDate: new Date(),
           updatedAt: new Date()
         }
       });
 
-      console.log('🔄 Updated lead status to CONVERTED');
+      console.log('🎉 Updated opportunity status to WON');
     }
 
-    // Update opportunity status to WON if it exists
-    if (quotation.leadId) {
-      // Find the opportunity associated with this lead
-      const opportunity = await prisma.lead.findFirst({
-        where: { 
-          id: quotation.leadId,
-          status: {
-            in: ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED']
-          }
-        }
-      });
-
-      if (opportunity) {
-        await prisma.lead.update({
-          where: { id: quotation.leadId },
-          data: {
-            status: 'WON',
-            updatedAt: new Date()
-          }
-        });
-
-        console.log('🎉 Updated opportunity status to WON');
-      }
-    }
+    // Keep lead status as is (CONVERTED_TO_OPPORTUNITY) - it's already converted
+    // The opportunity now tracks the actual deal progress
 
     // Fetch the complete invoice with relations for response
     const completeInvoice = await prisma.invoice.findUnique({
@@ -221,6 +202,7 @@ export async function POST(
         account: true,
         distributor: true,
         lead: true,
+        opportunity: true,
         quotation: true,
         owner: true
       }

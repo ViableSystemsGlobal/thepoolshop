@@ -295,13 +295,53 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update lead's dealValue and probability if this is for a lead
-    if (leadId) {
+    // Update lead and create opportunity if this is for a lead with an account
+    if (leadId && accountId) {
+      // Update lead status to CONVERTED_TO_OPPORTUNITY
       await prisma.lead.update({
         where: { id: leadId },
         data: {
+          status: 'CONVERTED_TO_OPPORTUNITY',
           dealValue: subtotal + totalTax,
           probability: 25, // Default probability when quote is sent
+        },
+      });
+
+      // Create an Opportunity
+      const lead = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { firstName: true, lastName: true, company: true },
+      });
+
+      const opportunityName = lead?.company || `${lead?.firstName} ${lead?.lastName}` || 'Untitled Opportunity';
+
+      const opportunity = await prisma.opportunity.create({
+        data: {
+          name: opportunityName,
+          stage: 'QUOTE_SENT',
+          value: subtotal + totalTax,
+          probability: 25,
+          accountId: accountId,
+          leadId: leadId,
+          ownerId: userId,
+        },
+      });
+
+      console.log('✅ Created opportunity from lead:', opportunity.id);
+
+      // Link the quotation to the opportunity
+      await prisma.quotation.update({
+        where: { id: quotation.id },
+        data: { opportunityId: opportunity.id },
+      });
+    } else if (leadId) {
+      // If no account yet, just update lead status and values
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          status: 'QUOTE_SENT',
+          dealValue: subtotal + totalTax,
+          probability: 25,
         },
       });
     }

@@ -67,6 +67,7 @@ model User {
   createdReturns             Return[]                   @relation("ReturnCreator")
   approvedReturns            Return[]                   @relation("ReturnApprover")
   createdStocktakes          StocktakeSession[]         @relation("StocktakeCreator")
+  ownedOpportunities         Opportunity[]              @relation("OpportunityOwner")
   agent                      Agent?
 
   @@map("users")
@@ -383,24 +384,38 @@ model Lead {
   meetings           LeadMeeting[]
   quotations         Quotation[]
   invoices           Invoice[]                  @relation("InvoiceLead")
+  opportunities      Opportunity[]
 
   @@map("leads")
 }
 
 model Opportunity {
-  id          String           @id @default(cuid())
-  name        String
-  stage       OpportunityStage @default(NEW)
-  value       Float?
-  probability Int              @default(0)
-  closeDate   DateTime?
-  accountId   String
-  agentId     String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  account     Account          @relation(fields: [accountId], references: [id])
-  agent       Agent?           @relation(fields: [agentId], references: [id])
-  commissions Commission[]
+  id              String           @id @default(cuid())
+  name            String
+  stage           OpportunityStage @default(QUOTE_SENT)
+  value           Float?
+  probability     Int              @default(0)
+  closeDate       DateTime?
+  wonDate         DateTime?        // When deal was won
+  lostReason      String?          // Why deal was lost
+  
+  // Links
+  accountId       String
+  leadId          String?          // Track original lead
+  ownerId         String           // Sales rep responsible
+  agentId         String?
+  
+  // Relations
+  account         Account          @relation(fields: [accountId], references: [id])
+  lead            Lead?            @relation(fields: [leadId], references: [id])
+  owner           User             @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  agent           Agent?           @relation(fields: [agentId], references: [id])
+  quotations      Quotation[]
+  invoices        Invoice[]
+  commissions     Commission[]
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@map("opportunities")
 }
@@ -420,6 +435,7 @@ model Quotation {
   accountId     String?
   distributorId String?
   leadId        String?
+  opportunityId String?         // Link to opportunity (new)
   customerType  CustomerType    @default(STANDARD)
   ownerId       String
   createdAt     DateTime        @default(now())
@@ -449,6 +465,7 @@ model Quotation {
   account       Account?        @relation(fields: [accountId], references: [id])
   distributor   Distributor?    @relation(fields: [distributorId], references: [id])
   lead          Lead?           @relation(fields: [leadId], references: [id])
+  opportunity   Opportunity?    @relation(fields: [opportunityId], references: [id])
   owner         User            @relation(fields: [ownerId], references: [id])
   agent         Agent?          @relation(fields: [agentId], references: [id])
   salesOrders   SalesOrder[]
@@ -1033,8 +1050,11 @@ enum LeadStatus {
   NEW
   CONTACTED
   QUALIFIED
-  CONVERTED
+  UNQUALIFIED
+  CONVERTED_TO_OPPORTUNITY  // Lead has been converted to an opportunity
   LOST
+  // Legacy statuses kept for backward compatibility during migration
+  CONVERTED
   OPPORTUNITY
   NEW_OPPORTUNITY
   QUOTE_SENT
@@ -1047,13 +1067,11 @@ enum LeadStatus {
 }
 
 enum OpportunityStage {
-  NEW
-  QUALIFIED
-  PROPOSAL
-  QUOTATION
-  NEGOTIATION
-  WON
-  LOST
+  QUOTE_SENT       // Quote created and sent to customer
+  QUOTE_REVIEWED   // Customer has viewed/downloaded the quote
+  NEGOTIATION      // Price/terms discussion in progress
+  WON              // Deal closed - quote converted to invoice
+  LOST             // Deal lost
 }
 
 enum QuotationStatus {
@@ -1765,6 +1783,7 @@ model Invoice {
   accountId   String?
   distributorId String?
   leadId      String?
+  opportunityId String?  // Link to opportunity (new)
 
   // Status tracking
   status           InvoiceStatus @default(DRAFT)
@@ -1821,6 +1840,7 @@ model Invoice {
   account        Account?            @relation("InvoiceAccount", fields: [accountId], references: [id])
   distributor    Distributor?        @relation("InvoiceDistributor", fields: [distributorId], references: [id])
   lead           Lead?               @relation("InvoiceLead", fields: [leadId], references: [id])
+  opportunity    Opportunity?        @relation(fields: [opportunityId], references: [id])
   owner          User                @relation("InvoiceOwner", fields: [ownerId], references: [id])
   creditApprover User?               @relation("InvoiceCreditApprover", fields: [creditApprovedBy], references: [id])
   agent          Agent?              @relation(fields: [agentId], references: [id])

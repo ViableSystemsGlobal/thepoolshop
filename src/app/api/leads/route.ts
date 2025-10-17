@@ -38,10 +38,10 @@ export async function GET(request: NextRequest) {
       // If a specific status is requested, use it
       where.status = status;
     } else {
-      // If no status filter, exclude only advanced opportunity statuses from leads list
-      // Keep QUOTE_SENT leads visible since they're still in the leads table
+      // If no status filter, exclude leads that have been converted to opportunities
+      // Keep QUOTE_SENT leads visible since they haven't been fully converted yet
       where.status = {
-        notIn: ['NEW_OPPORTUNITY', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST']
+        notIn: ['CONVERTED_TO_OPPORTUNITY', 'NEW_OPPORTUNITY', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST']
       };
     }
 

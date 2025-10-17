@@ -29,35 +29,31 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // Build where clause - use simple approach that works
+    // Build where clause for Opportunity table
     const where: any = {
       ownerId: userId,
     };
 
     // Add status filter if provided
     if (status) {
-      where.status = status;
-    } else {
-      // Show leads that are opportunities (QUOTE_SENT and above)
-      where.status = {
-        in: ['NEW_OPPORTUNITY', 'QUOTE_SENT', 'NEGOTIATION', 'CONTRACT_SIGNED', 'WON', 'LOST']
-      };
+      where.stage = status;
     }
 
-    // Add search filter if provided
+    // Add search filter if provided (search in account and lead details)
     if (search) {
       where.OR = [
-        { firstName: { contains: search } },
-        { lastName: { contains: search } },
-        { email: { contains: search } },
-        { company: { contains: search } },
-        { subject: { contains: search } },
+        { name: { contains: search } },
+        { account: { name: { contains: search } } },
+        { account: { email: { contains: search } } },
+        { lead: { firstName: { contains: search } } },
+        { lead: { lastName: { contains: search } } },
+        { lead: { company: { contains: search } } },
       ];
     }
 
     console.log('🔍 Opportunities API: Where clause:', JSON.stringify(where, null, 2));
     
-    const opportunities = await prisma.lead.findMany({
+    const opportunities = await prisma.opportunity.findMany({
       where,
       include: {
         owner: {
@@ -65,6 +61,43 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             email: true,
+          },
+        },
+        account: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            type: true,
+          },
+        },
+        lead: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            company: true,
+          },
+        },
+        quotations: {
+          select: {
+            id: true,
+            number: true,
+            status: true,
+            total: true,
+            createdAt: true,
+          },
+        },
+        invoices: {
+          select: {
+            id: true,
+            number: true,
+            status: true,
+            total: true,
+            createdAt: true,
           },
         },
       },
@@ -76,7 +109,7 @@ export async function GET(request: NextRequest) {
     console.log('🔍 Opportunities API: Found opportunities:', opportunities.length);
 
     // Get total count for pagination
-    const total = await prisma.lead.count({ where });
+    const total = await prisma.opportunity.count({ where });
     console.log('🔍 Opportunities API: Total count:', total);
 
     return NextResponse.json({
@@ -110,6 +143,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // NOTE: Opportunities should be created automatically when a quote is created from a lead
+    // Direct opportunity creation is not supported in the new workflow
+    return NextResponse.json(
+      { error: 'Opportunities are created automatically from leads via quote creation' },
+      { status: 400 }
+    );
+
+    /* Legacy code - opportunities are now created from leads
     const body = await request.json();
     const {
       firstName,
