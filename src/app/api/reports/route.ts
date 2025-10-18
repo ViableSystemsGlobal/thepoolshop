@@ -283,7 +283,70 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-      })
+      }),
+      
+      // Revenue trend - simplified for now
+      Promise.resolve([]),
+      
+      // Customers trend - simplified for now
+      Promise.resolve([]),
+      
+      // Products trend - simplified for now
+      Promise.resolve([]),
+      
+      // Quotations trend - simplified for now
+      Promise.resolve([]),
+      
+      // Agents queries
+      prisma.agent.count(),
+      
+      prisma.agent.count({
+        where: { status: 'ACTIVE' }
+      }),
+      
+      prisma.commission.aggregate({
+        _sum: { commissionAmount: true }
+      }),
+      
+      prisma.commission.aggregate({
+        where: { status: 'PENDING' },
+        _sum: { commissionAmount: true }
+      }),
+      
+      prisma.commission.aggregate({
+        where: { status: 'PAID' },
+        _sum: { commissionAmount: true }
+      }),
+      
+      prisma.agent.findMany({
+        include: {
+          user: {
+            select: {
+              name: true
+            }
+          },
+          _count: {
+            select: {
+              commissions: true
+            }
+          }
+        },
+        orderBy: {
+          commissions: {
+            _count: 'desc'
+          }
+        },
+        take: 5
+      }),
+      
+      prisma.commission.groupBy({
+        by: ['status'],
+        _sum: { commissionAmount: true },
+        _count: true
+      }),
+      
+      // Commissions by month (last 12 months) - simplified for now
+      Promise.resolve([])
     ]);
 
     // Destructure results
@@ -337,18 +400,24 @@ export async function GET(request: NextRequest) {
       distributorLeads,
       topDistributors,
       
-      // DRM data ends here
+      // Trend data
+      revenueTrend,
+      customersTrend,
+      productsTrend,
+      quotationsTrend,
+      
+      // Agents data
+      totalAgents,
+      activeAgents,
+      totalCommissions,
+      pendingCommissions,
+      paidCommissions,
+      topPerformers,
+      commissionsByStatus,
+      commissionsByMonth
     ] = results as any;
 
-    // Extract agents data by index (positions 33-40)
-    const totalAgents = results[33];
-    const activeAgents = results[34];
-    const totalCommissions = results[35];
-    const pendingCommissions = results[36];
-    const paidCommissions = results[37];
-    const topPerformers = results[38];
-    const commissionsByStatus = results[39];
-    const commissionsByMonth = results[40];
+    // Agents data is now destructured above
 
     console.log('🔍 Reports API Debug - Results length:', results.length);
     console.log('🔍 Reports API Debug - Results[33]:', results[33]);
@@ -540,77 +609,6 @@ export async function GET(request: NextRequest) {
       month: new Date(item.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
       revenue: Number(item.revenue) || 0
     }));
-
-    // Fetch trend data for each metric
-    const [
-      revenueTrend,
-      customersTrend,
-      productsTrend,
-      quotationsTrend
-    ] = await Promise.all([
-      // Revenue trend - simplified for now
-      Promise.resolve([]),
-      
-      // Customers trend - simplified for now
-      Promise.resolve([]),
-      
-      // Products trend - simplified for now
-      Promise.resolve([]),
-      
-      // Quotations trend - simplified for now
-      Promise.resolve([]),
-      
-      // Agents queries
-      prisma.agent.count(),
-      
-      prisma.agent.count({
-        where: { status: 'ACTIVE' }
-      }),
-      
-      prisma.commission.aggregate({
-        _sum: { commissionAmount: true }
-      }),
-      
-      prisma.commission.aggregate({
-        where: { status: 'PENDING' },
-        _sum: { commissionAmount: true }
-      }),
-      
-      prisma.commission.aggregate({
-        where: { status: 'PAID' },
-        _sum: { commissionAmount: true }
-      }),
-      
-      prisma.agent.findMany({
-        include: {
-          user: {
-            select: {
-              name: true
-            }
-          },
-          _count: {
-            select: {
-              commissions: true
-            }
-          }
-        },
-        orderBy: {
-          commissions: {
-            _count: 'desc'
-          }
-        },
-        take: 5
-      }),
-      
-      prisma.commission.groupBy({
-        by: ['status'],
-        _sum: { commissionAmount: true },
-        _count: true
-      }),
-      
-      // Commissions by month (last 12 months) - simplified for now
-      Promise.resolve([])
-    ]);
 
     const reportData = {
       sales: {
