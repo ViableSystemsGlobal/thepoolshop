@@ -492,10 +492,14 @@ export default function CommissionsPage() {
           </div>
         </div>
 
-        {/* Filters and Search */}
+        {/* Commissions Table */}
         <Card className="border border-gray-200">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
+          <CardHeader>
+            <CardTitle>Commissions List</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Search and Filters */}
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
@@ -533,15 +537,6 @@ export default function CommissionsPage() {
                 <option value="BONUS">Bonus</option>
               </select>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Commissions Table */}
-        <Card className="border border-gray-200">
-          <CardHeader>
-            <CardTitle>Commissions List</CardTitle>
-          </CardHeader>
-          <CardContent>
             {filteredCommissions.length === 0 ? (
               <div className="text-center py-12">
                 <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
