@@ -22,6 +22,7 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenu } from "@/components/ui/dropdown-menu-custom";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 
 interface Agent {
@@ -50,8 +51,7 @@ interface Agent {
 }
 
 export default function AgentsPage() {
-  const { getThemeClasses, getThemeColor } = useTheme();
-  const theme = getThemeClasses();
+  const { getThemeColor } = useTheme();
   const { success, error: showError } = useToast();
   
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -124,10 +124,12 @@ export default function AgentsPage() {
   const fetchAgents = async () => {
     try {
       setIsLoading(true);
+      console.log('🔍 Fetching agents...');
       const response = await fetch('/api/agents');
       if (!response.ok) throw new Error('Failed to fetch agents');
       
       const data = await response.json();
+      console.log('📊 Agents data:', data);
       setAgents(data.agents);
       
       // Calculate metrics
@@ -141,8 +143,9 @@ export default function AgentsPage() {
         totalCommissions,
         pendingCommissions
       });
+      console.log('✅ Agents loaded successfully');
     } catch (error) {
-      console.error('Error fetching agents:', error);
+      console.error('❌ Error fetching agents:', error);
       showError('Error', 'Failed to load agents');
     } finally {
       setIsLoading(false);
@@ -247,7 +250,7 @@ export default function AgentsPage() {
       render: (agent: Agent) => (
         <div>
           <div className="text-sm font-medium text-gray-900">
-            GHS {agent.totalCommissions.toLocaleString()}
+            {formatCurrency(agent.totalCommissions, 'GHS')}
           </div>
           <div className="text-xs text-gray-500">
             {agent.commissionCount} transactions
@@ -346,8 +349,8 @@ export default function AgentsPage() {
                   <p className="text-sm font-medium text-gray-600">Total Agents</p>
                   <p className="text-xl font-bold text-gray-900">{metrics.totalAgents}</p>
                 </div>
-                <div className={`p-2 rounded-full bg-${theme.primaryBg}`}>
-                  <Users className={`w-5 h-5 text-${theme.primary}`} />
+                <div className="p-2 rounded-full" style={{ backgroundColor: `${getThemeColor()}20` }}>
+                  <Users className="w-5 h-5" style={{ color: getThemeColor() }} />
                 </div>
               </div>
             </Card>
@@ -368,7 +371,7 @@ export default function AgentsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Commissions</p>
-                  <p className="text-xl font-bold text-gray-900">GHS {metrics.totalCommissions.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(metrics.totalCommissions, 'GHS')}</p>
                 </div>
                 <div className="p-2 rounded-full bg-purple-100">
                   <DollarSign className="w-5 h-5 text-purple-600" />
@@ -380,7 +383,7 @@ export default function AgentsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Pending</p>
-                  <p className="text-xl font-bold text-orange-600">GHS {metrics.pendingCommissions.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-orange-600">{formatCurrency(metrics.pendingCommissions, 'GHS')}</p>
                 </div>
                 <div className="p-2 rounded-full bg-orange-100">
                   <Award className="w-5 h-5 text-orange-600" />
