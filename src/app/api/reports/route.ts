@@ -351,7 +351,12 @@ export async function GET(request: NextRequest) {
     const commissionsByMonth = results[40];
 
     console.log('🔍 Reports API Debug - Results length:', results.length);
-    console.log('🔍 Reports API Debug - Results 25-40:', results.slice(25, 41));
+    console.log('🔍 Reports API Debug - Results[33]:', results[33]);
+    console.log('🔍 Reports API Debug - Results[34]:', results[34]);
+    console.log('🔍 Reports API Debug - Results[35]:', results[35]);
+    console.log('🔍 Reports API Debug - Results[36]:', results[36]);
+    console.log('🔍 Reports API Debug - Results[37]:', results[37]);
+    console.log('🔍 Reports API Debug - Results[38]:', results[38]);
     console.log('🔍 Reports API Debug - Agents data:', {
       totalAgents,
       activeAgents,
@@ -593,21 +598,8 @@ export async function GET(request: NextRequest) {
         })
       ),
       
-      // Quotations trend
-      Promise.all(
-        trendDates.map(async (date, index) => {
-          const nextDate = index < trendDates.length - 1 ? trendDates[index + 1] : new Date();
-          const count = await prisma.quotation.count({
-            where: {
-              createdAt: {
-                gte: date,
-                lt: nextDate
-              }
-            }
-          });
-          return count;
-        })
-      ),
+      // Quotations trend - simplified for now
+      Promise.resolve([]),
       
       // Agents queries
       prisma.agent.count(),
