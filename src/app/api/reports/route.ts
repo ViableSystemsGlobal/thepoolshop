@@ -337,18 +337,21 @@ export async function GET(request: NextRequest) {
       distributorLeads,
       topDistributors,
       
-      // Agents data
-      totalAgents,
-      activeAgents,
-      totalCommissions,
-      pendingCommissions,
-      paidCommissions,
-      topPerformers,
-      commissionsByStatus,
-      commissionsByMonth
+      // DRM data ends here
     ] = results as any;
 
+    // Extract agents data by index (positions 25-32)
+    const totalAgents = results[25];
+    const activeAgents = results[26];
+    const totalCommissions = results[27];
+    const pendingCommissions = results[28];
+    const paidCommissions = results[29];
+    const topPerformers = results[30];
+    const commissionsByStatus = results[31];
+    const commissionsByMonth = results[32];
+
     console.log('🔍 Reports API Debug - Results length:', results.length);
+    console.log('🔍 Reports API Debug - Results 25-32:', results.slice(25, 33));
     console.log('🔍 Reports API Debug - Agents data:', {
       totalAgents,
       activeAgents,
