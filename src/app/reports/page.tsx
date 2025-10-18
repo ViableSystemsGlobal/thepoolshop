@@ -216,8 +216,8 @@ export default function ReportsPage() {
     return isPositive ? "#16a34a" : "#dc2626"; // Green for positive, red for negative
   };
 
-  const getTrendIcon = (trend: number[]) => {
-    if (trend.length < 2) return <TrendingUp className="h-3 w-3 mr-1 text-green-500" />;
+  const getTrendIcon = (trend: number[] | undefined) => {
+    if (!trend || trend.length < 2) return <TrendingUp className="h-3 w-3 mr-1 text-green-500" />;
     
     const first = trend[0];
     const last = trend[trend.length - 1];
