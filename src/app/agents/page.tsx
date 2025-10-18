@@ -114,6 +114,7 @@ export default function AgentsPage() {
   };
 
   useEffect(() => {
+    console.log('🚀 Agents page mounted, starting fetchAgents...');
     fetchAgents();
   }, []);
 
@@ -296,6 +297,8 @@ export default function AgentsPage() {
     }
   ];
 
+  console.log('🔄 Agents page render - isLoading:', isLoading, 'agents count:', agents.length);
+
   if (isLoading) {
     return (
       <>
@@ -303,6 +306,7 @@ export default function AgentsPage() {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
             <p className="mt-4 text-gray-600">Loading agents...</p>
+            <p className="mt-2 text-sm text-gray-500">Debug: isLoading = {isLoading.toString()}</p>
           </div>
         </div>
       </>
