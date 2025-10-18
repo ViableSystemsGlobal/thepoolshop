@@ -345,8 +345,21 @@ export async function GET(request: NextRequest) {
         _count: true
       }),
       
-      // Commissions by month (last 12 months) - simplified for now
-      Promise.resolve([])
+      // Commissions by month (last 12 months)
+      prisma.commission.findMany({
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000) // 12 months ago
+          }
+        },
+        select: {
+          createdAt: true,
+          commissionAmount: true
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
     ]);
 
     // Destructure results
@@ -546,7 +559,7 @@ export async function GET(request: NextRequest) {
         return {
           name: agent.user?.name || 'Unknown',
           agentCode: agent.agentCode,
-          totalCommissions: agentCommissions._sum.commissionAmount || 0,
+          totalCommissions: Number(((agentCommissions._sum.commissionAmount || 0)).toFixed(2)),
           commissionCount: agent._count.commissions,
           territory: agent.territory || 'Unknown'
         };
@@ -556,20 +569,48 @@ export async function GET(request: NextRequest) {
     const processedCommissionsByStatus = commissionsByStatus ? commissionsByStatus.map((status: any) => ({
       status: status.status,
       count: status._count,
-      amount: status._sum.commissionAmount || 0
+      amount: Number(((status._sum.commissionAmount || 0)).toFixed(2))
     })) : [];
     
-    const processedCommissionsByMonth = commissionsByMonth ? (commissionsByMonth as any[]).map((item) => {
-      // Parse SQLite date format (YYYY-MM) and convert to proper date
-      const [year, month] = item.month.split('-');
-      const date = new Date(parseInt(year), parseInt(month) - 1);
+    // Process commissions by month from individual commission records
+    const processedCommissionsByMonth = commissionsByMonth ? (() => {
+      // Group commissions by month
+      const monthlyData = new Map();
       
-      return {
-        month: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        amount: Number(item.amount) || 0,
-        count: Number(item.count) || 0
-      };
-    }) : [];
+      (commissionsByMonth as any[]).forEach((commission) => {
+        const date = new Date(commission.createdAt);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        
+        if (!monthlyData.has(monthKey)) {
+          monthlyData.set(monthKey, {
+            month: monthKey,
+            amount: 0,
+            count: 0
+          });
+        }
+        
+        const monthData = monthlyData.get(monthKey);
+        monthData.amount += commission.commissionAmount || 0;
+        monthData.count += 1;
+      });
+      
+      // Convert to array and format
+      return Array.from(monthlyData.values())
+        .sort((a, b) => b.month.localeCompare(a.month))
+        .map((item) => {
+          const [year, month] = item.month.split('-');
+          const date = new Date(parseInt(year), parseInt(month) - 1);
+          
+          return {
+            month: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+            amount: Number(item.amount.toFixed(2)),
+            count: item.count
+          };
+        });
+    })() : [];
+
+    // Create commissions trend data (similar to revenue trend)
+    const commissionsTrend = processedCommissionsByMonth.map(item => item.amount);
 
     // Process top customers data
     const processedTopCustomers = await Promise.all(
@@ -673,12 +714,13 @@ export async function GET(request: NextRequest) {
       agents: {
         totalAgents: totalAgents || 0,
         activeAgents: activeAgents || 0,
-        totalCommissions: totalCommissions?._sum.commissionAmount || 0,
-        pendingCommissions: pendingCommissions?._sum.commissionAmount || 0,
-        paidCommissions: paidCommissions?._sum.commissionAmount || 0,
+        totalCommissions: Number((totalCommissions?._sum.commissionAmount || 0).toFixed(2)),
+        pendingCommissions: Number((pendingCommissions?._sum.commissionAmount || 0).toFixed(2)),
+        paidCommissions: Number((paidCommissions?._sum.commissionAmount || 0).toFixed(2)),
         topPerformers: processedTopPerformers,
         commissionsByStatus: processedCommissionsByStatus,
-        commissionsByMonth: processedCommissionsByMonth
+        commissionsByMonth: processedCommissionsByMonth,
+        commissionsTrend
       }
     };
 
