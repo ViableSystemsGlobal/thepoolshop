@@ -14,8 +14,10 @@ export async function GET(
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
 
+    const { id } = params;
+
     const agent = await prisma.agent.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         user: {
           select: {
@@ -30,31 +32,19 @@ export async function GET(
         manager: {
           select: {
             id: true,
-            name: true,
-            email: true
+            agentCode: true,
+            user: {
+              select: {
+                name: true,
+                email: true
+              }
+            }
           }
         },
-        commissions: {
-          include: {
-            invoice: {
-              select: { id: true, number: true, total: true }
-            },
-            quotation: {
-              select: { id: true, number: true, total: true }
-            },
-            order: {
-              select: { id: true, orderNumber: true, totalAmount: true }
-            },
-            opportunity: {
-              select: { id: true, name: true, value: true }
-            }
-          },
-          orderBy: { earnedDate: 'desc' },
-          take: 50
-        },
-        commissionRules: {
-          where: { isActive: true },
-          orderBy: { priority: 'desc' }
+        _count: {
+          select: {
+            commissions: true
+          }
         }
       }
     });
@@ -66,36 +56,51 @@ export async function GET(
       );
     }
 
-    // Calculate commission stats
+    // Calculate commission statistics
     const commissionStats = await prisma.commission.aggregate({
-      where: { agentId: params.id },
+      where: { agentId: agent.id },
       _sum: {
         commissionAmount: true
       },
       _count: true
     });
 
-    const statusBreakdown = await prisma.commission.groupBy({
-      by: ['status'],
-      where: { agentId: params.id },
+    const pendingCommissions = await prisma.commission.aggregate({
+      where: { 
+        agentId: agent.id,
+        status: 'PENDING'
+      },
       _sum: {
         commissionAmount: true
-      },
-      _count: true
-    });
-
-    return NextResponse.json({
-      ...agent,
-      stats: {
-        totalCommissions: commissionStats._sum.commissionAmount || 0,
-        commissionCount: commissionStats._count || 0,
-        statusBreakdown
       }
     });
+
+    const paidCommissions = await prisma.commission.aggregate({
+      where: { 
+        agentId: agent.id,
+        status: 'PAID'
+      },
+      _sum: {
+        commissionAmount: true
+      }
+    });
+
+    const agentWithStats = {
+      ...agent,
+      totalCommissions: commissionStats._sum.commissionAmount || 0,
+      commissionCount: commissionStats._count || 0,
+      pendingCommissions: pendingCommissions._sum.commissionAmount || 0,
+      paidCommissions: paidCommissions._sum.commissionAmount || 0
+    };
+
+    return NextResponse.json({ agent: agentWithStats });
   } catch (error) {
-    console.error('Error fetching agent:', error);
+    console.error('❌ Error fetching agent:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch agent' },
+      { 
+        error: 'Failed to fetch agent',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
@@ -112,11 +117,10 @@ export async function PUT(
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
 
+    const { id } = params;
     const body = await request.json();
     const {
       status,
-      hireDate,
-      terminationDate,
       territory,
       team,
       managerId,
@@ -129,7 +133,7 @@ export async function PUT(
 
     // Check if agent exists
     const existingAgent = await prisma.agent.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!existingAgent) {
@@ -140,22 +144,18 @@ export async function PUT(
     }
 
     // Update agent
-    const agent = await prisma.agent.update({
-      where: { id: params.id },
+    const updatedAgent = await prisma.agent.update({
+      where: { id },
       data: {
-        ...(status && { status }),
-        ...(hireDate && { hireDate: new Date(hireDate) }),
-        ...(terminationDate !== undefined && { 
-          terminationDate: terminationDate ? new Date(terminationDate) : null 
-        }),
-        ...(territory !== undefined && { territory: territory || null }),
-        ...(team !== undefined && { team: team || null }),
-        ...(managerId !== undefined && { managerId: managerId || null }),
-        ...(commissionRate !== undefined && { commissionRate }),
-        ...(targetMonthly !== undefined && { targetMonthly: targetMonthly || null }),
-        ...(targetQuarterly !== undefined && { targetQuarterly: targetQuarterly || null }),
-        ...(targetAnnual !== undefined && { targetAnnual: targetAnnual || null }),
-        ...(notes !== undefined && { notes: notes || null })
+        status: status || existingAgent.status,
+        territory: territory !== undefined ? territory : existingAgent.territory,
+        team: team !== undefined ? team : existingAgent.team,
+        managerId: managerId !== undefined ? managerId : existingAgent.managerId,
+        commissionRate: commissionRate !== undefined ? commissionRate : existingAgent.commissionRate,
+        targetMonthly: targetMonthly !== undefined ? targetMonthly : existingAgent.targetMonthly,
+        targetQuarterly: targetQuarterly !== undefined ? targetQuarterly : existingAgent.targetQuarterly,
+        targetAnnual: targetAnnual !== undefined ? targetAnnual : existingAgent.targetAnnual,
+        notes: notes !== undefined ? notes : existingAgent.notes
       },
       include: {
         user: {
@@ -170,16 +170,21 @@ export async function PUT(
         manager: {
           select: {
             id: true,
-            name: true,
-            email: true
+            agentCode: true,
+            user: {
+              select: {
+                name: true,
+                email: true
+              }
+            }
           }
         }
       }
     });
 
-    console.log(`✅ Agent updated: ${agent.agentCode}`);
+    console.log(`✅ Agent updated: ${updatedAgent.agentCode}`);
 
-    return NextResponse.json(agent);
+    return NextResponse.json({ agent: updatedAgent });
   } catch (error) {
     console.error('Error updating agent:', error);
     return NextResponse.json(
@@ -200,41 +205,28 @@ export async function DELETE(
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
 
+    const { id } = params;
+
     // Check if agent exists
-    const agent = await prisma.agent.findUnique({
-      where: { id: params.id },
-      include: {
-        _count: {
-          select: {
-            commissions: true
-          }
-        }
-      }
+    const existingAgent = await prisma.agent.findUnique({
+      where: { id }
     });
 
-    if (!agent) {
+    if (!existingAgent) {
       return NextResponse.json(
         { error: 'Agent not found' },
         { status: 404 }
       );
     }
 
-    // Check if agent has commissions
-    if (agent._count.commissions > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete agent with existing commissions. Set status to TERMINATED instead.' },
-        { status: 400 }
-      );
-    }
-
-    // Delete agent
+    // Delete agent (this will cascade delete related records)
     await prisma.agent.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
-    console.log(`✅ Agent deleted: ${agent.agentCode}`);
+    console.log(`✅ Agent deleted: ${existingAgent.agentCode}`);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ message: 'Agent deleted successfully' });
   } catch (error) {
     console.error('Error deleting agent:', error);
     return NextResponse.json(
@@ -243,4 +235,3 @@ export async function DELETE(
     );
   }
 }
-
