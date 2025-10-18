@@ -257,6 +257,21 @@ export default function InvoicesPage() {
     );
   };
 
+  const isOverdueUnpaid = (invoice: Invoice) => {
+    const today = new Date();
+    const dueDate = new Date(invoice.dueDate);
+    const isOverdue = dueDate < today;
+    const isUnpaid = invoice.paymentStatus === 'UNPAID' || invoice.paymentStatus === 'PARTIALLY_PAID';
+    return isOverdue && isUnpaid;
+  };
+
+  const getInvoiceRowClassName = (invoice: Invoice) => {
+    if (isOverdueUnpaid(invoice)) {
+      return "bg-red-50 hover:bg-red-100 cursor-pointer transition-colors";
+    }
+    return "hover:bg-gray-50 cursor-pointer transition-colors";
+  };
+
   const handleSendInvoice = async (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setSendInvoiceModalOpen(true);
@@ -548,7 +563,7 @@ export default function InvoicesPage() {
                     filteredInvoices.map((invoice) => (
                       <tr 
                         key={invoice.id} 
-                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        className={getInvoiceRowClassName(invoice)}
                         onClick={() => router.push(`/invoices/${invoice.id}`)}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">

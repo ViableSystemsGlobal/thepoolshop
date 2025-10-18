@@ -237,9 +237,14 @@ export default function StockPage() {
     const totalAvailable = product.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
     const maxReorderPoint = product.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
     
-    // Highlight rows that are below reorder point (but not out of stock)
-    if (totalAvailable > 0 && totalAvailable <= maxReorderPoint) {
+    // Highlight out of stock items in red
+    if (totalAvailable === 0) {
       return "bg-red-50 hover:bg-red-100";
+    }
+    
+    // Highlight low stock items in yellow
+    if (totalAvailable > 0 && totalAvailable <= maxReorderPoint) {
+      return "bg-yellow-50 hover:bg-yellow-100";
     }
     
     return "";
