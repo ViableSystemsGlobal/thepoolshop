@@ -340,18 +340,18 @@ export async function GET(request: NextRequest) {
       // DRM data ends here
     ] = results as any;
 
-    // Extract agents data by index (positions 31-38)
-    const totalAgents = results[31];
-    const activeAgents = results[32];
-    const totalCommissions = results[33];
-    const pendingCommissions = results[34];
-    const paidCommissions = results[35];
-    const topPerformers = results[36];
-    const commissionsByStatus = results[37];
-    const commissionsByMonth = results[38];
+    // Extract agents data by index (positions 33-40)
+    const totalAgents = results[33];
+    const activeAgents = results[34];
+    const totalCommissions = results[35];
+    const pendingCommissions = results[36];
+    const paidCommissions = results[37];
+    const topPerformers = results[38];
+    const commissionsByStatus = results[39];
+    const commissionsByMonth = results[40];
 
     console.log('🔍 Reports API Debug - Results length:', results.length);
-    console.log('🔍 Reports API Debug - Results 31-38:', results.slice(31, 39));
+    console.log('🔍 Reports API Debug - Results 25-40:', results.slice(25, 41));
     console.log('🔍 Reports API Debug - Agents data:', {
       totalAgents,
       activeAgents,
