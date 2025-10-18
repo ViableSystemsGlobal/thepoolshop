@@ -48,56 +48,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Fetch all data in parallel
-    const [
-      // Sales data
-      totalRevenue,
-      monthlyRevenue,
-      lastPeriodRevenue,
-      topProducts,
-      revenueByMonth,
-      
-      // Customer data
-      totalCustomers,
-      newCustomers,
-      lastPeriodCustomers,
-      topCustomers,
-      
-      // Inventory data
-      totalProducts,
-      lowStockItems,
-      inventoryValue,
-      topMovingProducts,
-      
-      // Quotation data
-      totalQuotations,
-      pendingQuotations,
-      acceptedQuotations,
-      quotationsByStatus,
-      
-      // Invoice data
-      totalInvoices,
-      paidInvoices,
-      overdueInvoices,
-      totalOutstanding,
-      
-      // Additional sales metrics
-      totalOrders,
-      dailyRevenueData,
-      
-      // CRM data
-      totalLeads,
-      newLeads,
-      totalOpportunities,
-      wonOpportunities,
-      leadsBySource,
-      
-      // DRM data
-      totalDistributors,
-      activeDistributors,
-      newDistributors,
-      distributorLeads,
-      topDistributors
-    ] = await Promise.all([
+    const results = await Promise.all([
       // Sales queries
       prisma.invoice.aggregate({
         where: { paymentStatus: 'PAID' },
@@ -335,6 +286,68 @@ export async function GET(request: NextRequest) {
       })
     ]);
 
+    // Destructure results
+    const [
+      // Sales data
+      totalRevenue,
+      monthlyRevenue,
+      lastPeriodRevenue,
+      topProducts,
+      revenueByMonth,
+      
+      // Customer data
+      totalCustomers,
+      newCustomers,
+      lastPeriodCustomers,
+      topCustomers,
+      
+      // Inventory data
+      totalProducts,
+      lowStockItems,
+      inventoryValue,
+      topMovingProducts,
+      
+      // Quotation data
+      totalQuotations,
+      pendingQuotations,
+      acceptedQuotations,
+      quotationsByStatus,
+      
+      // Invoice data
+      totalInvoices,
+      paidInvoices,
+      overdueInvoices,
+      totalOutstanding,
+      
+      // Additional sales metrics
+      totalOrders,
+      dailyRevenueData,
+      
+      // CRM data
+      totalLeads,
+      newLeads,
+      totalOpportunities,
+      wonOpportunities,
+      leadsBySource,
+      
+      // DRM data
+      totalDistributors,
+      activeDistributors,
+      newDistributors,
+      distributorLeads,
+      topDistributors,
+      
+      // Agents data
+      totalAgents,
+      activeAgents,
+      totalCommissions,
+      pendingCommissions,
+      paidCommissions,
+      topPerformers,
+      commissionsByStatus,
+      commissionsByMonth
+    ] = results as any;
+
     // Calculate growth percentages
     const revenueGrowth = lastPeriodRevenue._sum.total 
       ? ((monthlyRevenue._sum.total || 0) - lastPeriodRevenue._sum.total) / lastPeriodRevenue._sum.total * 100
@@ -357,7 +370,7 @@ export async function GET(request: NextRequest) {
     // Process daily revenue data for charts (group by date)
     const revenueByDate = new Map<string, { revenue: number; orders: number }>();
     
-    dailyRevenueData.forEach((invoice) => {
+    dailyRevenueData.forEach((invoice: any) => {
       const dateKey = new Date(invoice.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const existing = revenueByDate.get(dateKey) || { revenue: 0, orders: 0 };
       revenueByDate.set(dateKey, {
@@ -398,7 +411,7 @@ export async function GET(request: NextRequest) {
       : 0;
     
     // Process leads by source
-    const processedLeadsBySource = leadsBySource.map((item) => ({
+    const processedLeadsBySource = leadsBySource.map((item: any) => ({
       source: item.source || 'Unknown',
       count: item._count.source
     }));
@@ -411,7 +424,7 @@ export async function GET(request: NextRequest) {
     // Process top distributors (aggregate manually from orders)
     const distributorMap = new Map<string, { name: string; region: string; orders: number; revenue: number }>();
     
-    topDistributors.forEach((order) => {
+    topDistributors.forEach((order: any) => {
       if (!order.distributor) return;
       
       const distId = order.distributor.id;
@@ -432,10 +445,40 @@ export async function GET(request: NextRequest) {
     const processedTopDistributors = Array.from(distributorMap.values())
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
+    
+    // Process agents data
+    const processedTopPerformers = topPerformers ? await Promise.all(
+      topPerformers.map(async (agent: any) => {
+        const agentCommissions = await prisma.commission.aggregate({
+          where: { agentId: agent.id },
+          _sum: { commissionAmount: true }
+        });
+        
+        return {
+          name: agent.user?.name || 'Unknown',
+          agentCode: agent.agentCode,
+          totalCommissions: agentCommissions._sum.commissionAmount || 0,
+          commissionCount: agent._count.commissions,
+          territory: agent.territory || 'Unknown'
+        };
+      })
+    ) : [];
+    
+    const processedCommissionsByStatus = commissionsByStatus ? commissionsByStatus.map((status: any) => ({
+      status: status.status,
+      count: status._count,
+      amount: status._sum.commissionAmount || 0
+    })) : [];
+    
+    const processedCommissionsByMonth = commissionsByMonth ? (commissionsByMonth as any[]).map((item) => ({
+      month: new Date(item.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      amount: Number(item.amount) || 0,
+      count: Number(item.count) || 0
+    })) : [];
 
     // Process top customers data
     const processedTopCustomers = await Promise.all(
-      topCustomers.map(async (customer) => {
+      topCustomers.map(async (customer: any) => {
         const customerRevenue = await prisma.invoice.aggregate({
           where: {
             accountId: customer.id,
@@ -454,14 +497,14 @@ export async function GET(request: NextRequest) {
     );
 
     // Process top moving products
-    const processedTopMovingProducts = topMovingProducts.map((item) => ({
+    const processedTopMovingProducts = topMovingProducts.map((item: any) => ({
       name: item.product?.name || 'Unknown Product',
       quantity: item.quantity,
       value: (item.quantity || 0) * (item.product?.price || 0)
     }));
 
     // Process quotations by status
-    const processedQuotationsByStatus = quotationsByStatus.map((status) => ({
+    const processedQuotationsByStatus = quotationsByStatus.map((status: any) => ({
       status: status.status,
       count: status._count.status
     }));
@@ -543,7 +586,58 @@ export async function GET(request: NextRequest) {
           });
           return count;
         })
-      )
+      ),
+      
+      // Agents queries
+      prisma.agent.count(),
+      
+      prisma.agent.count({
+        where: { status: 'ACTIVE' }
+      }),
+      
+      prisma.commission.aggregate({
+        _sum: { commissionAmount: true }
+      }),
+      
+      prisma.commission.aggregate({
+        where: { status: 'PENDING' },
+        _sum: { commissionAmount: true }
+      }),
+      
+      prisma.commission.aggregate({
+        where: { status: 'PAID' },
+        _sum: { commissionAmount: true }
+      }),
+      
+      prisma.agent.findMany({
+        include: {
+          user: {
+            select: {
+              name: true
+            }
+          },
+          _count: {
+            select: {
+              commissions: true
+            }
+          }
+        },
+        orderBy: {
+          commissions: {
+            _count: 'desc'
+          }
+        },
+        take: 5
+      }),
+      
+      prisma.commission.groupBy({
+        by: ['status'],
+        _sum: { commissionAmount: true },
+        _count: true
+      }),
+      
+      // Commissions by month (last 12 months)
+      Promise.resolve([])
     ]);
 
     const reportData = {
@@ -553,7 +647,7 @@ export async function GET(request: NextRequest) {
         revenueGrowth,
         totalOrders,
         aov,
-        topProducts: topProducts.map((product) => ({
+        topProducts: topProducts.map((product: any) => ({
           name: product.productName || 'Unknown Product',
           revenue: product._sum.lineTotal || 0,
           quantity: product._count.quantity || 0
@@ -605,6 +699,16 @@ export async function GET(request: NextRequest) {
         distributorLeads,
         distributorConversionRate,
         topDistributors: processedTopDistributors
+      },
+      agents: {
+        totalAgents: totalAgents || 0,
+        activeAgents: activeAgents || 0,
+        totalCommissions: totalCommissions?._sum.commissionAmount || 0,
+        pendingCommissions: pendingCommissions?._sum.commissionAmount || 0,
+        paidCommissions: paidCommissions?._sum.commissionAmount || 0,
+        topPerformers: processedTopPerformers,
+        commissionsByStatus: processedCommissionsByStatus,
+        commissionsByMonth: processedCommissionsByMonth
       }
     };
 

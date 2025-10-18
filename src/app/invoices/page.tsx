@@ -38,9 +38,12 @@ import {
   DollarSign,
   TrendingUp,
   AlertCircle,
-  CreditCard
+  CreditCard,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import Link from "next/link";
+import { formatCurrency } from "@/lib/utils";
 
 interface Invoice {
   id: string;
@@ -105,6 +108,12 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [sendInvoiceModalOpen, setSendInvoiceModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [currency, setCurrency] = useState('GHS');
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const itemsPerPage = 10;
 
   // Stats
   const [stats, setStats] = useState({
@@ -116,30 +125,63 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     loadInvoices();
-  }, []);
+    fetchCurrencySettings();
+  }, [statusFilter, paymentStatusFilter, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [statusFilter, paymentStatusFilter]);
 
   useEffect(() => {
     filterInvoices();
-  }, [invoices, searchTerm, statusFilter, paymentStatusFilter]);
+  }, [invoices, searchTerm]);
+
+  const fetchCurrencySettings = async () => {
+    try {
+      const response = await fetch('/api/settings/currency');
+      if (response.ok) {
+        const data = await response.json();
+        setCurrency(data.baseCurrency || 'GHS');
+      }
+    } catch (err) {
+      console.error('Error fetching currency settings:', err);
+    }
+  };
 
   const loadInvoices = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/invoices');
+      const url = new URL('/api/invoices', window.location.origin);
+      url.searchParams.append('page', currentPage.toString());
+      url.searchParams.append('limit', itemsPerPage.toString());
+      
+      if (statusFilter) {
+        url.searchParams.append('status', statusFilter);
+      }
+      if (paymentStatusFilter) {
+        url.searchParams.append('paymentStatus', paymentStatusFilter);
+      }
+      
+      const response = await fetch(url.toString());
       if (response.ok) {
         const data = await response.json();
         setInvoices(data.invoices || []);
+        setTotalCount(data.total || 0);
         
-        // Calculate stats
-        const totalInvoices = data.invoices?.length || 0;
-        const totalValue = data.invoices?.reduce((sum: number, inv: Invoice) => sum + inv.total, 0) || 0;
-        const overdueAmount = data.invoices?.filter((inv: Invoice) => 
+        // Calculate stats from all invoices data
+        const allInvoices = data.allInvoices || data.invoices || [];
+        const totalInvoices = allInvoices.length;
+        const totalValue = allInvoices.reduce((sum: number, inv: Invoice) => sum + inv.total, 0);
+        const overdueAmount = allInvoices.filter((inv: Invoice) => 
           inv.status === 'OVERDUE' && inv.paymentStatus !== 'PAID'
-        ).reduce((sum: number, inv: Invoice) => sum + inv.amountDue, 0) || 0;
-        const paidThisMonth = data.invoices?.filter((inv: Invoice) => 
+        ).reduce((sum: number, inv: Invoice) => sum + inv.amountDue, 0);
+        const paidThisMonth = allInvoices.filter((inv: Invoice) => 
           inv.paymentStatus === 'PAID' && 
           new Date(inv.paidDate || inv.issueDate).getMonth() === new Date().getMonth()
-        ).reduce((sum: number, inv: Invoice) => sum + inv.total, 0) || 0;
+        ).reduce((sum: number, inv: Invoice) => sum + inv.total, 0);
         
         setStats({
           totalInvoices,
@@ -317,7 +359,7 @@ export default function InvoicesPage() {
                 {
                   id: '1',
                   title: "Follow up on overdue invoices",
-                  description: `${stats.overdueAmount > 0 ? `GH₵${stats.overdueAmount.toLocaleString()} in overdue amounts` : 'No overdue invoices'}`,
+                  description: `${stats.overdueAmount > 0 ? `${formatCurrency(stats.overdueAmount, currency)} in overdue amounts` : 'No overdue invoices'}`,
                   priority: stats.overdueAmount > 0 ? 'high' : 'low',
                   completed: false
                 },
@@ -331,7 +373,7 @@ export default function InvoicesPage() {
                 {
                   id: '3',
                   title: "Monthly summary",
-                  description: `Total revenue this month: GH₵${stats.paidThisMonth.toLocaleString()}`,
+                  description: `Total revenue this month: ${formatCurrency(stats.paidThisMonth, currency)}`,
                   priority: 'low',
                   completed: false
                 }
@@ -358,7 +400,7 @@ export default function InvoicesPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Value</p>
-                  <p className={`text-2xl font-bold text-${theme.primary}`}>GH₵{stats.totalValue.toLocaleString()}</p>
+                  <p className={`text-2xl font-bold text-${theme.primary}`}>{formatCurrency(stats.totalValue, currency)}</p>
                 </div>
                 <DollarSign className={`h-8 w-8 text-${theme.primary}`} />
               </div>
@@ -368,7 +410,7 @@ export default function InvoicesPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Overdue</p>
-                  <p className="text-2xl font-bold text-red-600">GH₵{stats.overdueAmount.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-red-600">{formatCurrency(stats.overdueAmount, currency)}</p>
                 </div>
                 <AlertCircle className="h-8 w-8 text-red-400" />
               </div>
@@ -378,7 +420,7 @@ export default function InvoicesPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Paid This Month</p>
-                  <p className="text-2xl font-bold text-green-600">GH₵{stats.paidThisMonth.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.paidThisMonth, currency)}</p>
                 </div>
                 <CreditCard className="h-8 w-8 text-green-400" />
               </div>
@@ -386,10 +428,14 @@ export default function InvoicesPage() {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Invoices Table */}
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-4">
+          <CardHeader>
+            <CardTitle>Invoices</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Filters */}
+            <div className="flex items-center space-x-4 mb-6">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
@@ -428,12 +474,6 @@ export default function InvoicesPage() {
                 More Filters
               </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Invoices Table */}
-        <Card>
-          <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
@@ -506,7 +546,11 @@ export default function InvoicesPage() {
                     </tr>
                   ) : (
                     filteredInvoices.map((invoice) => (
-                      <tr key={invoice.id} className="hover:bg-gray-50">
+                      <tr 
+                        key={invoice.id} 
+                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        onClick={() => router.push(`/invoices/${invoice.id}`)}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <FileText className="h-4 w-4 text-gray-400 mr-2" />
@@ -521,11 +565,11 @@ export default function InvoicesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
-                            GH₵{invoice.total.toLocaleString()}
+                            {formatCurrency(invoice.total, currency)}
                           </div>
                           {invoice.amountDue > 0 && (
                             <div className="text-sm text-red-600">
-                              Due: GH₵{invoice.amountDue.toLocaleString()}
+                              Due: {formatCurrency(invoice.amountDue, currency)}
                             </div>
                           )}
                         </td>
@@ -542,11 +586,12 @@ export default function InvoicesPage() {
                           {getPaymentStatusBadge(invoice.paymentStatus)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
                             <Button
                               size="sm"
                               variant="ghost"
                               onClick={() => router.push(`/invoices/${invoice.id}`)}
+                              title="View invoice"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -554,6 +599,7 @@ export default function InvoicesPage() {
                               size="sm"
                               variant="ghost"
                               onClick={() => router.push(`/invoices/${invoice.id}/edit`)}
+                              title="Edit invoice"
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -602,6 +648,62 @@ export default function InvoicesPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {!loading && filteredInvoices.length > 0 && (
+              <div className="mt-6 flex items-center justify-between border-t pt-4">
+                <div className="text-sm text-gray-600">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.ceil(totalCount / itemsPerPage) }, (_, i) => i + 1)
+                      .filter(page => {
+                        // Show first page, last page, current page, and pages around current
+                        const totalPages = Math.ceil(totalCount / itemsPerPage);
+                        return page === 1 || 
+                               page === totalPages || 
+                               (page >= currentPage - 1 && page <= currentPage + 1);
+                      })
+                      .map((page, index, array) => (
+                        <div key={page} className="flex items-center gap-1">
+                          {index > 0 && array[index - 1] !== page - 1 && (
+                            <span className="px-2 text-gray-400">...</span>
+                          )}
+                          <Button
+                            onClick={() => setCurrentPage(page)}
+                            variant={currentPage === page ? "default" : "outline"}
+                            size="sm"
+                            className="w-10"
+                          >
+                            {page}
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                  <Button
+                    onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / itemsPerPage), prev + 1))}
+                    disabled={currentPage >= Math.ceil(totalCount / itemsPerPage)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

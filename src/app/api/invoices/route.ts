@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
     const paymentStatus = searchParams.get('paymentStatus');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
 
     console.log('🔍 Invoices API: Filters:', { status, customerId, paymentStatus, dateFrom, dateTo });
 
@@ -67,9 +69,18 @@ export async function GET(request: NextRequest) {
 
     console.log('🔍 Invoices API: Where clause:', where);
 
+    // Get total count
+    const total = await prisma.invoice.count({ where });
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Get paginated invoices
     const invoices = await prisma.invoice.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
       select: {
         id: true,
         number: true,
@@ -113,9 +124,31 @@ export async function GET(request: NextRequest) {
       } as any,
     });
 
+    // Get all invoices for stats (without pagination)
+    const allInvoices = await prisma.invoice.findMany({
+      where,
+      select: {
+        id: true,
+        total: true,
+        amountDue: true,
+        amountPaid: true,
+        status: true,
+        paymentStatus: true,
+        paidDate: true,
+        issueDate: true,
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
     console.log('🔍 Invoices API: Found', invoices.length, 'invoices');
 
-    return NextResponse.json({ invoices });
+    return NextResponse.json({ 
+      invoices, 
+      total,
+      page,
+      limit,
+      allInvoices 
+    });
   } catch (error) {
     console.error('❌ Invoices API Error:', error);
     return NextResponse.json(

@@ -333,7 +333,9 @@ export default function ViewInvoicePage() {
               </div>
 
               {/* Progress Line */}
-              <div className="flex-1 h-0.5 bg-gray-200 mx-4"></div>
+              <div className={`flex-1 h-0.5 mx-4 ${
+                invoice.paymentStatus === 'PAID' ? 'bg-green-200' : 'bg-gray-200'
+              }`}></div>
 
               {/* Get Paid Step */}
               <div className="flex items-center space-x-4">

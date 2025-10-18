@@ -82,7 +82,7 @@ interface Return {
 export default function ReturnsPage() {
   const { data: session } = useSession();
   const { success, error } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
 
   const [returns, setReturns] = useState<Return[]>([]);
@@ -230,7 +230,8 @@ export default function ReturnsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Returns</h1>
         <button
           onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity bg-blue-600"
+          className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity"
+          style={{ backgroundColor: getThemeColor() }}
         >
           <Plus className="w-4 h-4 mr-2 inline" />
           Create Return
@@ -289,9 +290,9 @@ export default function ReturnsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Value</p>
-                <p className={`text-2xl font-bold text-${theme.primary}`}>{formatCurrency(totalValue)}</p>
+                <p className="text-2xl font-bold" style={{ color: getThemeColor() }}>{formatCurrency(totalValue)}</p>
               </div>
-              <DollarSign className={`h-8 w-8 text-${theme.primary}`} />
+              <DollarSign className="h-8 w-8" style={{ color: getThemeColor() }} />
             </div>
           </Card>
 
@@ -383,33 +384,33 @@ export default function ReturnsPage() {
             <>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className={`bg-${theme.primary} text-white`}>
+                  <thead className="text-white" style={{ backgroundColor: getThemeColor() }}>
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         Return #
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         Customer
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         Sales Order
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         Reason
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         Status
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         Amount
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         Items
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         Created
                       </th>
-                      <th scope="col" className="relative px-6 py-3" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                      <th scope="col" className="relative px-6 py-3" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         <span className="sr-only">Actions</span>
                       </th>
                     </tr>
@@ -421,12 +422,12 @@ export default function ReturnsPage() {
                           {returnItem.number}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <Link href={`/crm/accounts/${returnItem.account.id}`} className={`text-${theme.primary} hover:underline`}>
+                          <Link href={`/crm/accounts/${returnItem.account.id}`} className="hover:underline" style={{ color: getThemeColor() }}>
                             {returnItem.account.name}
                           </Link>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <Link href={`#`} className={`text-${theme.primary} hover:underline`}>
+                          <Link href={`#`} className="hover:underline" style={{ color: getThemeColor() }}>
                             {returnItem.salesOrder.number}
                           </Link>
                         </td>

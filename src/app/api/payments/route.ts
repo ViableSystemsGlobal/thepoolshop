@@ -59,6 +59,8 @@ export async function GET(request: NextRequest) {
     const method = searchParams.get('method');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
 
     // Build where clause
     const where: any = {};
@@ -86,6 +88,13 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Get total count
+    const total = await prisma.payment.count({ where });
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Get paginated payments
     const payments = await prisma.payment.findMany({
       where,
       include: {
@@ -103,10 +112,29 @@ export async function GET(request: NextRequest) {
           }
         }
       },
+      orderBy: { receivedAt: 'desc' },
+      skip,
+      take: limit
+    });
+
+    // Get all payments for metrics (without pagination)
+    const allPayments = await prisma.payment.findMany({
+      where,
+      select: {
+        id: true,
+        amount: true,
+        receivedAt: true
+      },
       orderBy: { receivedAt: 'desc' }
     });
 
-    return NextResponse.json({ payments });
+    return NextResponse.json({ 
+      payments, 
+      total,
+      page,
+      limit,
+      allPayments 
+    });
   } catch (error) {
     console.error('Error fetching payments:', error);
     return NextResponse.json(

@@ -20,6 +20,15 @@ export async function getSettingValue(key: string, defaultValue: string = ''): P
 
 // Utility function to format currency
 export function formatCurrency(amount: number, currency: string = 'USD'): string {
+  // Special handling for GHS (Ghana Cedis) to display as GH₵
+  if (currency === 'GHS') {
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+    return `GH₵${formatted}`;
+  }
+  
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: currency,

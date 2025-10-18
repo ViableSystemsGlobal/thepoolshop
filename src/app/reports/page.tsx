@@ -17,7 +17,10 @@ import {
   Legend, 
   ResponsiveContainer,
   Area,
-  AreaChart as RechartsAreaChart
+  AreaChart as RechartsAreaChart,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -46,7 +49,8 @@ import {
   Clock,
   UserPlus,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  UserCog
 } from "lucide-react";
 
 interface ReportData {
@@ -133,6 +137,30 @@ interface ReportData {
       region: string;
       orders: number;
       revenue: number;
+    }>;
+  };
+  agents: {
+    totalAgents: number;
+    activeAgents: number;
+    totalCommissions: number;
+    pendingCommissions: number;
+    paidCommissions: number;
+    topPerformers: Array<{
+      name: string;
+      agentCode: string;
+      totalCommissions: number;
+      commissionCount: number;
+      territory: string;
+    }>;
+    commissionsByStatus: Array<{
+      status: string;
+      count: number;
+      amount: number;
+    }>;
+    commissionsByMonth: Array<{
+      month: string;
+      amount: number;
+      count: number;
     }>;
   };
 }
@@ -357,6 +385,39 @@ export default function ReportsPage() {
               s.status, 
               s.count, 
               `${((s.count / reportData.quotations.totalQuotations) * 100).toFixed(1)}%`
+            ])
+          ];
+          break;
+
+        case 'agents':
+          sheetName = 'Agents';
+          data = [
+            ['Agents Report'],
+            ['Period', selectedPeriod],
+            [],
+            ['Metrics'],
+            ['Total Agents', reportData.agents.totalAgents],
+            ['Active Agents', reportData.agents.activeAgents],
+            ['Total Commissions', `GH₵${reportData.agents.totalCommissions.toLocaleString()}`],
+            ['Pending Commissions', `GH₵${reportData.agents.pendingCommissions.toLocaleString()}`],
+            ['Paid Commissions', `GH₵${reportData.agents.paidCommissions.toLocaleString()}`],
+            [],
+            ['Top Performers'],
+            ['Name', 'Agent Code', 'Total Commissions', 'Commission Count', 'Territory'],
+            ...reportData.agents.topPerformers.map(agent => [
+              agent.name,
+              agent.agentCode,
+              `GH₵${agent.totalCommissions.toLocaleString()}`,
+              agent.commissionCount,
+              agent.territory
+            ]),
+            [],
+            ['Commissions by Status'],
+            ['Status', 'Count', 'Amount'],
+            ...reportData.agents.commissionsByStatus.map(status => [
+              status.status,
+              status.count,
+              `GH₵${status.amount.toLocaleString()}`
             ])
           ];
           break;
@@ -585,6 +646,25 @@ export default function ReportsPage() {
                 });
               }
               break;
+
+            case 'agents':
+              if (reportData.agents.topPerformers.length > 0) {
+                pdf.text('Top Performers:', 15, yPosition);
+                yPosition += 6;
+                reportData.agents.topPerformers.forEach((agent, index) => {
+                  pdf.text(`${agent.name} (${agent.agentCode}): GH₵${agent.totalCommissions.toLocaleString()}`, 20, yPosition);
+                  yPosition += 5;
+                });
+              }
+              if (reportData.agents.commissionsByStatus.length > 0) {
+                pdf.text('Commissions by Status:', 15, yPosition);
+                yPosition += 6;
+                reportData.agents.commissionsByStatus.forEach((status, index) => {
+                  pdf.text(`${status.status}: ${status.count} (GH₵${status.amount.toLocaleString()})`, 20, yPosition);
+                  yPosition += 5;
+                });
+              }
+              break;
           }
           
           yPosition += 10;
@@ -668,6 +748,19 @@ export default function ReportsPage() {
           pdf.text(`Total Quotations: ${reportData.quotations.totalQuotations}`, 15, yPosition);
           yPosition += 7;
           pdf.text(`Conversion Rate: ${reportData.quotations.conversionRate.toFixed(1)}%`, 15, yPosition);
+          yPosition += 15;
+          break;
+
+        case 'agents':
+          pdf.text(`Total Agents: ${reportData.agents.totalAgents}`, 15, yPosition);
+          yPosition += 7;
+          pdf.text(`Active Agents: ${reportData.agents.activeAgents}`, 15, yPosition);
+          yPosition += 7;
+          pdf.text(`Total Commissions: GH₵${reportData.agents.totalCommissions.toLocaleString()}`, 15, yPosition);
+          yPosition += 7;
+          pdf.text(`Pending Commissions: GH₵${reportData.agents.pendingCommissions.toLocaleString()}`, 15, yPosition);
+          yPosition += 7;
+          pdf.text(`Paid Commissions: GH₵${reportData.agents.paidCommissions.toLocaleString()}`, 15, yPosition);
           yPosition += 15;
           break;
       }
@@ -770,7 +863,8 @@ export default function ReportsPage() {
             { id: 'crm', label: 'CRM', icon: Users },
             { id: 'drm', label: 'DRM', icon: Building2 },
             { id: 'inventory', label: 'Inventory', icon: Package },
-            { id: 'quotations', label: 'Quotations', icon: FileText }
+            { id: 'quotations', label: 'Quotations', icon: FileText },
+            { id: 'agents', label: 'Agents', icon: UserCog }
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -2680,6 +2774,167 @@ export default function ReportsPage() {
             </Card>
           </div>
         )}
+
+        {/* Agents Report */}
+        {selectedReport === 'agents' && reportData && reportData.agents && (
+          <div className="space-y-6" data-report-tab="agents">
+            {/* Enhanced Agents Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Agents</CardTitle>
+                  <UserCog className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{reportData.agents.totalAgents}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {reportData.agents.activeAgents} active
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Commissions</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">GH₵{reportData.agents.totalCommissions.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">
+                    All time commissions
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Pending Commissions</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">GH₵{reportData.agents.pendingCommissions.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Awaiting payment
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Paid Commissions</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">GH₵{reportData.agents.paidCommissions.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Successfully paid
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Active Rate</CardTitle>
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {reportData.agents.totalAgents > 0 
+                      ? Math.round((reportData.agents.activeAgents / reportData.agents.totalAgents) * 100)
+                      : 0}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Agents active
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Commissions by Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Commissions by Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsPieChart>
+                        <Pie
+                          data={reportData.agents.commissionsByStatus}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ status, count }) => `${status}: ${count}`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="count"
+                        >
+                          {reportData.agents.commissionsByStatus.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={['#8884d8', '#82ca9d', '#ffc658'][index % 3]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Top Performers */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Performing Agents</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {reportData.agents.topPerformers.map((agent, index) => (
+                      <div key={agent.agentCode} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
+                          </div>
+                          <div>
+                            <p className="font-medium">{agent.name}</p>
+                            <p className="text-sm text-gray-500">{agent.agentCode} • {agent.territory}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">GH₵{agent.totalCommissions.toLocaleString()}</p>
+                          <p className="text-sm text-gray-500">{agent.commissionCount} commissions</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Commissions Trend */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Commissions Trend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsLineChart data={reportData.agents.commissionsByMonth}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip formatter={(value) => [`GH₵${value}`, 'Amount']} />
+                      <Legend />
+                      <Line type="monotone" dataKey="amount" stroke="#8884d8" strokeWidth={2} />
+                    </RechartsLineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Export Modal */}
         {showExportModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2740,7 +2995,8 @@ export default function ReportsPage() {
                     { id: 'crm', label: 'CRM' },
                     { id: 'drm', label: 'DRM' },
                     { id: 'inventory', label: 'Inventory' },
-                    { id: 'quotations', label: 'Quotations' }
+                    { id: 'quotations', label: 'Quotations' },
+                    { id: 'agents', label: 'Agents' }
                   ].map(tab => (
                     <button
                       key={tab.id}

@@ -18,7 +18,9 @@ import {
   Trash2,
   Download,
   CreditCard,
-  Building
+  Building,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { AddPaymentModal } from "@/components/modals/add-payment-modal";
 import { ConfirmationModal } from "@/components/modals/confirmation-modal";
@@ -71,6 +73,12 @@ export default function PaymentsPage() {
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [currency, setCurrency] = useState('GHS');
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const itemsPerPage = 10;
 
   // Metrics
   const [metrics, setMetrics] = useState({
@@ -82,12 +90,33 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     loadPayments();
+    fetchCurrencySettings();
+  }, [filterMethod, currentPage]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
   }, [filterMethod]);
+
+  const fetchCurrencySettings = async () => {
+    try {
+      const response = await fetch('/api/settings/currency');
+      if (response.ok) {
+        const data = await response.json();
+        setCurrency(data.baseCurrency || 'GHS');
+      }
+    } catch (err) {
+      console.error('Error fetching currency settings:', err);
+    }
+  };
 
   const loadPayments = async () => {
     try {
       setLoading(true);
       const url = new URL('/api/payments', window.location.origin);
+      url.searchParams.append('page', currentPage.toString());
+      url.searchParams.append('limit', itemsPerPage.toString());
+      
       if (filterMethod) {
         url.searchParams.append('method', filterMethod);
       }
@@ -99,7 +128,14 @@ export default function PaymentsPage() {
       if (response.ok) {
         const data = await response.json();
         setPayments(data.payments || []);
-        calculateMetrics(data.payments || []);
+        setTotalCount(data.total || 0);
+        
+        // For metrics, we need all payments data
+        if (data.allPayments) {
+          calculateMetrics(data.allPayments);
+        } else {
+          calculateMetrics(data.payments || []);
+        }
       } else {
         showError('Failed to load payments');
       }
@@ -160,6 +196,7 @@ export default function PaymentsPage() {
     }
   };
 
+  // Client-side search within current page (only searches current page results)
   const filteredPayments = payments.filter(payment => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
@@ -209,14 +246,14 @@ export default function PaymentsPage() {
                 {
                   id: '2',
                   title: "Monthly payment analysis",
-                  description: `Collected ${formatCurrency(metrics.thisMonth)} this month vs ${formatCurrency(metrics.lastMonth)} last month`,
+                  description: `Collected ${formatCurrency(metrics.thisMonth, currency)} this month vs ${formatCurrency(metrics.lastMonth, currency)} last month`,
                   priority: 'medium',
                   completed: false
                 },
                 {
                   id: '3',
                   title: "Payment reconciliation",
-                  description: `${metrics.totalPayments} payments recorded totaling ${formatCurrency(metrics.totalAmount)}`,
+                  description: `${metrics.totalPayments} payments recorded totaling ${formatCurrency(metrics.totalAmount, currency)}`,
                   priority: 'low',
                   completed: false
                 }
@@ -243,7 +280,7 @@ export default function PaymentsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Amount</p>
-                  <p className={`text-2xl font-bold text-${theme.primary}`}>{formatCurrency(metrics.totalAmount)}</p>
+                  <p className={`text-2xl font-bold text-${theme.primary}`}>{formatCurrency(metrics.totalAmount, currency)}</p>
                 </div>
                 <TrendingUp className={`h-8 w-8 text-${theme.primary}`} />
               </div>
@@ -253,7 +290,7 @@ export default function PaymentsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">This Month</p>
-                  <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.thisMonth)}</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.thisMonth, currency)}</p>
                 </div>
                 <Calendar className="h-8 w-8 text-green-400" />
               </div>
@@ -263,7 +300,7 @@ export default function PaymentsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Last Month</p>
-                  <p className="text-2xl font-bold text-orange-600">{formatCurrency(metrics.lastMonth)}</p>
+                  <p className="text-2xl font-bold text-orange-600">{formatCurrency(metrics.lastMonth, currency)}</p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-orange-400" />
               </div>
@@ -271,10 +308,14 @@ export default function PaymentsPage() {
           </div>
         </div>
 
-        {/* Filters and Search */}
+        {/* Payments Table */}
         <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
+          <CardHeader>
+            <CardTitle>Recent Payments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Filters and Search */}
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <Input
@@ -298,15 +339,6 @@ export default function PaymentsPage() {
                 </select>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Payments Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Payments</CardTitle>
-          </CardHeader>
-          <CardContent>
             {loading ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -352,7 +384,7 @@ export default function PaymentsPage() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="font-medium text-green-600">{formatCurrency(payment.amount)}</span>
+                          <span className="font-medium text-green-600">{formatCurrency(payment.amount, currency)}</span>
                         </td>
                         <td className="py-3 px-4">
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
@@ -398,6 +430,62 @@ export default function PaymentsPage() {
                 </table>
               </div>
             )}
+
+            {/* Pagination Controls */}
+            {!loading && filteredPayments.length > 0 && (
+              <div className="mt-6 flex items-center justify-between border-t pt-4">
+                <div className="text-sm text-gray-600">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} payments
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.ceil(totalCount / itemsPerPage) }, (_, i) => i + 1)
+                      .filter(page => {
+                        // Show first page, last page, current page, and pages around current
+                        const totalPages = Math.ceil(totalCount / itemsPerPage);
+                        return page === 1 || 
+                               page === totalPages || 
+                               (page >= currentPage - 1 && page <= currentPage + 1);
+                      })
+                      .map((page, index, array) => (
+                        <div key={page} className="flex items-center gap-1">
+                          {index > 0 && array[index - 1] !== page - 1 && (
+                            <span className="px-2 text-gray-400">...</span>
+                          )}
+                          <Button
+                            onClick={() => setCurrentPage(page)}
+                            variant={currentPage === page ? "default" : "outline"}
+                            size="sm"
+                            className="w-10"
+                          >
+                            {page}
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                  <Button
+                    onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / itemsPerPage), prev + 1))}
+                    disabled={currentPage >= Math.ceil(totalCount / itemsPerPage)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -426,7 +514,7 @@ export default function PaymentsPage() {
         message={`Are you sure you want to delete payment ${selectedPayment?.number}? This action cannot be undone and will update the associated invoices.`}
         confirmText="Delete"
         cancelText="Cancel"
-        variant="danger"
+        type="danger"
         isLoading={deleting}
       />
     </>
