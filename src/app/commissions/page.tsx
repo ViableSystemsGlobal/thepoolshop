@@ -14,7 +14,9 @@ import {
   CheckCircle,
   XCircle,
   Filter,
-  Download
+  Download,
+  Check,
+  Banknote
 } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
@@ -57,6 +59,7 @@ interface Commission {
 export default function CommissionsPage() {
   const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
+  const themeColor = getThemeColor();
   const { success, error: showError } = useToast();
   
   const [commissions, setCommissions] = useState<Commission[]>([]);
@@ -128,6 +131,48 @@ export default function CommissionsPage() {
   useEffect(() => {
     filterCommissions();
   }, [commissions, searchTerm, statusFilter, typeFilter]);
+
+  const handleApproveCommission = async (commissionId: string) => {
+    try {
+      const response = await fetch(`/api/commissions/${commissionId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Approved via commissions page' })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to approve commission');
+      }
+
+      success('Success', 'Commission approved successfully');
+      fetchCommissions(); // Reload data
+    } catch (err) {
+      console.error('Error approving commission:', err);
+      showError('Error', err instanceof Error ? err.message : 'Failed to approve commission');
+    }
+  };
+
+  const handleMarkAsPaid = async (commissionId: string) => {
+    try {
+      const response = await fetch(`/api/commissions/${commissionId}/mark-paid`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paidDate: new Date().toISOString() })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to mark commission as paid');
+      }
+
+      success('Success', 'Commission marked as paid');
+      fetchCommissions(); // Reload data
+    } catch (err) {
+      console.error('Error marking commission as paid:', err);
+      showError('Error', err instanceof Error ? err.message : 'Failed to mark commission as paid');
+    }
+  };
 
   const fetchCommissions = async () => {
     try {
@@ -316,6 +361,38 @@ export default function CommissionsPage() {
       key: 'status',
       label: 'Status',
       render: (commission: Commission) => getStatusBadge(commission.status)
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (commission: Commission) => (
+        <div className="flex items-center gap-2">
+          {commission.status === 'PENDING' && (
+            <Button
+              size="sm"
+              onClick={() => handleApproveCommission(commission.id)}
+              className="flex items-center gap-1"
+              style={{ backgroundColor: themeColor, color: 'white' }}
+            >
+              <Check className="h-3 w-3" />
+              Approve
+            </Button>
+          )}
+          {commission.status === 'APPROVED' && (
+            <Button
+              size="sm"
+              onClick={() => handleMarkAsPaid(commission.id)}
+              className="flex items-center gap-1 bg-green-600 text-white hover:bg-green-700"
+            >
+              <Banknote className="h-3 w-3" />
+              Mark Paid
+            </Button>
+          )}
+          {commission.status === 'PAID' && (
+            <span className="text-xs text-gray-500">Completed</span>
+          )}
+        </div>
+      )
     }
   ];
 
