@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { CommissionService } from '@/lib/commission-service';
 
 // Helper function to generate payment number
 async function generatePaymentNumber(): Promise<string> {
@@ -11,7 +12,7 @@ async function generatePaymentNumber(): Promise<string> {
 }
 
 // Helper function to update invoice payment status
-async function updateInvoicePaymentStatus(invoiceId: string) {
+async function updateInvoicePaymentStatus(invoiceId: string, userId?: string) {
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: {
@@ -23,6 +24,7 @@ async function updateInvoicePaymentStatus(invoiceId: string) {
 
   if (!invoice) return;
 
+  const previousPaymentStatus = invoice.paymentStatus;
   const totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
   const amountDue = invoice.total - totalPaid;
 
@@ -44,6 +46,25 @@ async function updateInvoicePaymentStatus(invoiceId: string) {
       paidDate: paymentStatus === 'PAID' ? new Date() : null
     }
   });
+
+  // Auto-create commissions when invoice becomes PAID
+  if (paymentStatus === 'PAID' && previousPaymentStatus !== 'PAID') {
+    try {
+      console.log(`🎯 Invoice ${invoiceId} is now PAID, creating commissions...`);
+      const createdCommissions = await CommissionService.createCommissionsForInvoice(
+        invoiceId,
+        userId
+      );
+      if (createdCommissions.length > 0) {
+        console.log(`✅ Created ${createdCommissions.length} commission(s) for invoice ${invoiceId}`);
+      } else {
+        console.log(`ℹ️ No commissions created for invoice ${invoiceId} (no agents found or commission disabled)`);
+      }
+    } catch (error) {
+      console.error(`❌ Error creating commissions for invoice ${invoiceId}:`, error);
+      // Don't fail the payment if commission creation fails
+    }
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -265,6 +286,32 @@ export async function POST(request: NextRequest) {
     }, {
       timeout: 10000 // Increase timeout to 10 seconds
     });
+
+    // Auto-create commissions for invoices that became PAID
+    if (invoiceAllocations.length > 0) {
+      for (const alloc of invoiceAllocations) {
+        try {
+          const invoice = await prisma.invoice.findUnique({
+            where: { id: alloc.invoiceId },
+            select: { paymentStatus: true }
+          });
+          
+          if (invoice?.paymentStatus === 'PAID') {
+            console.log(`🎯 Invoice ${alloc.invoiceId} is PAID, checking for commissions...`);
+            const createdCommissions = await CommissionService.createCommissionsForInvoice(
+              alloc.invoiceId,
+              userId
+            );
+            if (createdCommissions.length > 0) {
+              console.log(`✅ Created ${createdCommissions.length} commission(s) for invoice ${alloc.invoiceId}`);
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error creating commissions for invoice ${alloc.invoiceId}:`, error);
+          // Don't fail the payment if commission creation fails
+        }
+      }
+    }
 
     // Log activity
     await prisma.activity.create({
