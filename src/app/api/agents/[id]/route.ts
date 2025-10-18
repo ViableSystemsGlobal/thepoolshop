@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // TEMPORARY: Skip authentication for testing
@@ -14,7 +14,7 @@ export async function GET(
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
 
-    const { id } = params;
+    const { id } = await params;
 
     const agent = await prisma.agent.findUnique({
       where: { id },
@@ -108,7 +108,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // TEMPORARY: Skip authentication for testing
@@ -117,7 +117,7 @@ export async function PUT(
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const {
       status,
@@ -196,7 +196,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // TEMPORARY: Skip authentication for testing
@@ -205,7 +205,7 @@ export async function DELETE(
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Check if agent exists
     const existingAgent = await prisma.agent.findUnique({
