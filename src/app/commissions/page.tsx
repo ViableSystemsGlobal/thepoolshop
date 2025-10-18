@@ -23,13 +23,13 @@ import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 
 interface Commission {
   id: string;
-  type: string;
+  commissionType: string;
   status: string;
   baseAmount: number;
-  rate: number;
+  commissionRate: number;
   commissionAmount: number;
-  currency: string;
-  earnedDate: string;
+  currency?: string;
+  createdAt: string;
   paidDate?: string;
   agent: {
     agentCode: string;
@@ -219,7 +219,7 @@ export default function CommissionsPage() {
 
     // Type filter
     if (typeFilter !== "ALL") {
-      filtered = filtered.filter(c => c.type === typeFilter);
+      filtered = filtered.filter(c => c.commissionType === typeFilter);
     }
 
     // Search filter
@@ -307,7 +307,7 @@ export default function CommissionsPage() {
       key: 'type',
       label: 'Type',
       render: (commission: Commission) => (
-        <div className="text-sm text-gray-900">{getTypeLabel(commission.type)}</div>
+        <div className="text-sm text-gray-900">{getTypeLabel(commission.commissionType)}</div>
       )
     },
     {
@@ -328,7 +328,7 @@ export default function CommissionsPage() {
       label: 'Base Amount',
       render: (commission: Commission) => (
         <div className="text-sm text-gray-900">
-          {commission.currency} {commission.baseAmount.toLocaleString()}
+          GH₵{commission.baseAmount.toLocaleString()}
         </div>
       )
     },
@@ -336,7 +336,7 @@ export default function CommissionsPage() {
       key: 'rate',
       label: 'Rate',
       render: (commission: Commission) => (
-        <div className="text-sm text-gray-900">{commission.rate}%</div>
+        <div className="text-sm text-gray-900">{commission.commissionRate}%</div>
       )
     },
     {
@@ -344,7 +344,7 @@ export default function CommissionsPage() {
       label: 'Commission',
       render: (commission: Commission) => (
         <div className="text-sm font-medium text-gray-900">
-          {commission.currency} {commission.commissionAmount.toLocaleString()}
+          GH₵{commission.commissionAmount.toLocaleString()}
         </div>
       )
     },
@@ -353,7 +353,7 @@ export default function CommissionsPage() {
       label: 'Earned Date',
       render: (commission: Commission) => (
         <div className="text-sm text-gray-900">
-          {new Date(commission.earnedDate).toLocaleDateString()}
+          {new Date(commission.createdAt).toLocaleDateString()}
         </div>
       )
     },
