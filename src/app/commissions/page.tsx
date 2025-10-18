@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { formatCurrency } from "@/lib/utils";
 
 interface Commission {
   id: string;
@@ -328,7 +329,7 @@ export default function CommissionsPage() {
       label: 'Base Amount',
       render: (commission: Commission) => (
         <div className="text-sm text-gray-900">
-          GH₵{commission.baseAmount.toLocaleString()}
+          {formatCurrency(commission.baseAmount, 'GHS')}
         </div>
       )
     },
@@ -344,7 +345,7 @@ export default function CommissionsPage() {
       label: 'Commission',
       render: (commission: Commission) => (
         <div className="text-sm font-medium text-gray-900">
-          GH₵{commission.commissionAmount.toLocaleString()}
+          {formatCurrency(commission.commissionAmount, 'GHS')}
         </div>
       )
     },
@@ -445,7 +446,7 @@ export default function CommissionsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Commissions</p>
-                  <p className="text-xl font-bold text-gray-900">GHS {metrics.totalCommissions.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(metrics.totalCommissions, 'GHS')}</p>
                 </div>
                 <div className="p-2 rounded-full bg-purple-100">
                   <DollarSign className="w-5 h-5 text-purple-600" />
@@ -457,7 +458,7 @@ export default function CommissionsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Pending</p>
-                  <p className="text-xl font-bold text-yellow-600">GHS {metrics.pendingCommissions.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-yellow-600">{formatCurrency(metrics.pendingCommissions, 'GHS')}</p>
                 </div>
                 <div className="p-2 rounded-full bg-yellow-100">
                   <Clock className="w-5 h-5 text-yellow-600" />
@@ -469,7 +470,7 @@ export default function CommissionsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Approved</p>
-                  <p className="text-xl font-bold text-blue-600">GHS {metrics.approvedCommissions.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-blue-600">{formatCurrency(metrics.approvedCommissions, 'GHS')}</p>
                 </div>
                 <div className="p-2 rounded-full bg-blue-100">
                   <TrendingUp className="w-5 h-5 text-blue-600" />
@@ -481,7 +482,7 @@ export default function CommissionsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Paid</p>
-                  <p className="text-xl font-bold text-green-600">GHS {metrics.paidCommissions.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-green-600">{formatCurrency(metrics.paidCommissions, 'GHS')}</p>
                 </div>
                 <div className="p-2 rounded-full bg-green-100">
                   <CheckCircle className="w-5 h-5 text-green-600" />
