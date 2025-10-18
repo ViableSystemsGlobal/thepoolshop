@@ -348,6 +348,18 @@ export async function GET(request: NextRequest) {
       commissionsByMonth
     ] = results as any;
 
+    console.log('🔍 Reports API Debug - Results length:', results.length);
+    console.log('🔍 Reports API Debug - Agents data:', {
+      totalAgents,
+      activeAgents,
+      totalCommissions,
+      pendingCommissions,
+      paidCommissions,
+      topPerformersLength: topPerformers?.length,
+      commissionsByStatusLength: commissionsByStatus?.length,
+      commissionsByMonthLength: commissionsByMonth?.length
+    });
+
     // Calculate growth percentages
     const revenueGrowth = lastPeriodRevenue._sum.total 
       ? ((monthlyRevenue._sum.total || 0) - lastPeriodRevenue._sum.total) / lastPeriodRevenue._sum.total * 100
@@ -470,11 +482,17 @@ export async function GET(request: NextRequest) {
       amount: status._sum.commissionAmount || 0
     })) : [];
     
-    const processedCommissionsByMonth = commissionsByMonth ? (commissionsByMonth as any[]).map((item) => ({
-      month: new Date(item.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      amount: Number(item.amount) || 0,
-      count: Number(item.count) || 0
-    })) : [];
+    const processedCommissionsByMonth = commissionsByMonth ? (commissionsByMonth as any[]).map((item) => {
+      // Parse SQLite date format (YYYY-MM) and convert to proper date
+      const [year, month] = item.month.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      
+      return {
+        month: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        amount: Number(item.amount) || 0,
+        count: Number(item.count) || 0
+      };
+    }) : [];
 
     // Process top customers data
     const processedTopCustomers = await Promise.all(
@@ -636,7 +654,7 @@ export async function GET(request: NextRequest) {
         _count: true
       }),
       
-      // Commissions by month (last 12 months)
+      // Commissions by month (last 12 months) - simplified for now
       Promise.resolve([])
     ]);
 
