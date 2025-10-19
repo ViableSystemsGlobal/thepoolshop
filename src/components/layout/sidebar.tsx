@@ -460,21 +460,24 @@ export default function Sidebar() {
             Shortcuts
           </div>
           <div className="space-y-1">
-            {shortcuts.map((shortcut) => (
-              <Link
-                key={shortcut.name}
-                href={shortcut.href}
-                className={`group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-gray-700 ${getBackgroundClasses(true, true)} hover:text-white transition-colors`}
-              >
-                <div className="flex items-center">
-                  <shortcut.icon className="mr-3 h-4 w-4 flex-shrink-0" />
-                  {shortcut.name}
-                </div>
-                <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white ${getBackgroundClasses(true)}`}>
-                  {shortcut.badge}
-                </span>
-              </Link>
-            ))}
+            {shortcuts.map((shortcut) => {
+              const Icon = shortcut.icon;
+              return (
+                <Link
+                  key={shortcut.name}
+                  href={shortcut.href}
+                  className="group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                >
+                  <div className="flex items-center">
+                    <Icon className="mr-3 h-4 w-4 flex-shrink-0" />
+                    {shortcut.name}
+                  </div>
+                  <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white bg-purple-600">
+                    {shortcut.badge}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
@@ -483,34 +486,48 @@ export default function Sidebar() {
       <div className="border-t border-gray-200 p-4">
         {!collapsed ? (
           <>
-
             {/* User Menu */}
             <div className="flex items-center space-x-3 mb-3">
-              <div className={`h-8 w-8 rounded-full bg-gradient-to-br from-${theme.primaryLight} to-${theme.primary} flex items-center justify-center`}>
-                <span className="text-white text-sm font-medium">DU</span>
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                <span className="text-white text-sm font-medium">
+                  {session?.user?.name ? session.user.name.substring(0, 2).toUpperCase() : 'U'}
+                </span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  Demo User
+                  {session?.user?.name || 'User'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  demo@adpools.com
+                  {session?.user?.email || 'user@example.com'}
                 </p>
               </div>
             </div>
 
             {/* Help */}
-            <div className="flex items-center text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
+            <button 
+              className="flex items-center w-full text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              onClick={() => {
+                // Could open a help modal or navigate to help page
+                alert('Help & Keyboard shortcuts coming soon!');
+              }}
+            >
               <HelpCircle className="mr-2 h-4 w-4" />
               Help & Keyboard shortcuts
-            </div>
+            </button>
           </>
         ) : (
           <div className="flex flex-col items-center space-y-2">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
-              <span className="text-white text-sm font-medium">DU</span>
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+              <span className="text-white text-sm font-medium">
+                {session?.user?.name ? session.user.name.substring(0, 2).toUpperCase() : 'U'}
+              </span>
             </div>
-            <button className="text-gray-500 hover:text-gray-700">
+            <button 
+              className="text-gray-500 hover:text-gray-700"
+              onClick={() => {
+                alert('Help & Keyboard shortcuts coming soon!');
+              }}
+            >
               <HelpCircle className="h-4 w-4" />
             </button>
           </div>
