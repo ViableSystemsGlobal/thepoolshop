@@ -89,6 +89,7 @@ export default function RoutesMappingPage() {
   const router = useRouter();
   const { hasAbility, loading: abilitiesLoading } = useAbilities();
   const { success, error } = useToast();
+  const { getThemeColor } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'zones' | 'routes' | 'drivers'>('zones');
@@ -307,7 +308,8 @@ export default function RoutesMappingPage() {
             {activeTab === 'zones' && hasAbility('routes-mapping', 'create') && (
               <Button
                 onClick={() => setShowCreateZoneModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                style={{ backgroundColor: getThemeColor(), color: 'white' }}
+                className="hover:opacity-90"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Zone
@@ -316,7 +318,8 @@ export default function RoutesMappingPage() {
             {activeTab === 'routes' && (
               <Button
                 onClick={() => setShowCreateRouteModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                style={{ backgroundColor: getThemeColor(), color: 'white' }}
+                className="hover:opacity-90"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Route
@@ -325,7 +328,8 @@ export default function RoutesMappingPage() {
             {activeTab === 'drivers' && hasAbility('routes-mapping', 'create') && (
               <Button
                 onClick={() => setShowCreateDriverModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                style={{ backgroundColor: getThemeColor(), color: 'white' }}
+                className="hover:opacity-90"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Driver
@@ -463,7 +467,7 @@ export default function RoutesMappingPage() {
                       variant={statusFilter === 'ALL' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setStatusFilter('ALL')}
-                      className={statusFilter === 'ALL' ? 'bg-blue-600 text-white' : ''}
+                      style={statusFilter === 'ALL' ? { backgroundColor: getThemeColor(), color: 'white' } : {}}
                     >
                       All
                     </Button>
@@ -491,7 +495,7 @@ export default function RoutesMappingPage() {
                       variant={statusFilter === 'ALL' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setStatusFilter('ALL')}
-                      className={statusFilter === 'ALL' ? 'bg-blue-600 text-white' : ''}
+                      style={statusFilter === 'ALL' ? { backgroundColor: getThemeColor(), color: 'white' } : {}}
                     >
                       All
                     </Button>
@@ -507,7 +511,7 @@ export default function RoutesMappingPage() {
                       variant={statusFilter === 'IN_PROGRESS' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setStatusFilter('IN_PROGRESS')}
-                      className={statusFilter === 'IN_PROGRESS' ? 'bg-blue-600 text-white' : ''}
+                      style={statusFilter === 'IN_PROGRESS' ? { backgroundColor: getThemeColor(), color: 'white' } : {}}
                     >
                       In Progress
                     </Button>
@@ -527,7 +531,7 @@ export default function RoutesMappingPage() {
                       variant={statusFilter === 'ALL' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setStatusFilter('ALL')}
-                      className={statusFilter === 'ALL' ? 'bg-blue-600 text-white' : ''}
+                      style={statusFilter === 'ALL' ? { backgroundColor: getThemeColor(), color: 'white' } : {}}
                     >
                       All
                     </Button>

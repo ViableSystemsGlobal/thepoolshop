@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, Sparkles, TrendingUp, AlertCircle, Target } from 'lucide-react';
+import { Check, Sparkles, TrendingUp, AlertCircle, Target, Loader2, RefreshCw } from 'lucide-react';
 import { useTheme } from '@/contexts/theme-context';
 
 interface Recommendation {
@@ -19,23 +19,109 @@ interface Recommendation {
 interface AIRecommendationCardProps {
   title: string;
   subtitle: string;
-  recommendations: Recommendation[];
+  recommendations?: Recommendation[];
   onRecommendationComplete: (id: string) => void;
   icon?: React.ReactNode;
   className?: string;
+  page?: string;
+  context?: any;
+  enableAI?: boolean;
 }
 
 export function AIRecommendationCard({ 
   title, 
   subtitle, 
-  recommendations, 
+  recommendations: initialRecommendations, 
   onRecommendationComplete,
   icon,
-  className = ''
+  className = '',
+  page,
+  context,
+  enableAI = true
 }: AIRecommendationCardProps) {
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const [completedItems, setCompletedItems] = useState<string[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>(initialRecommendations || []);
+  const [isLoading, setIsLoading] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch AI recommendations when component mounts or page changes
+  useEffect(() => {
+    if (enableAI && page && !initialRecommendations) {
+      fetchAIRecommendations();
+    } else if (initialRecommendations) {
+      setRecommendations(initialRecommendations);
+    }
+  }, [page, enableAI, initialRecommendations]);
+
+  const fetchAIRecommendations = async () => {
+    if (!page) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/ai/recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          page,
+          context
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.recommendations) {
+        setRecommendations(data.recommendations);
+        setAiEnabled(true);
+      } else {
+        // Use fallback recommendations if AI is not available
+        setRecommendations(getFallbackRecommendations());
+        setAiEnabled(false);
+      }
+    } catch (err) {
+      console.error('Error fetching AI recommendations:', err);
+      setError('Failed to load AI recommendations');
+      setRecommendations(getFallbackRecommendations());
+      setAiEnabled(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getFallbackRecommendations = (): Recommendation[] => {
+    const fallbackRecs = {
+      'crm-dashboard': [
+        { id: '1', title: 'Follow up leads', description: 'Contact new leads within 24 hours', priority: 'high' as const, completed: false, action: 'Call leads' },
+        { id: '2', title: 'Update opportunities', description: 'Review and update opportunity stages', priority: 'medium' as const, completed: false, action: 'Update pipeline' },
+        { id: '3', title: 'Analyze conversion', description: 'Review lead to opportunity conversion rates', priority: 'low' as const, completed: false, action: 'Generate report' }
+      ],
+      'opportunities': [
+        { id: '1', title: 'Close deals', description: 'Focus on high-value opportunities', priority: 'high' as const, completed: false, action: 'Schedule calls' },
+        { id: '2', title: 'Update pipeline', description: 'Review opportunity stages and probabilities', priority: 'medium' as const, completed: false, action: 'Update stages' },
+        { id: '3', title: 'Follow up', description: 'Contact prospects with pending quotes', priority: 'low' as const, completed: false, action: 'Send emails' }
+      ],
+      'products': [
+        { id: '1', title: 'Restock items', description: 'Order low-stock products', priority: 'high' as const, completed: false, action: 'Create purchase orders' },
+        { id: '2', title: 'Update pricing', description: 'Review and adjust product pricing', priority: 'medium' as const, completed: false, action: 'Update prices' },
+        { id: '3', title: 'Add products', description: 'Expand product catalog', priority: 'low' as const, completed: false, action: 'Add new items' }
+      ]
+    };
+
+    return fallbackRecs[page as keyof typeof fallbackRecs] || fallbackRecs['crm-dashboard'];
+  };
+
+  const handleRefresh = () => {
+    if (enableAI && page) {
+      fetchAIRecommendations();
+    }
+  };
 
   // Helper function to get proper gradient background classes
   const getGradientBackgroundClasses = () => {
@@ -103,8 +189,27 @@ export function AIRecommendationCard({
           </div>
         </div>
         <div className="flex items-center space-x-1">
-          <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-xs text-gray-500">AI</span>
+          {isLoading ? (
+            <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+          ) : aiEnabled ? (
+            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+          ) : (
+            <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
+          )}
+          <span className="text-xs text-gray-500">
+            {isLoading ? 'Loading...' : aiEnabled ? 'AI' : 'Static'}
+          </span>
+          {enableAI && page && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="p-0.5 h-4 w-4 ml-1"
+            >
+              <RefreshCw className={`w-2 h-2 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -117,7 +222,22 @@ export function AIRecommendationCard({
         </div>
 
         <div className="grid grid-cols-3 gap-1">
-          {recommendations.map((rec, index) => (
+          {isLoading ? (
+            // Loading state
+            Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="p-1 rounded-lg border border-gray-200 bg-gray-50 animate-pulse">
+                <div className="h-4 bg-gray-300 rounded mb-1"></div>
+                <div className="h-3 bg-gray-200 rounded"></div>
+              </div>
+            ))
+          ) : error ? (
+            // Error state
+            <div className="col-span-3 p-2 text-center text-xs text-red-600 bg-red-50 rounded-lg">
+              {error}
+            </div>
+          ) : (
+            // Normal recommendations
+            recommendations.map((rec, index) => (
             <div 
               key={rec.id}
               className={`p-1 rounded-lg border transition-all duration-200 ${
@@ -148,7 +268,8 @@ export function AIRecommendationCard({
               <h5 className="text-xs font-medium text-gray-900 mb-1">{rec.title}</h5>
               <p className="text-xs text-gray-600 leading-tight line-clamp-1">{rec.description}</p>
             </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
@@ -158,8 +279,10 @@ export function AIRecommendationCard({
             {completedItems.length} of {recommendations.length} completed
           </span>
           <div className="flex items-center space-x-1">
-            <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
-            <span className="text-blue-600 font-medium">AI Powered</span>
+            <div className={`w-1 h-1 rounded-full ${aiEnabled ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+            <span className={`font-medium ${aiEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
+              {aiEnabled ? 'AI Powered' : 'Static Data'}
+            </span>
           </div>
         </div>
       </div>

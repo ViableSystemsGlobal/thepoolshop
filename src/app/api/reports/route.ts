@@ -138,9 +138,18 @@ export async function GET(request: NextRequest) {
         where: { quantity: { lte: 10 } }
       }),
       
+      // Get all stock items with cost and quantity for currency conversion
+      prisma.stockItem.findMany({
+        select: {
+          quantity: true,
+          averageCost: true
+        }
+      }),
+      
+      // Get total stock units count
       prisma.stockItem.aggregate({
-        _sum: { 
-          quantity: true 
+        _sum: {
+          quantity: true
         }
       }),
       
@@ -381,6 +390,7 @@ export async function GET(request: NextRequest) {
       totalProducts,
       lowStockItems,
       inventoryValue,
+      totalStockUnits,
       topMovingProducts,
       
       // Quotation data
@@ -677,7 +687,15 @@ export async function GET(request: NextRequest) {
       inventory: {
         totalProducts,
         lowStockItems,
-        totalValue: inventoryValue._sum.quantity || 0,
+        totalValue: inventoryValue ? inventoryValue.reduce((sum: number, item: any) => {
+          // Convert USD to GHS (assuming cost is in USD)
+          const costInUSD = item.averageCost || 0;
+          const quantity = item.quantity || 0;
+          const usdToGhsRate = 12.5; // USD to GHS conversion rate
+          const valueInGHS = (costInUSD * quantity) * usdToGhsRate;
+          return sum + valueInGHS;
+        }, 0) : 0,
+        totalStockUnits: totalStockUnits?._sum.quantity || 0,
         topMovingProducts: processedTopMovingProducts,
         productsTrend
       },

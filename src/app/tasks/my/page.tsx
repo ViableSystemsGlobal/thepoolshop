@@ -627,33 +627,13 @@ export default function MyTasksPage() {
               <AIRecommendationCard
                 title="My Tasks AI"
                 subtitle="Your personalized task optimization assistant"
-                recommendations={[
-                  {
-                    id: 'completed-progress',
-                    title: 'Great Progress!',
-                    description: `${stats.COMPLETED || 0} tasks completed this week. Keep up the momentum!`,
-                    priority: 'high',
-                    completed: false
-                  },
-                  {
-                    id: 'overdue-warning',
-                    title: 'Overdue Tasks',
-                    description: `${stats.OVERDUE || 0} tasks are overdue. Consider prioritizing these tasks.`,
-                    priority: 'high',
-                    completed: false
-                  },
-                  {
-                    id: 'in-progress-info',
-                    title: 'In Progress',
-                    description: `${stats.IN_PROGRESS || 0} tasks are currently being worked on. Stay focused!`,
-                    priority: 'medium',
-                    completed: false
-                  }
-                ]}
                 onRecommendationComplete={(id) => {
                   console.log('Recommendation completed:', id);
                 }}
                 className="h-full"
+                page="tasks"
+                context={{ stats }}
+                enableAI={true}
               />
             </div>
           </div>

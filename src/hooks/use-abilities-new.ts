@@ -1,14 +1,14 @@
 import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
-import { ROLE_ABILITIES, MODULE_ACCESS, type Role } from '@/lib/permissions';
-
-export interface Ability {
-  id: string;
-  name: string;
-  description?: string;
-  resource: string;
-  action: string;
-}
+import { 
+  MODULE_ACCESS, 
+  ROLE_ABILITIES, 
+  canAccessModule, 
+  hasAbility as hasAbilityUtil,
+  type Ability,
+  type Module,
+  type Role
+} from '@/lib/permissions';
 
 export interface UserAbilities {
   abilities: string[];
@@ -17,27 +17,23 @@ export interface UserAbilities {
   loading: boolean;
 }
 
-// Using centralized module access mappings from permissions.ts
-
-// Using centralized role abilities from permissions.ts
-
 export function useAbilities(): UserAbilities {
-  const { data: session } = useSession();
-  const [abilities, setAbilities] = useState<string[]>([]);
+  const { data: session, status } = useSession();
+  const [abilities, setAbilities] = useState<Ability[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAbilities = async () => {
-      // Wait until session is available to avoid flashing no-permission states
-      if (!session) {
-        setLoading(true);
-        return;
-      }
-      if (!session.user?.id) {
-        setLoading(true);
-        return;
-      }
+    if (status === 'loading') {
+      return;
+    }
 
+    if (!session?.user?.id) {
+      setAbilities([]);
+      setLoading(false);
+      return;
+    }
+
+    const fetchAbilities = async () => {
       try {
         const response = await fetch('/api/user/abilities', {
           credentials: 'include'
@@ -46,31 +42,31 @@ export function useAbilities(): UserAbilities {
         if (response.ok) {
           const data = await response.json();
           console.log('🔍 useAbilities - Fetched abilities from database:', data.abilities?.length || 0, 'abilities');
-          console.log('🔍 useAbilities - Has ai_analyst.access:', data.abilities?.includes('ai_analyst.access'));
-          console.log('🔍 useAbilities - Has agents.view:', data.abilities?.includes('agents.view'));
-          console.log('🔍 useAbilities - Has commissions.view:', data.abilities?.includes('commissions.view'));
-          setAbilities(data.abilities || []);
+          console.log('🔍 useAbilities - Has ai_analyst.access:', data.abilities?.includes('ai_analyst.access' as any));
+          console.log('🔍 useAbilities - Has agents.view:', data.abilities?.includes('agents.view' as any));
+          console.log('🔍 useAbilities - Has commissions.view:', data.abilities?.includes('commissions.view' as any));
+          setAbilities((data.abilities || []) as Ability[]);
         } else {
           console.error('Failed to fetch abilities:', response.status);
           // Fallback to hardcoded abilities if API fails
           const userRole = session.user.role as Role;
-          const userAbilities = [...(ROLE_ABILITIES[userRole] || [])];
+          const userAbilities = ROLE_ABILITIES[userRole] || [];
           console.log('🔍 useAbilities - Using fallback abilities for role:', userRole, 'count:', userAbilities.length);
           console.log('🔍 useAbilities - Fallback has ai_analyst.access:', userAbilities.includes('ai_analyst.access' as any));
           console.log('🔍 useAbilities - Fallback has agents.view:', userAbilities.includes('agents.view' as any));
           console.log('🔍 useAbilities - Fallback has commissions.view:', userAbilities.includes('commissions.view' as any));
-          setAbilities(userAbilities);
+          setAbilities([...userAbilities]);
         }
       } catch (error) {
         console.error('Error fetching abilities:', error);
         // Fallback to hardcoded abilities if API fails
         const userRole = session.user.role as Role;
-        const userAbilities = [...(ROLE_ABILITIES[userRole] || [])];
+        const userAbilities = ROLE_ABILITIES[userRole] || [];
         console.log('🔍 useAbilities - Using fallback abilities for role:', userRole, 'count:', userAbilities.length);
         console.log('🔍 useAbilities - Fallback has ai_analyst.access:', userAbilities.includes('ai_analyst.access' as any));
         console.log('🔍 useAbilities - Fallback has agents.view:', userAbilities.includes('agents.view' as any));
         console.log('🔍 useAbilities - Fallback has commissions.view:', userAbilities.includes('commissions.view' as any));
-        setAbilities(userAbilities);
+        setAbilities([...userAbilities]);
       } finally {
         setLoading(false);
       }
@@ -80,8 +76,8 @@ export function useAbilities(): UserAbilities {
   }, [session]);
 
   const hasAbility = (resource: string, action: string): boolean => {
-    const ability = `${resource}.${action}`;
-    return abilities.includes(ability);
+    const ability = `${resource}.${action}` as Ability;
+    return hasAbilityUtil(abilities, ability);
   };
 
   const canAccess = (module: string): boolean => {
@@ -89,15 +85,15 @@ export function useAbilities(): UserAbilities {
     if (loading) {
       return true;
     }
-    const moduleAbilities = MODULE_ACCESS[module as keyof typeof MODULE_ACCESS] || [];
-    const hasAccess = moduleAbilities.some(ability => abilities.includes(ability));
     
-    // Debug logging for ai_analyst and agents
+    const hasAccess = canAccessModule(abilities, module as Module);
+    
+    // Debug logging for important modules
     if (module === 'ai_analyst' || module === 'agents' || module === 'commissions') {
       console.log(`🔍 ${module} Access Check:`, {
         module,
-        moduleAbilities,
-        abilities: abilities.slice(0, 10), // Show first 10 abilities
+        requiredAbilities: MODULE_ACCESS[module as Module] || [],
+        userAbilities: abilities.slice(0, 10), // Show first 10 abilities
         hasAccess,
         loading
       });
@@ -110,6 +106,6 @@ export function useAbilities(): UserAbilities {
     abilities,
     hasAbility,
     canAccess,
-    loading,
+    loading
   };
 }

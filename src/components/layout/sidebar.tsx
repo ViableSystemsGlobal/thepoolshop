@@ -38,6 +38,7 @@ import {
   Calendar,
   Printer,
   FileDown,
+  Database,
 } from "lucide-react";
 
 const navigation = [
@@ -176,6 +177,7 @@ const navigation = [
       { name: "Google Maps", href: "/settings/google-maps", icon: MapPin, module: "google-maps" },
       { name: "Credit Monitoring", href: "/settings/credit-monitoring", icon: CreditCard, module: "credit-monitoring" },
       { name: "AI Settings", href: "/settings/ai", icon: BarChart3, module: "ai-settings" },
+      { name: "Backup & Restore", href: "/settings/backup", icon: Database, module: "backup-settings" },
       { name: "System Settings", href: "/settings/system", icon: Settings, module: "system-settings" },
     ]
   },

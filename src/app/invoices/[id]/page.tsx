@@ -157,7 +157,7 @@ export default function ViewInvoicePage() {
   const params = useParams();
   const router = useRouter();
   const { success, error: showError } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -430,7 +430,8 @@ export default function ViewInvoicePage() {
                 {invoice.paymentStatus !== 'PAID' && (
                   <button 
                     onClick={() => setShowPaymentModal(true)}
-                    className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity bg-blue-600"
+                    className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: getThemeColor() }}
                   >
                     <DollarSign className="h-4 w-4 mr-2 inline" />
                     Add Payment
@@ -500,13 +501,15 @@ export default function ViewInvoicePage() {
               Receipt Reminder
             </Button>
             <button 
-              className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity bg-blue-600"
+              className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: getThemeColor() }}
             >
               <Send className="h-4 w-4 mr-2 inline" />
               Resend Invoice
             </button>
             <button 
-              className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity bg-blue-600"
+              className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: getThemeColor() }}
               onClick={handleDownload}
             >
               <Download className="h-4 w-4 mr-2 inline" />

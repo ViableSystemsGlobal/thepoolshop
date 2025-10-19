@@ -560,8 +560,9 @@ export default function OpportunitiesPage() {
             <AIRecommendationCard 
               title="Opportunity Management AI"
               subtitle="Your intelligent assistant for opportunity optimization"
-              recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
+              page="opportunities"
+              enableAI={true}
             />
           </div>
 

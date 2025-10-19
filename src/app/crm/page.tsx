@@ -193,12 +193,13 @@ export default function CRMDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* AI Recommendation Card - Left Side */}
         <div className="lg:col-span-2">
-          <AIRecommendationCard
-            title="CRM Intelligence"
-            subtitle="Your AI-powered sales assistant"
-            recommendations={aiRecommendations}
-            onRecommendationComplete={handleRecommendationComplete}
-          />
+            <AIRecommendationCard
+              title="CRM Intelligence"
+              subtitle="Your AI-powered sales assistant"
+              onRecommendationComplete={handleRecommendationComplete}
+              page="crm-dashboard"
+              enableAI={true}
+            />
         </div>
 
         {/* Metrics Cards - Right Side */}

@@ -835,9 +835,26 @@ AdPools System`,
               }
             }
 
-            if (fullLeadData.hasShippingAddress && fullLeadData.shippingAddress && !fullLeadData.sameAsBilling) {
+            // Create shipping address from lead data
+            if (fullLeadData.hasShippingAddress) {
               try {
                 console.log('🚚 Creating shipping address from lead data');
+                
+                // Determine which address data to use
+                let addressData;
+                if (fullLeadData.sameAsBilling && fullLeadData.billingAddress) {
+                  // Use billing address data for shipping
+                  addressData = fullLeadData.billingAddress;
+                  console.log('📦 Using billing address as shipping address (sameAsBilling=true)');
+                } else if (fullLeadData.shippingAddress) {
+                  // Use dedicated shipping address data
+                  addressData = fullLeadData.shippingAddress;
+                  console.log('📦 Using dedicated shipping address data');
+                } else {
+                  console.log('⚠️ No shipping address data available');
+                  return;
+                }
+
                 const shippingAddressResponse = await fetch('/api/addresses', {
                   method: 'POST',
                   credentials: 'include',
@@ -846,11 +863,11 @@ AdPools System`,
                     accountId: accountData.id,
                     label: 'Shipping Address',
                     type: 'SHIPPING',
-                    street: fullLeadData.shippingAddress.street || '',
-                    city: fullLeadData.shippingAddress.city || '',
-                    region: fullLeadData.shippingAddress.region || '',
-                    country: fullLeadData.shippingAddress.country || '',
-                    postalCode: fullLeadData.shippingAddress.postalCode || '',
+                    street: addressData.street || '',
+                    city: addressData.city || '',
+                    region: addressData.region || '',
+                    country: addressData.country || '',
+                    postalCode: addressData.postalCode || '',
                     isDefault: !fullLeadData.hasBillingAddress, // Default if no billing address
                   }),
                 });

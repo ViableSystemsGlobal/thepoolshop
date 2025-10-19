@@ -1,16 +1,58 @@
 "use client"
 
 import { signIn, getSession } from "next-auth/react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Building2, ArrowRight } from "lucide-react"
+import Image from "next/image"
+import { useTheme } from "@/contexts/theme-context"
+
+interface CompanySettings {
+  companyName: string;
+  companyLogo: string;
+  primaryColor: string;
+}
 
 export default function SignIn() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const { getThemeColor } = useTheme()
+  const [companySettings, setCompanySettings] = useState<CompanySettings>({
+    companyName: "AdPools Group",
+    companyLogo: "",
+    primaryColor: getThemeColor()
+  })
+
+  useEffect(() => {
+    const fetchCompanySettings = async () => {
+      try {
+        console.log('Fetching company settings...')
+        const response = await fetch('/api/public/branding')
+        console.log('Response status:', response.status)
+        if (response.ok) {
+          const data = await response.json()
+          console.log('Company settings data:', data)
+          setCompanySettings({
+            companyName: data.companyName || "AdPools Group",
+            companyLogo: data.companyLogo || "",
+            primaryColor: getThemeColor()
+          })
+          console.log('Updated company settings:', {
+            companyName: data.companyName || "AdPools Group",
+            companyLogo: data.companyLogo || "",
+            primaryColor: getThemeColor()
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching company settings:', error)
+      }
+    }
+    
+    fetchCompanySettings()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,12 +83,29 @@ export default function SignIn() {
         {/* Logo and Title */}
         <div className="text-center">
           <div className="flex justify-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <Building2 className="h-8 w-8 text-white" />
-            </div>
+            {companySettings.companyLogo ? (
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden">
+                <Image
+                  src={companySettings.companyLogo}
+                  alt="Company Logo"
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div 
+                className="w-16 h-16 bg-gradient-to-br rounded-2xl flex items-center justify-center shadow-lg"
+                style={{ 
+                  background: `linear-gradient(135deg, ${getThemeColor()}, ${getThemeColor()}dd)`
+                }}
+              >
+                <Building2 className="h-8 w-8 text-white" />
+              </div>
+            )}
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            AD Pools SM
+            {companySettings.companyName}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Sign in to your sales management system
@@ -95,7 +154,8 @@ export default function SignIn() {
 
               <Button 
                 type="submit" 
-                className="w-full h-11 bg-orange-600 hover:bg-orange-700 text-white font-medium" 
+                className="w-full h-11 hover:opacity-90 text-white font-medium" 
+                style={{ backgroundColor: getThemeColor() }}
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -108,28 +168,13 @@ export default function SignIn() {
                 )}
               </Button>
             </form>
-
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-900">Demo Credentials</h3>
-                  <div className="mt-1 text-sm text-blue-700">
-                    <p>Email: admin@adpools.com</p>
-                    <p>Password: demo123</p>
-                  </div>
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
         {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-gray-500">
-            © 2024 AD Pools Group. All rights reserved.
+            © 2024 {companySettings.companyName}. All rights reserved.
           </p>
         </div>
       </div>

@@ -17,13 +17,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   FileDown,
   X,
   Search,
@@ -371,21 +364,20 @@ export function CreditNoteModal({ isOpen, onClose, onSuccess, invoiceId }: Credi
           {/* Reason */}
           <div className="space-y-2">
             <Label htmlFor="reason">Reason *</Label>
-            <Select
+            <select
+              id="reason"
               value={formData.reason}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, reason: value }))}
+              onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
+              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              required
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a reason" />
-              </SelectTrigger>
-              <SelectContent>
-                {REASON_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <option value="">Select a reason</option>
+              {REASON_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Reason Details */}

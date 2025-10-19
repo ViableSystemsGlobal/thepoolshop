@@ -62,7 +62,7 @@ const PAYMENT_METHODS = {
 export default function PaymentsPage() {
   const router = useRouter();
   const { success, error: showError } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
 
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -221,7 +221,8 @@ export default function PaymentsPage() {
           </div>
           <Button
             onClick={() => setShowPaymentModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="hover:opacity-90 text-white"
+            style={{ backgroundColor: getThemeColor() }}
           >
             <Plus className="h-4 w-4 mr-2" />
             Record Payment
@@ -350,7 +351,8 @@ export default function PaymentsPage() {
                 <p className="text-gray-600">No payments found</p>
                 <Button
                   onClick={() => setShowPaymentModal(true)}
-                  className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="mt-4 hover:opacity-90 text-white"
+                  style={{ backgroundColor: getThemeColor() }}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Record First Payment

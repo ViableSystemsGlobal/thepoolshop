@@ -444,7 +444,7 @@ const defaultSettings: NotificationSettings = {
 };
 
 export default function NotificationSettingsPage() {
-  const { themeColor, getThemeClasses } = useTheme();
+  const { themeColor, getThemeClasses, getThemeColor } = useTheme();
   const themeClasses = getThemeClasses();
   const { data: session } = useSession();
   const { success: showSuccess, error: showError } = useToast();
@@ -720,7 +720,8 @@ export default function NotificationSettingsPage() {
             <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+              style={{ backgroundColor: getThemeColor(), color: 'white' }}
+              className="hover:opacity-90 flex items-center gap-2"
             >
               {isSaving ? (
                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -1652,7 +1653,8 @@ export default function NotificationSettingsPage() {
                 <Button
                   onClick={() => handleTest('email')}
                   disabled={isTesting === 'email' || !testEmail}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  style={{ backgroundColor: getThemeColor(), color: 'white' }}
+                  className="hover:opacity-90"
                 >
                   {isTesting === 'email' ? (
                     <>
@@ -1990,7 +1992,8 @@ export default function NotificationSettingsPage() {
                     }
                   }}
                   disabled={isTesting === 'task-notifications'}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  style={{ backgroundColor: getThemeColor(), color: 'white' }}
+                  className="hover:opacity-90"
                 >
                   {isTesting === 'task-notifications' ? (
                     <>

@@ -42,7 +42,7 @@ interface Warehouse {
 export default function WarehousesPage() {
   const { success, error: showError } = useToast();
   const router = useRouter();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   
   const handleViewWarehouse = (warehouse: Warehouse) => {
@@ -164,7 +164,8 @@ export default function WarehousesPage() {
         </div>
         <Button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          className="hover:opacity-90 text-white"
+          style={{ backgroundColor: getThemeColor() }}
         >
           <Plus className="h-4 w-4 mr-2" />
           Add Warehouse
@@ -258,7 +259,8 @@ export default function WarehousesPage() {
               <p className="text-gray-600 mb-4">Get started by creating your first warehouse.</p>
               <Button 
                 onClick={() => setIsModalOpen(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="hover:opacity-90 text-white"
+                style={{ backgroundColor: getThemeColor() }}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Warehouse

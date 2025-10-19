@@ -32,6 +32,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { DropdownMenu } from '@/components/ui/dropdown-menu-custom';
+import { formatCurrency } from '@/lib/utils';
 
 interface DistributorLead {
   id: string;
@@ -79,6 +80,7 @@ export default function DistributorLeadsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [currency, setCurrency] = useState('GHS');
 
   // AI Recommendations for Distributor Leads
   const [aiRecommendations] = useState([
@@ -207,7 +209,20 @@ export default function DistributorLeadsPage() {
   // Load data on component mount
   useEffect(() => {
     loadLeads();
+    fetchCurrencySettings();
   }, []);
+
+  const fetchCurrencySettings = async () => {
+    try {
+      const response = await fetch('/api/settings/currency');
+      if (response.ok) {
+        const data = await response.json();
+        setCurrency(data.baseCurrency || 'GHS');
+      }
+    } catch (err) {
+      console.error('Error fetching currency settings:', err);
+    }
+  };
 
   // Handle edit parameter from URL
   useEffect(() => {
@@ -450,7 +465,7 @@ export default function DistributorLeadsPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Pipeline</p>
                 <p className="text-xl font-bold text-indigo-600">
-                  GHS {leads.reduce((sum, lead) => sum + (lead.expectedVolume || 0), 0).toLocaleString()}
+                  {formatCurrency(leads.reduce((sum, lead) => sum + (lead.expectedVolume || 0), 0), currency)}
                 </p>
               </div>
               <div className="p-2 rounded-full bg-indigo-100">
@@ -464,7 +479,7 @@ export default function DistributorLeadsPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Approved Pipeline</p>
                 <p className="text-xl font-bold text-emerald-600">
-                  GHS {leads.filter(l => l.status === 'APPROVED').reduce((sum, lead) => sum + (lead.expectedVolume || 0), 0).toLocaleString()}
+                  {formatCurrency(leads.filter(l => l.status === 'APPROVED').reduce((sum, lead) => sum + (lead.expectedVolume || 0), 0), currency)}
                 </p>
               </div>
               <div className="p-2 rounded-full bg-emerald-100">
@@ -591,7 +606,7 @@ export default function DistributorLeadsPage() {
                         {lead.territory || lead.region || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {lead.expectedVolume ? `GHS ${lead.expectedVolume.toLocaleString()}/month` : 'N/A'}
+                        {lead.expectedVolume ? `${formatCurrency(lead.expectedVolume, currency)}/month` : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

@@ -12,7 +12,7 @@ export async function GET() {
     }
 
     // Get branding settings from database
-    const settings = await (prisma as any).setting.findMany({
+    const settings = await prisma.systemSettings.findMany({
       where: {
         key: {
           in: [
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     ];
 
     for (const setting of settingsToUpdate) {
-      await (prisma as any).setting.upsert({
+      await prisma.systemSettings.upsert({
         where: { key: setting.key },
         update: { value: setting.value },
         create: {

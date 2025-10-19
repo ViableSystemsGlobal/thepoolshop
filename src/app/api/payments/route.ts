@@ -278,6 +278,33 @@ export async function POST(request: NextRequest) {
                 paidDate: paymentStatus === 'PAID' ? new Date() : null
               }
             });
+
+            // Update linked opportunity when invoice is fully paid
+            if (paymentStatus === 'PAID') {
+              const invoiceWithQuotation = await tx.invoice.findUnique({
+                where: { id: alloc.invoiceId },
+                select: { quotationId: true }
+              });
+
+              if (invoiceWithQuotation?.quotationId) {
+                const quotationWithOpportunity = await tx.quotation.findUnique({
+                  where: { id: invoiceWithQuotation.quotationId },
+                  select: { opportunityId: true }
+                });
+
+                if (quotationWithOpportunity?.opportunityId) {
+                  await tx.opportunity.update({
+                    where: { id: quotationWithOpportunity.opportunityId },
+                    data: {
+                      stage: 'WON',
+                      probability: 100,
+                      closeDate: new Date()
+                    }
+                  });
+                  console.log('✅ Updated opportunity to WON with 100% probability:', quotationWithOpportunity.opportunityId);
+                }
+              }
+            }
           }
         }
       }

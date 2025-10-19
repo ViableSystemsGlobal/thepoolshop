@@ -278,25 +278,42 @@ export async function POST(request: NextRequest) {
     const invoiceNumber = await generateInvoiceNumber();
     console.log('🔍 Generated invoice number:', invoiceNumber);
 
-    // Calculate totals
+    // Fetch product details for each line and calculate totals
     let subtotal = 0;
     let totalTax = 0;
     let totalDiscount = 0;
 
     for (const line of lines) {
+      // Fetch product details if not provided
+      if (!line.productName || !line.sku || !line.description) {
+        const product = await prisma.product.findUnique({
+          where: { id: line.productId },
+          select: { name: true, sku: true, description: true }
+        });
+        
+        if (product) {
+          line.productName = line.productName || product.name;
+          line.sku = line.sku || product.sku;
+          line.description = line.description || product.description;
+        }
+      }
+
       const baseAmount = line.quantity * line.unitPrice;
       const discountAmount = baseAmount * (line.discount / 100);
       const afterDiscount = baseAmount - discountAmount;
       
-      subtotal += afterDiscount;
-      totalDiscount += discountAmount;
-
-      // Calculate taxes for this line
+      // Calculate line total (after discount + taxes)
+      let lineTax = 0;
       if (line.taxes && Array.isArray(line.taxes)) {
         for (const tax of line.taxes) {
-          totalTax += tax.amount || 0;
+          lineTax += tax.amount || 0;
         }
       }
+      line.lineTotal = afterDiscount + lineTax;
+      
+      subtotal += afterDiscount;
+      totalDiscount += discountAmount;
+      totalTax += lineTax;
     }
 
     const total = taxInclusive ? subtotal : subtotal + totalTax;
@@ -329,7 +346,7 @@ export async function POST(request: NextRequest) {
         paymentTerms: paymentTerms || null,
         customerType: customerType || 'STANDARD',
         notes: notes || null,
-        ownerId: 'cmfpufpb500008zi346h5hntw', // TEMPORARY: Hardcoded user ID
+        ownerId: 'cmgxgoy9w00008z2z4ajxyw47', // TEMPORARY: Hardcoded user ID
         lines: {
           create: lines.map((line: any) => ({
             productId: line.productId,

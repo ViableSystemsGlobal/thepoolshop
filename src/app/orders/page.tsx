@@ -92,7 +92,7 @@ interface Order {
 export default function OrdersPage() {
   const { data: session } = useSession();
   const { success, error } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
 
   const [orders, setOrders] = useState<Order[]>([]);
@@ -265,7 +265,8 @@ export default function OrdersPage() {
         <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
         <button
           onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity bg-blue-600"
+          className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity"
+          style={{ backgroundColor: getThemeColor() }}
         >
           <Plus className="w-4 h-4 mr-2 inline" />
           Create Order

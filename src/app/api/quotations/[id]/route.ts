@@ -95,7 +95,7 @@ export async function PUT(
     // }
 
     // const userId = (session.user as any).id;
-    const userId = 'cmfpufpb500008zi346h5hntw'; // TEMPORARY: Hardcoded user ID for testing (correct user ID)
+    const userId = 'cmgxgoy9w00008z2z4ajxyw47'; // TEMPORARY: Hardcoded user ID for testing (correct user ID)
     const body = await request.json();
     
     
@@ -214,6 +214,18 @@ export async function PUT(
       accountId: quotation.accountId,
       subject: quotation.subject
     });
+
+    // Update existing opportunity value if quotation is linked to an opportunity
+    if ((quotation as any).opportunityId) {
+      console.log('🔍 Updating opportunity value for quotation:', quotation.id);
+      await prisma.opportunity.update({
+        where: { id: (quotation as any).opportunityId },
+        data: {
+          value: quotation.total,
+        },
+      });
+      console.log('✅ Updated opportunity value to:', quotation.total);
+    }
 
     // Check if we need to create an opportunity (when quotation is updated with accountId and has leadId)
     if (accountId && existingQuotation.leadId && !(existingQuotation as any).opportunityId) {
@@ -362,7 +374,7 @@ export async function DELETE(
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
     // const userId = (session.user as any).id;
-    const userId = 'cmfpufpb500008zi346h5hntw'; // Hardcoded for testing
+    const userId = 'cmgxgoy9w00008z2z4ajxyw47'; // Hardcoded for testing
 
     // Check if quotation exists and user has access
     const existingQuotation = await prisma.quotation.findFirst({

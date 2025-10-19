@@ -185,7 +185,7 @@ export default function ProductsPage() {
     dateRange: { from: '', to: '' },
     tags: [] as string[]
   });
-  const { themeColor, getThemeClasses } = useTheme();
+  const { themeColor, getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   
   // Debug: Log the current theme
@@ -735,8 +735,9 @@ export default function ProductsPage() {
           <AIRecommendationCard
             title="Product Management AI"
             subtitle="Your intelligent assistant for inventory optimization"
-            recommendations={aiRecommendations}
             onRecommendationComplete={handleRecommendationComplete}
+            page="products"
+            enableAI={true}
           />
         </div>
 
@@ -852,7 +853,8 @@ export default function ProductsPage() {
                   size="sm"
                   onClick={handleBulkDeactivate}
                   disabled={selectedProducts.length === 0}
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                  className="hover:opacity-90 text-white"
+                  style={{ backgroundColor: getThemeColor() }}
                 >
                   <Archive className="h-4 w-4 mr-1" />
                   Make Inactive

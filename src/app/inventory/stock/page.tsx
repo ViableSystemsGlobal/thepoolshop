@@ -160,8 +160,7 @@ export default function StockPage() {
   const totalProducts = products.length;
   const inStockProducts = products.filter(p => {
     const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
-    const maxReorderPoint = p.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
-    return totalAvailable > maxReorderPoint;
+    return totalAvailable > 0;
   }).length;
   const lowStockProducts = products.filter(p => {
     const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
@@ -173,9 +172,15 @@ export default function StockPage() {
     return totalAvailable === 0;
   }).length;
   const totalInventoryCost = products.reduce((sum, p) => {
-    const totalQuantity = p.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-    const totalValue = totalQuantity * (p.cost || 0);
-    return sum + totalValue;
+    const stockValue = p.stockItems?.reduce((sum, item) => {
+      // Convert USD to GHS if needed (assuming cost is in USD when importCurrency is null)
+      const costInUSD = item.averageCost || 0;
+      const quantity = item.quantity || 0;
+      const usdToGhsRate = 12.5; // USD to GHS conversion rate
+      const valueInGHS = (costInUSD * quantity) * usdToGhsRate;
+      return sum + valueInGHS;
+    }, 0) || 0;
+    return sum + stockValue;
   }, 0);
 
   // Filter products based on search and filters
@@ -302,7 +307,7 @@ export default function StockPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Inventory Value</p>
-                  <p className="text-xl font-bold text-blue-600">{formatCurrencyWithSymbol(totalInventoryCost, currency, 'USD')}</p>
+                  <p className="text-xl font-bold text-blue-600">{formatCurrency(totalInventoryCost, 'GHS')}</p>
                 </div>
                 <div className="p-2 rounded-full bg-blue-100">
                   <DollarSign className="w-5 h-5 text-blue-600" />
@@ -622,11 +627,17 @@ export default function StockPage() {
                   key: 'costValue',
                   label: 'Cost Value',
                   render: (product) => {
-                    const totalQuantity = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-                    const totalValue = totalQuantity * (product.cost || 0);
+                    const stockValue = product.stockItems?.reduce((sum, item) => {
+                      // Convert USD to GHS (consistent with metric calculation)
+                      const costInUSD = item.averageCost || 0;
+                      const quantity = item.quantity || 0;
+                      const usdToGhsRate = 12.5; // USD to GHS conversion rate
+                      const valueInGHS = (costInUSD * quantity) * usdToGhsRate;
+                      return sum + valueInGHS;
+                    }, 0) || 0;
                     return (
                       <div className="text-sm text-gray-600">
-                        {formatCurrencyWithSymbol(totalValue, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
+                        {formatCurrency(stockValue, 'GHS')}
                       </div>
                     );
                   }

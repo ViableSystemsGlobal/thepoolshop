@@ -4,8 +4,6 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { ROLE_ABILITIES, type Role } from '@/lib/permissions';
 
-// Using centralized role abilities from permissions.ts
-
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,7 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user's role assignments
+    // Get user's role assignments from database
     const userRoleAssignments = await prisma.userRoleAssignment.findMany({
       where: {
         userId: session.user.id,
@@ -47,16 +45,16 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // If no abilities found from database, fall back to hardcoded role-based abilities
+    // If no abilities found from database, fall back to centralized role-based abilities
     if (abilities.length === 0) {
-      console.log('🔍 No database abilities found, using fallback for role:', session.user.role);
+      console.log('🔍 No database abilities found, using centralized fallback for role:', session.user.role);
       const userRole = session.user.role as Role;
       const fallbackAbilities = ROLE_ABILITIES[userRole] || [];
-      console.log('🔍 Fallback abilities count:', fallbackAbilities.length);
+      console.log('🔍 Centralized fallback abilities count:', fallbackAbilities.length);
       return NextResponse.json({
         success: true,
         abilities: fallbackAbilities,
-        source: 'fallback'
+        source: 'centralized-fallback'
       });
     }
 

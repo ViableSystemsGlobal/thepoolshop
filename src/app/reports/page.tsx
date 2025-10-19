@@ -91,6 +91,7 @@ interface ReportData {
     totalProducts: number;
     lowStockItems: number;
     totalValue: number;
+    totalStockUnits: number;
     topMovingProducts: Array<{
       name: string;
       quantity: number;
@@ -358,7 +359,7 @@ export default function ReportsPage() {
             ['Metrics'],
             ['Total Products', reportData.inventory.totalProducts],
             ['Low Stock Items', reportData.inventory.lowStockItems],
-            ['Total Stock Value', reportData.inventory.totalValue * 100],
+            ['Total Stock Value', reportData.inventory.totalValue],
             [],
             ['Top Moving Products'],
             ['Rank', 'Product', 'Quantity', 'Value'],
@@ -2305,7 +2306,7 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(reportData.inventory.totalValue * 100)}
+                    {formatCurrency(reportData.inventory.totalValue)}
                   </div>
                   <div className="flex items-center text-xs text-gray-500 mt-1">
                     <Package className="h-3 w-3 mr-1 text-blue-500" />
@@ -2323,7 +2324,7 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-gray-900">
-                    {reportData.inventory.totalValue.toLocaleString()}
+                    {reportData.inventory.totalStockUnits.toLocaleString()}
                   </div>
                   <div className="flex items-center text-xs text-gray-500 mt-1">
                     <Package className="h-3 w-3 mr-1 text-purple-500" />

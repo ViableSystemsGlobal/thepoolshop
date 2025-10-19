@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     // }
 
     // const userId = (session.user as any).id;
-    const userId = 'cmfpufpb500008zi346h5hntw'; // Hardcoded for testing
+    const userId = 'cmgxgoy9w00008z2z4ajxyw47'; // Hardcoded for testing
     console.log('🔍 Customer Search API: User ID:', userId);
     
     // if (!userId) {

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { AddCategoryModal } from "@/components/modals/add-category-modal";
+import { useTheme } from "@/contexts/theme-context";
 import { 
   Plus, 
   Search, 
@@ -67,6 +68,7 @@ const mockCategories = [
 export default function CategoriesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const { getThemeColor } = useTheme();
 
   const filteredCategories = mockCategories.filter(category =>
     category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,7 +94,8 @@ export default function CategoriesPage() {
           <p className="text-gray-600">Organize your products with categories and subcategories</p>
         </div>
         <Button 
-          className="bg-orange-600 hover:bg-orange-700"
+          className="hover:opacity-90"
+          style={{ backgroundColor: getThemeColor() }}
           onClick={() => setIsAddModalOpen(true)}
         >
           <Plus className="mr-2 h-4 w-4" />
