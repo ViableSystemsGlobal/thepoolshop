@@ -190,7 +190,7 @@ export default function Sidebar() {
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const [collapsed, setCollapsed] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const { getThemeClasses, customLogo } = useTheme();
+  const { getThemeClasses, customLogo, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { canAccess, loading: abilitiesLoading } = useAbilities();
   const { data: session, status: sessionStatus } = useSession();
@@ -462,17 +462,32 @@ export default function Sidebar() {
           <div className="space-y-1">
             {shortcuts.map((shortcut) => {
               const Icon = shortcut.icon;
+              const themeColor = getThemeColor();
               return (
                 <Link
                   key={shortcut.name}
                   href={shortcut.href}
-                  className="group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                  className="group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors"
+                  style={{
+                    backgroundColor: 'transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = `${themeColor}15`; // 15 = ~8% opacity
+                    e.currentTarget.style.color = themeColor;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#374151'; // text-gray-700
+                  }}
                 >
                   <div className="flex items-center">
                     <Icon className="mr-3 h-4 w-4 flex-shrink-0" />
                     {shortcut.name}
                   </div>
-                  <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white bg-purple-600">
+                  <span 
+                    className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white"
+                    style={{ backgroundColor: themeColor }}
+                  >
                     {shortcut.badge}
                   </span>
                 </Link>
@@ -488,7 +503,12 @@ export default function Sidebar() {
           <>
             {/* User Menu */}
             <div className="flex items-center space-x-3 mb-3">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+              <div 
+                className="h-8 w-8 rounded-full flex items-center justify-center"
+                style={{
+                  background: `linear-gradient(to bottom right, ${getThemeColor()}, ${getThemeColor()}dd)`
+                }}
+              >
                 <span className="text-white text-sm font-medium">
                   {session?.user?.name ? session.user.name.substring(0, 2).toUpperCase() : 'U'}
                 </span>
@@ -505,7 +525,14 @@ export default function Sidebar() {
 
             {/* Help */}
             <button 
-              className="flex items-center w-full text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              className="flex items-center w-full text-sm text-gray-500 transition-colors"
+              style={{ color: '#6b7280' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = getThemeColor();
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#6b7280';
+              }}
               onClick={() => {
                 // Could open a help modal or navigate to help page
                 alert('Help & Keyboard shortcuts coming soon!');
@@ -517,13 +544,24 @@ export default function Sidebar() {
           </>
         ) : (
           <div className="flex flex-col items-center space-y-2">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+            <div 
+              className="h-8 w-8 rounded-full flex items-center justify-center"
+              style={{
+                background: `linear-gradient(to bottom right, ${getThemeColor()}, ${getThemeColor()}dd)`
+              }}
+            >
               <span className="text-white text-sm font-medium">
                 {session?.user?.name ? session.user.name.substring(0, 2).toUpperCase() : 'U'}
               </span>
             </div>
             <button 
-              className="text-gray-500 hover:text-gray-700"
+              className="text-gray-500 transition-colors"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = getThemeColor();
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#6b7280';
+              }}
               onClick={() => {
                 alert('Help & Keyboard shortcuts coming soon!');
               }}
