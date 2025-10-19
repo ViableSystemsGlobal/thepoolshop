@@ -17,7 +17,8 @@ import {
   Mail,
   Phone,
   Calendar,
-  MoreHorizontal
+  MoreHorizontal,
+  Shield
 } from "lucide-react";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 
