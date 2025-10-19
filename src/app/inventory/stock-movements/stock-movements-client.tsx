@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -140,7 +140,8 @@ interface StockMovementsClientProps {
   initialMovements: StockMovement[];
 }
 
-export function StockMovementsClient({ initialMovements }: StockMovementsClientProps) {
+// Internal component that uses useSearchParams
+function StockMovementsContent({ initialMovements }: StockMovementsClientProps) {
   const [movements, setMovements] = useState<StockMovement[]>(initialMovements);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -890,5 +891,21 @@ export function StockMovementsClient({ initialMovements }: StockMovementsClientP
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Main export with Suspense boundary
+export function StockMovementsClient({ initialMovements }: StockMovementsClientProps) {
+  return (
+    <Suspense fallback={
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="text-gray-600 ml-3">Loading stock movements...</p>
+        </div>
+      </div>
+    }>
+      <StockMovementsContent initialMovements={initialMovements} />
+    </Suspense>
   );
 }
