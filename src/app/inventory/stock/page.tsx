@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,7 +74,8 @@ interface Category {
   name: string;
 }
 
-export default function StockPage() {
+// Component that uses useSearchParams
+function StockPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currency, changeCurrency } = useCurrency();
@@ -692,5 +693,21 @@ export default function StockPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+// Main export with Suspense boundary
+export default function StockPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="text-gray-600 ml-3">Loading stock data...</p>
+        </div>
+      </div>
+    }>
+      <StockPageContent />
+    </Suspense>
   );
 }
