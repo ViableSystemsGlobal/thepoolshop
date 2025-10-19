@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/contexts/toast-context';
+import { useTheme } from '@/contexts/theme-context';
 import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
 
 interface LeadSource {
@@ -22,6 +23,7 @@ interface LeadSource {
 export default function LeadSourcesPage() {
   const { data: session, status } = useSession();
   const { success: showSuccess, error: showError } = useToast();
+  const { getThemeColor } = useTheme();
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -191,7 +193,8 @@ export default function LeadSourcesPage() {
         </div>
         <Button
           onClick={() => setIsCreating(true)}
-          className="flex items-center gap-2"
+          style={{ backgroundColor: getThemeColor(), color: 'white' }}
+          className="flex items-center gap-2 hover:opacity-90"
         >
           <Plus className="w-4 h-4" />
           Add Source
@@ -223,7 +226,11 @@ export default function LeadSourcesPage() {
             </div>
           </div>
           <div className="flex items-center gap-3 mt-4">
-            <Button onClick={handleCreate} className="flex items-center gap-2">
+            <Button 
+              onClick={handleCreate}
+              style={{ backgroundColor: getThemeColor(), color: 'white' }}
+              className="flex items-center gap-2 hover:opacity-90"
+            >
               <Save className="w-4 h-4" />
               Create Source
             </Button>
@@ -273,7 +280,8 @@ export default function LeadSourcesPage() {
                   <Button 
                     size="sm" 
                     onClick={() => handleUpdate(source.id)}
-                    className="flex items-center gap-1"
+                    style={{ backgroundColor: getThemeColor(), color: 'white' }}
+                    className="flex items-center gap-1 hover:opacity-90"
                   >
                     <Save className="w-3 h-3" />
                     Save

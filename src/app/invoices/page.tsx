@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/contexts/toast-context";
 import { useTheme } from "@/contexts/theme-context";
@@ -95,6 +95,7 @@ interface Invoice {
 
 export default function InvoicesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { success, error: showError } = useToast();
   const { getThemeClasses } = useTheme();
@@ -122,6 +123,18 @@ export default function InvoicesPage() {
     overdueAmount: 0,
     paidThisMonth: 0,
   });
+
+  // Read URL parameters on mount
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const paymentStatus = searchParams.get('paymentStatus');
+    if (status) {
+      setStatusFilter(status);
+    }
+    if (paymentStatus) {
+      setPaymentStatusFilter(paymentStatus);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     loadInvoices();

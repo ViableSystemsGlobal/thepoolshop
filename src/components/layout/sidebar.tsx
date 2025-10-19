@@ -37,6 +37,7 @@ import {
   CheckSquare,
   Calendar,
   Printer,
+  FileDown,
 } from "lucide-react";
 
 const navigation = [
@@ -83,6 +84,7 @@ const navigation = [
       { name: "Orders", href: "/orders", icon: ShoppingCart, module: "orders" },
       { name: "Quotations", href: "/quotations", icon: FileText, module: "quotations" },
       { name: "Invoices", href: "/invoices", icon: FileText, module: "invoices" },
+      { name: "Credit Notes", href: "/credit-notes", icon: FileDown, module: "credit-notes" },
       { name: "Payments", href: "/payments", icon: CreditCard, module: "payments" },
       { name: "Returns", href: "/returns", icon: Package, module: "returns" },
     ]
@@ -180,9 +182,9 @@ const navigation = [
 ];
 
 const shortcuts = [
-  { name: "Approvals", href: "/approvals", icon: UserCheck, badge: "3", badgeColor: "bg-purple-600" },
-  { name: "Overdue Invoices", href: "/overdue", icon: FileText, badge: "7", badgeColor: "bg-purple-600" },
-  { name: "Low Stock", href: "/low-stock", icon: Package, badge: "12", badgeColor: "bg-purple-600" },
+  { name: "Overdue Tasks", href: "/tasks?status=OVERDUE", icon: CheckSquare, badge: "0", badgeColor: "bg-purple-600" },
+  { name: "Overdue Invoices", href: "/invoices?status=OVERDUE&paymentStatus=UNPAID", icon: FileText, badge: "0", badgeColor: "bg-purple-600" },
+  { name: "Low/No Stock", href: "/inventory/stock?stockStatus=low-stock", icon: Package, badge: "0", badgeColor: "bg-purple-600" },
 ];
 
 export default function Sidebar() {
@@ -194,6 +196,11 @@ export default function Sidebar() {
   const theme = getThemeClasses();
   const { canAccess, loading: abilitiesLoading } = useAbilities();
   const { data: session, status: sessionStatus } = useSession();
+  const [shortcutCounts, setShortcutCounts] = useState({
+    overdueTasks: 0,
+    overdueInvoices: 0,
+    lowStock: 0
+  });
 
   // Show skeleton loading during initial load, while abilities are loading, or session is loading
   useEffect(() => {
@@ -230,6 +237,25 @@ export default function Sidebar() {
     
     return false;
   };
+
+  // Fetch shortcut counts
+  useEffect(() => {
+    const fetchShortcutCounts = async () => {
+      try {
+        const response = await fetch('/api/shortcuts/counts');
+        if (response.ok) {
+          const data = await response.json();
+          setShortcutCounts(data);
+        }
+      } catch (error) {
+        console.error('Error fetching shortcut counts:', error);
+      }
+    };
+
+    if (sessionStatus !== 'loading') {
+      fetchShortcutCounts();
+    }
+  }, [sessionStatus]);
 
   // Auto-expand sections when on child pages
   useEffect(() => {
@@ -460,9 +486,15 @@ export default function Sidebar() {
             Shortcuts
           </div>
           <div className="space-y-1">
-            {shortcuts.map((shortcut) => {
+            {shortcuts.map((shortcut, index) => {
               const Icon = shortcut.icon;
               const themeColor = getThemeColor();
+              // Map badge count based on shortcut name
+              let badgeCount = 0;
+              if (shortcut.name === 'Overdue Tasks') badgeCount = shortcutCounts.overdueTasks;
+              else if (shortcut.name === 'Overdue Invoices') badgeCount = shortcutCounts.overdueInvoices;
+              else if (shortcut.name === 'Low/No Stock') badgeCount = shortcutCounts.lowStock;
+              
               return (
                 <Link
                   key={shortcut.name}
@@ -488,7 +520,7 @@ export default function Sidebar() {
                     className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium text-white"
                     style={{ backgroundColor: themeColor }}
                   >
-                    {shortcut.badge}
+                    {badgeCount}
                   </span>
                 </Link>
               );

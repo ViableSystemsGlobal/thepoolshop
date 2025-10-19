@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -113,6 +114,7 @@ export default function TasksPage() {
   const { themeColor, getThemeClasses } = useTheme();
   const { success: showSuccess, error: showError } = useToast();
   const themeClasses = getThemeClasses();
+  const searchParams = useSearchParams();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -132,6 +134,14 @@ export default function TasksPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSlideoutOpen, setIsSlideoutOpen] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
+
+  // Read URL parameters on mount
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status) {
+      setStatusFilter(status);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     loadTasks();

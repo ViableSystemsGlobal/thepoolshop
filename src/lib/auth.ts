@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
+import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || 'adpools-secret-key-2024-production-change-me',
@@ -28,9 +29,13 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
-          // For now, we'll do simple password comparison
-          // In production, you should use bcrypt or similar
-          if (user.password === credentials.password) {
+          // Verify password using bcrypt
+          if (!user.password) {
+            return null
+          }
+          
+          const isValidPassword = await bcrypt.compare(credentials.password, user.password)
+          if (isValidPassword) {
             // Update last login
             await prisma.user.update({
               where: { id: user.id },

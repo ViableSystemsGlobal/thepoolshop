@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -76,6 +76,7 @@ interface Category {
 
 export default function StockPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currency, changeCurrency } = useCurrency();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -91,6 +92,14 @@ export default function StockPage() {
   const [stockStatus, setStockStatus] = useState("all");
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
+
+  // Read URL parameters on mount
+  useEffect(() => {
+    const stockStatusParam = searchParams.get('stockStatus');
+    if (stockStatusParam) {
+      setStockStatus(stockStatusParam);
+    }
+  }, [searchParams]);
 
   const [aiRecommendations, setAiRecommendations] = useState([
     {
@@ -188,7 +197,8 @@ export default function StockPage() {
       const maxReorderPoint = product.stockItems?.reduce((max, item) => Math.max(max, item.reorderPoint), 0) || 0;
       
       if (stockStatus === "in-stock" && totalAvailable <= maxReorderPoint) return false;
-      if (stockStatus === "low-stock" && (totalAvailable === 0 || totalAvailable > maxReorderPoint)) return false;
+      // "low-stock" should include BOTH out of stock (0) AND low stock (below reorder point)
+      if (stockStatus === "low-stock" && totalAvailable > maxReorderPoint) return false;
       if (stockStatus === "out-of-stock" && totalAvailable > 0) return false;
     }
 

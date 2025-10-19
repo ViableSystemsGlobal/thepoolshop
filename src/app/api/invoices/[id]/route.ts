@@ -63,6 +63,28 @@ export async function GET(
             }
           }
         },
+        creditNotes: {
+          select: {
+            id: true,
+            number: true,
+            amount: true,
+            appliedAmount: true,
+            remainingAmount: true,
+            reason: true,
+            status: true,
+            issueDate: true,
+            appliedDate: true,
+            voidedDate: true,
+            applications: {
+              select: {
+                id: true,
+                amount: true,
+                appliedAt: true,
+                notes: true,
+              }
+            }
+          }
+        },
       } as any,
     });
 

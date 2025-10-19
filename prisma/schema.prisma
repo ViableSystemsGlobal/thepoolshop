@@ -69,6 +69,9 @@ model User {
   createdStocktakes          StocktakeSession[]         @relation("StocktakeCreator")
   ownedOpportunities         Opportunity[]              @relation("OpportunityOwner")
   agent                      Agent?
+  createdCreditNotes         CreditNote[]               @relation("CreditNoteOwner")
+  voidedCreditNotes          CreditNote[]               @relation("CreditNoteVoider")
+  creditNoteApplications     CreditNoteApplication[]    @relation("CreditNoteApplicationUser")
 
   @@map("users")
 }
@@ -308,6 +311,7 @@ model Account {
   payments      Payment[]     @relation("PaymentAccount")
   returns       Return[]      @relation("ReturnAccount")
   orders        Order[]       @relation("OrderAccount")
+  creditNotes   CreditNote[]
 
   @@map("accounts")
 }
@@ -385,6 +389,7 @@ model Lead {
   quotations         Quotation[]
   invoices           Invoice[]                  @relation("InvoiceLead")
   opportunities      Opportunity[]
+  creditNotes        CreditNote[]
 
   @@map("leads")
 }
@@ -1442,6 +1447,7 @@ model Distributor {
   deliveries         Delivery[]
   quotations         Quotation[]
   invoices           Invoice[]                  @relation("InvoiceDistributor")
+  creditNotes        CreditNote[]
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt
 
@@ -1849,6 +1855,7 @@ model Invoice {
   payments       PaymentAllocation[]
   commissions    Commission[]
   agentInvoices  AgentInvoice[]
+  creditNotes    CreditNote[]
 
   @@map("invoices")
 }
@@ -1913,6 +1920,72 @@ model PaymentAllocation {
 
   @@unique([paymentId, invoiceId])
   @@map("payment_allocations")
+}
+
+model CreditNote {
+  id              String            @id @default(cuid())
+  number          String            @unique // CN-000001
+  invoiceId       String
+  accountId       String?
+  distributorId   String?
+  leadId          String?
+  
+  // Amounts
+  amount          Float             // Total credit amount
+  appliedAmount   Float             @default(0) // How much has been used
+  remainingAmount Float             // Calculated: amount - appliedAmount
+  
+  // Reason and details
+  reason          CreditNoteReason
+  reasonDetails   String?           // Additional details about the reason
+  notes           String?
+  
+  // Status
+  status          CreditNoteStatus  @default(PENDING)
+  
+  // Dates
+  issueDate       DateTime          @default(now())
+  appliedDate     DateTime?
+  voidedDate      DateTime?
+  
+  // Ownership
+  ownerId         String            // Who issued it
+  voidedBy        String?           // Who voided it
+  
+  // Timestamps
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  // Relations
+  invoice         Invoice           @relation(fields: [invoiceId], references: [id])
+  account         Account?          @relation(fields: [accountId], references: [id])
+  distributor     Distributor?      @relation(fields: [distributorId], references: [id])
+  lead            Lead?             @relation(fields: [leadId], references: [id])
+  owner           User              @relation("CreditNoteOwner", fields: [ownerId], references: [id])
+  voider          User?             @relation("CreditNoteVoider", fields: [voidedBy], references: [id])
+  applications    CreditNoteApplication[]
+  
+  @@index([invoiceId])
+  @@index([accountId])
+  @@index([status])
+  @@map("credit_notes")
+}
+
+model CreditNoteApplication {
+  id            String     @id @default(cuid())
+  creditNoteId  String
+  invoiceId     String
+  amount        Float      // Amount applied from credit note to this invoice
+  appliedBy     String     // User who applied it
+  appliedAt     DateTime   @default(now())
+  notes         String?
+  
+  creditNote    CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  appliedByUser User       @relation("CreditNoteApplicationUser", fields: [appliedBy], references: [id])
+  
+  @@index([creditNoteId])
+  @@index([invoiceId])
+  @@map("credit_note_applications")
 }
 
 model Return {
@@ -2000,6 +2073,26 @@ enum PaymentMethod {
   CREDIT_CARD
   CHECK
   OTHER
+}
+
+enum CreditNoteReason {
+  RETURN                // Product return
+  DAMAGED_GOODS         // Goods were damaged
+  PRICING_ERROR         // Wrong price charged
+  BILLING_ERROR         // Billing mistake
+  GOODWILL_GESTURE      // Customer satisfaction
+  DISCOUNT_ADJUSTMENT   // Post-sale discount
+  DUPLICATE_INVOICE     // Invoice issued twice
+  PARTIAL_DELIVERY      // Not all items delivered
+  QUALITY_ISSUE         // Product quality problem
+  OTHER                 // Other reason
+}
+
+enum CreditNoteStatus {
+  PENDING               // Created but not yet applied
+  PARTIALLY_APPLIED     // Some amount has been used
+  FULLY_APPLIED         // Entire amount has been used
+  VOID                  // Cancelled/voided
 }
 
 enum ReturnReason {

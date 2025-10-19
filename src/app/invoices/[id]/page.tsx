@@ -13,9 +13,6 @@ import {
   Calendar, 
   DollarSign, 
   FileText,
-  CheckCircle,
-  XCircle,
-  Clock,
   User,
   Phone,
   Mail as MailIcon,
@@ -30,7 +27,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { AddPaymentModal } from "@/components/modals/add-payment-modal";
-import { Package } from "lucide-react";
+import { CreditNoteModal } from "@/components/modals/credit-note-modal";
+import { Package, FileDown, Eye, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
 // Helper function to parse product images
 const parseProductImages = (images: string | null | undefined): string[] => {
@@ -134,6 +133,24 @@ interface Invoice {
     number: string;
     subject: string;
   };
+  creditNotes?: Array<{
+    id: string;
+    number: string;
+    amount: number;
+    appliedAmount: number;
+    remainingAmount: number;
+    reason: string;
+    status: string;
+    issueDate: string;
+    appliedDate?: string;
+    voidedDate?: string;
+    applications: Array<{
+      id: string;
+      amount: number;
+      appliedAt: string;
+      notes?: string;
+    }>;
+  }>;
 }
 
 export default function ViewInvoicePage() {
@@ -147,12 +164,27 @@ export default function ViewInvoicePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('invoice');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
+  const [currency, setCurrency] = useState('GHS');
 
   useEffect(() => {
     if (params.id) {
       loadInvoice();
+      fetchCurrencySettings();
     }
   }, [params.id]);
+
+  const fetchCurrencySettings = async () => {
+    try {
+      const response = await fetch('/api/settings/currency');
+      if (response.ok) {
+        const data = await response.json();
+        setCurrency(data.baseCurrency || 'GHS');
+      }
+    } catch (err) {
+      console.error('Error fetching currency settings:', err);
+    }
+  };
 
   const loadInvoice = async () => {
     try {
@@ -245,6 +277,49 @@ export default function ViewInvoicePage() {
         {config.label}
       </span>
     );
+  };
+
+  const getCreditNoteStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      PENDING: 'bg-yellow-100 text-yellow-800',
+      PARTIALLY_APPLIED: 'bg-blue-100 text-blue-800',
+      FULLY_APPLIED: 'bg-green-100 text-green-800',
+      VOID: 'bg-gray-100 text-gray-800',
+    };
+
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status] || styles.PENDING}`}>
+        {status.replace('_', ' ')}
+      </span>
+    );
+  };
+
+  const getCreditNoteStatusIcon = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return <Clock className="h-4 w-4" />;
+      case 'PARTIALLY_APPLIED':
+        return <AlertCircle className="h-4 w-4" />;
+      case 'FULLY_APPLIED':
+        return <CheckCircle className="h-4 w-4" />;
+      case 'VOID':
+        return <XCircle className="h-4 w-4" />;
+      default:
+        return <Clock className="h-4 w-4" />;
+    }
+  };
+
+  const REASON_LABELS: Record<string, string> = {
+    RETURN: 'Product Return',
+    DAMAGED_GOODS: 'Damaged Goods',
+    PRICING_ERROR: 'Pricing Error',
+    BILLING_ERROR: 'Billing Error',
+    GOODWILL_GESTURE: 'Goodwill Gesture',
+    DISCOUNT_ADJUSTMENT: 'Discount Adjustment',
+    DUPLICATE_INVOICE: 'Duplicate Invoice',
+    PARTIAL_DELIVERY: 'Partial Delivery',
+    QUALITY_ISSUE: 'Quality Issue',
+    OTHER: 'Other',
   };
 
   if (loading) {
@@ -412,9 +487,13 @@ export default function ViewInvoicePage() {
           </div>
 
           <div className="flex space-x-3">
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowCreditNoteModal(true)}
+            >
               <CreditCard className="h-4 w-4 mr-2" />
-              Apply Credit Note
+              Create Credit Note
             </Button>
             <Button variant="outline" size="sm">
               <Receipt className="h-4 w-4 mr-2" />
@@ -573,13 +652,113 @@ export default function ViewInvoicePage() {
         )}
 
         {activeTab === 'credit' && (
-              <Card>
+          <Card>
             <CardContent className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Credit Note Summary</h2>
-              <p className="text-gray-600">Credit note information will be displayed here.</p>
-                </CardContent>
-              </Card>
-            )}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold text-gray-900">Credit Notes</h2>
+                <Button 
+                  onClick={() => setShowCreditNoteModal(true)}
+                  style={{ backgroundColor: theme.primary, color: 'white' }}
+                  className="hover:opacity-90"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Credit Note
+                </Button>
+              </div>
+              
+              {invoice?.creditNotes && invoice.creditNotes.length > 0 ? (
+                <div className="space-y-4">
+                  {invoice.creditNotes.map((creditNote) => (
+                    <div key={creditNote.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <FileDown className="h-5 w-5 text-gray-600" />
+                          <div>
+                            <h3 className="font-medium text-gray-900">{creditNote.number}</h3>
+                            <p className="text-sm text-gray-600">
+                              {REASON_LABELS[creditNote.reason] || creditNote.reason}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getCreditNoteStatusIcon(creditNote.status)}
+                          {getCreditNoteStatusBadge(creditNote.status)}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                        <div>
+                          <p className="text-sm text-gray-600">Credit Amount</p>
+                          <p className="font-medium text-gray-900">
+                            {formatCurrency(creditNote.amount, currency)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Applied Amount</p>
+                          <p className="font-medium text-green-600">
+                            {formatCurrency(creditNote.appliedAmount, currency)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Remaining Amount</p>
+                          <p className="font-medium text-orange-600">
+                            {formatCurrency(creditNote.remainingAmount, currency)}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>Issued: {new Date(creditNote.issueDate).toLocaleDateString()}</span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => router.push(`/credit-notes/${creditNote.id}`)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View Details
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {creditNote.applications.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-sm font-medium text-gray-700 mb-2">Applications:</p>
+                          <div className="space-y-1">
+                            {creditNote.applications.map((application) => (
+                              <div key={application.id} className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">
+                                  Applied {formatCurrency(application.amount, currency)} on{' '}
+                                  {new Date(application.appliedAt).toLocaleDateString()}
+                                </span>
+                                {application.notes && (
+                                  <span className="text-gray-500 italic">"{application.notes}"</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FileDown className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4">No credit notes have been issued for this invoice.</p>
+                  <Button 
+                    onClick={() => setShowCreditNoteModal(true)}
+                    style={{ backgroundColor: theme.primary, color: 'white' }}
+                    className="hover:opacity-90"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create First Credit Note
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {activeTab === 'attachment' && (
             <Card>
@@ -609,6 +788,19 @@ export default function ViewInvoicePage() {
             amountPaid: invoice.amountPaid,
             amountDue: invoice.amountDue
           }}
+        />
+      )}
+
+      {/* Credit Note Modal */}
+      {invoice && (
+        <CreditNoteModal
+          isOpen={showCreditNoteModal}
+          onClose={() => setShowCreditNoteModal(false)}
+          onSuccess={() => {
+            loadInvoice(); // Reload invoice to show updated credit notes
+            setShowCreditNoteModal(false);
+          }}
+          invoiceId={invoice.id}
         />
       )}
     </>

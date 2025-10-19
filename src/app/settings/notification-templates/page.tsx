@@ -54,7 +54,7 @@ const notificationChannels = [
 ];
 
 export default function NotificationTemplatesPage() {
-  const { theme } = useTheme();
+  const { getThemeColor } = useTheme();
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -159,7 +159,8 @@ export default function NotificationTemplatesPage() {
           </div>
           <Button
             onClick={handleCreateTemplate}
-            className={`bg-${theme.primary} hover:bg-${theme.primaryHover} text-white`}
+            style={{ backgroundColor: getThemeColor(), color: 'white' }}
+            className="hover:opacity-90"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Template
@@ -308,7 +309,8 @@ export default function NotificationTemplatesPage() {
             {!searchTerm && !selectedType && (
               <Button
                 onClick={handleCreateTemplate}
-                className={`bg-${theme.primary} hover:bg-${theme.primaryHover} text-white`}
+                style={{ backgroundColor: getThemeColor(), color: 'white' }}
+                className="hover:opacity-90"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Template
@@ -347,7 +349,7 @@ function NotificationTemplateModal({
   onClose: () => void;
   onSave: () => void;
 }) {
-  const { theme } = useTheme();
+  const { getThemeColor } = useTheme();
   const [formData, setFormData] = useState({
     name: '',
     type: '',
@@ -518,7 +520,7 @@ function NotificationTemplateModal({
                 placeholder="userName, orderNumber, amount"
               />
               <p className="text-xs text-gray-500 mt-1">
-                List variables that can be used in the body as {{variable}}
+                List variables that can be used in the body as {`{{variable}}`}
               </p>
             </div>
 
@@ -539,7 +541,8 @@ function NotificationTemplateModal({
               <Button
                 type="submit"
                 disabled={isLoading}
-                className={`bg-${theme.primary} hover:bg-${theme.primaryHover} text-white`}
+                style={{ backgroundColor: getThemeColor(), color: 'white' }}
+                className="hover:opacity-90"
               >
                 {isLoading ? (
                   <RefreshCw className="h-4 w-4 animate-spin mr-2" />

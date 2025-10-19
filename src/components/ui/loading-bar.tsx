@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import { useTheme } from '@/contexts/theme-context';
 
 interface LoadingBarProps {
   isLoading: boolean;
@@ -9,6 +10,7 @@ interface LoadingBarProps {
 
 export function LoadingBar({ isLoading, className = '' }: LoadingBarProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const { getThemeColor } = useTheme();
 
   useEffect(() => {
     if (isLoading) {
@@ -31,8 +33,9 @@ export function LoadingBar({ isLoading, className = '' }: LoadingBarProps) {
       style={{ zIndex: 9999, height: '3px' }}
     >
       <div 
-        className="h-full bg-blue-600 w-full"
+        className="h-full w-full"
         style={{
+          backgroundColor: getThemeColor(),
           animation: 'loading-bar 1.5s ease-in-out infinite',
           transform: 'translateX(-100%)'
         }}

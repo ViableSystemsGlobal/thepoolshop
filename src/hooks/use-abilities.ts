@@ -54,13 +54,13 @@ const MODULE_ACCESS = {
   'email-history': ['email.view', 'email.history'],
   'tasks': ['tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign'],
   'my-tasks': ['tasks.view', 'tasks.edit'],
-  'task_templates': ['tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete'],
   'recurring-tasks': ['tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign'],
   'templates': ['templates.view'],
   'communication-logs': ['communication-logs.view'],
   'reports': ['reports.view'],
   'quotations': ['quotations.view'],
   'contacts': ['contacts.view'],
+  'credit-notes': ['credit-notes.view', 'credit-notes.create', 'credit-notes.edit', 'credit-notes.delete'],
   'product-settings': ['product-settings.view'],
   'currency-settings': ['currency-settings.view'],
   'business-settings': ['business-settings.view'],
@@ -69,6 +69,9 @@ const MODULE_ACCESS = {
   'ai-settings': ['ai-settings.view', 'ai-settings.manage'],
   'system-settings': ['system-settings.view'],
   'notifications': ['notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config'],
+  'notification_templates': ['notification-templates.view', 'notification-templates.create', 'notification-templates.edit', 'notification-templates.delete'],
+  'task_templates': ['task-templates.view', 'task-templates.create', 'task-templates.edit', 'task-templates.delete'],
+  'lead_sources': ['lead-sources.view', 'lead-sources.create', 'lead-sources.edit', 'lead-sources.delete'],
 };
 
 // Role-based ability definitions
@@ -99,7 +102,7 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'engagement.view', 'engagement.create', 'engagement.edit', 'engagement.delete',
     'drm-orders.view',
     // Sales
-    'sales.view', 'orders.view', 'proformas.view', 'invoices.view', 'payments.view', 'returns.view',
+    'sales.view', 'orders.view', 'proformas.view', 'invoices.view', 'payments.view', 'returns.view', 'credit-notes.view', 'credit-notes.create', 'credit-notes.edit', 'credit-notes.delete',
     // Communication
     'communication.view', 'templates.view', 'communication-logs.view',
     'sms.view', 'sms.send', 'sms.bulk_send', 'sms.history',
@@ -121,6 +124,8 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
     'product-settings.view', 'currency-settings.view', 'business-settings.view', 'google-maps.view', 'google-maps.config', 'credit-monitoring.view', 'credit-monitoring.manage', 'system-settings.view',
     'notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config',
+    'notification-templates.view', 'notification-templates.create', 'notification-templates.edit', 'notification-templates.delete',
+    'lead-sources.view', 'lead-sources.create', 'lead-sources.edit', 'lead-sources.delete',
   ],
   'ADMIN': [
     // Dashboard
@@ -148,7 +153,7 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'engagement.view', 'engagement.create', 'engagement.edit', 'engagement.delete',
     'drm-orders.view',
     // Sales
-    'sales.view', 'orders.view', 'proformas.view', 'invoices.view', 'payments.view', 'returns.view',
+    'sales.view', 'orders.view', 'proformas.view', 'invoices.view', 'payments.view', 'returns.view', 'credit-notes.view', 'credit-notes.create', 'credit-notes.edit', 'credit-notes.delete',
     // Communication
     'communication.view', 'templates.view', 'communication-logs.view',
     'sms.view', 'sms.send', 'sms.bulk_send', 'sms.history',
@@ -169,6 +174,8 @@ const ROLE_ABILITIES: { [key: string]: string[] } = {
     'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
            'product-settings.view', 'currency-settings.view', 'business-settings.view', 'google-maps.view', 'google-maps.config', 'credit-monitoring.view', 'credit-monitoring.manage', 'system-settings.view',
            'notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config',
+           'notification-templates.view', 'notification-templates.create', 'notification-templates.edit', 'notification-templates.delete',
+           'lead-sources.view', 'lead-sources.create', 'lead-sources.edit', 'lead-sources.delete',
   ],
   'SALES_MANAGER': [
     'dashboard.view',
