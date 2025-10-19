@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
@@ -109,7 +109,8 @@ interface TaskStats {
   OVERDUE?: number;
 }
 
-export default function TasksPage() {
+// Component that uses useSearchParams
+function TasksPageContent() {
   const { data: session } = useSession();
   const { themeColor, getThemeClasses } = useTheme();
   const { success: showSuccess, error: showError } = useToast();
@@ -1234,5 +1235,21 @@ export default function TasksPage() {
         />
       </div>
     </>
+  );
+}
+
+// Main export with Suspense boundary
+export default function TasksPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="text-gray-600 ml-3">Loading tasks...</p>
+        </div>
+      </div>
+    }>
+      <TasksPageContent />
+    </Suspense>
   );
 }

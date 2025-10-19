@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/contexts/toast-context";
@@ -93,7 +93,8 @@ interface Invoice {
   };
 }
 
-export default function InvoicesPage() {
+// Component that uses useSearchParams
+function InvoicesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
@@ -748,5 +749,18 @@ export default function InvoicesPage() {
         )}
       </div>
     </>
+  );
+}
+
+// Main export with Suspense boundary
+export default function InvoicesPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6 space-y-6">
+        <SkeletonTable />
+      </div>
+    }>
+      <InvoicesPageContent />
+    </Suspense>
   );
 }
