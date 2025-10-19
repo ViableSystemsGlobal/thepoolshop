@@ -73,7 +73,8 @@ async function main() {
       uomSell: 'pcs',
       price: 1200.00,
       cost: 800.00,
-      importCurrency: 'USD',
+      originalPriceCurrency: 'USD',
+      originalCostCurrency: 'USD',
       categoryId: electronics.id,
     },
   })
@@ -89,7 +90,8 @@ async function main() {
       uomSell: 'pcs',
       price: 150.00,
       cost: 100.00,
-      importCurrency: 'USD',
+      originalPriceCurrency: 'USD',
+      originalCostCurrency: 'USD',
       categoryId: furniture.id,
     },
   })
@@ -105,7 +107,8 @@ async function main() {
       uomSell: 'pcs',
       price: 200.00,
       cost: 120.00,
-      importCurrency: 'USD',
+      originalPriceCurrency: 'USD',
+      originalCostCurrency: 'USD',
       categoryId: electronics.id,
     },
   })
