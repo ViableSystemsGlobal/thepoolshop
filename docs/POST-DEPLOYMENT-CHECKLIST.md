@@ -8,15 +8,26 @@ Your application is now deployed on Hostinger Easy Panel. Follow these steps to 
 
 Open the terminal in Hostinger Easy Panel and run:
 
+### Option 1: Using the deployment script (Recommended)
+```bash
+node scripts/deploy-migrations.js
+```
+
+### Option 2: Using bash script
+```bash
+bash scripts/simple-deploy.sh
+```
+
+### Option 3: Manual commands (if npx doesn't work)
 ```bash
 # Generate Prisma Client
-npx prisma generate
+node ./node_modules/prisma/build/index.js generate
 
 # Deploy database migrations
-npx prisma migrate deploy
+node ./node_modules/prisma/build/index.js migrate deploy
 
 # Seed the database with initial data
-npx tsx scripts/seed-postgres.ts
+node ./node_modules/tsx/dist/cli.mjs scripts/seed-postgres.ts
 ```
 
 **What this does:**
