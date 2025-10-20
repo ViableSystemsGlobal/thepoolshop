@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     // Upsert company settings
     console.log('Saving company settings:', { companyName, description, favicon });
     
-    await Promise.all([
+    const updates = [
       prisma.systemSettings.upsert({
         where: { key: 'company_name' },
         update: { value: companyName },
@@ -145,18 +145,26 @@ export async function POST(request: NextRequest) {
           type: 'string',
           category: 'company'
         }
-      }),
-      prisma.systemSettings.upsert({
-        where: { key: 'company_favicon' },
-        update: { value: favicon || '' },
-        create: {
-          key: 'company_favicon',
-          value: favicon || '',
-          type: 'string',
-          category: 'company'
-        }
       })
-    ]);
+    ];
+    
+    // Only update favicon if it's provided (not undefined)
+    if (favicon !== undefined && favicon !== null) {
+      updates.push(
+        prisma.systemSettings.upsert({
+          where: { key: 'company_favicon' },
+          update: { value: favicon || '' },
+          create: {
+            key: 'company_favicon',
+            value: favicon || '',
+            type: 'string',
+            category: 'company'
+          }
+        })
+      );
+    }
+    
+    await Promise.all(updates);
 
     console.log(`✅ Company settings updated: ${companyName}`);
 
