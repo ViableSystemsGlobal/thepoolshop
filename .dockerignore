@@ -74,11 +74,8 @@ README.md
 docs/
 *.md
 
-# Scripts (keep only essential ones)
-scripts/
-!scripts/deploy.sh
-!scripts/seed-postgres.ts
-!scripts/setup-all-permissions.js
+# Scripts (keep all scripts for deployment)
+# scripts/
 
 # Test files
 test/
