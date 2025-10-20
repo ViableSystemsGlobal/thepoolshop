@@ -138,8 +138,13 @@ export default function SystemSettingsPage() {
   };
 
   const handleFaviconUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('🚀 handleFaviconUpload called!', event.target.files);
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log('❌ No file selected');
+      return;
+    }
+    console.log('📁 File selected:', file.name, file.size, file.type);
 
     if (!file.type.startsWith('image/')) {
       showError("Invalid File", "Please select an image file (PNG, ICO, SVG recommended)");
@@ -158,11 +163,13 @@ export default function SystemSettingsPage() {
     formData.append('type', 'favicon');
 
     try {
+      console.log('📤 Starting upload to /api/upload/branding');
       // Use the dedicated branding upload endpoint
       const response = await fetch('/api/upload/branding', {
         method: 'POST',
         body: formData,
       });
+      console.log('📥 Upload response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
