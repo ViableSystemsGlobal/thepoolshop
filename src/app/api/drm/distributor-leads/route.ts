@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
     if (profilePicture && profilePicture.size > 0) {
       try {
         // Create uploads directory if it doesn't exist
-        const uploadsDir = join(process.cwd(), 'public', 'uploads', 'distributor-leads');
+        const uploadsDir = '/app/uploads/distributor-leads';
         if (!existsSync(uploadsDir)) {
           await mkdir(uploadsDir, { recursive: true });
         }
