@@ -72,13 +72,21 @@ export async function POST(request: NextRequest) {
         
         // Save to persistent volume directory
         const publicDir = '/app/uploads/branding';
+        console.log('🔍 Upload API - Saving to directory:', publicDir);
+        console.log('🔍 Upload API - Filename:', filename);
         
         // Ensure directory exists
         if (!fs.existsSync(publicDir)) {
+          console.log('🔍 Upload API - Creating directory:', publicDir);
           fs.mkdirSync(publicDir, { recursive: true });
+        } else {
+          console.log('🔍 Upload API - Directory already exists:', publicDir);
         }
         
-        fs.writeFileSync(path.join(publicDir, filename), buffer);
+        const fullPath = path.join(publicDir, filename);
+        console.log('🔍 Upload API - Writing file to:', fullPath);
+        fs.writeFileSync(fullPath, buffer);
+        console.log('✅ Upload API - File written successfully');
         
         // Update favicon setting
         await prisma.systemSettings.upsert({
