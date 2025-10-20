@@ -318,8 +318,7 @@ async function main() {
         create: {
           key: setting.key,
           value: setting.value,
-          category: setting.category,
-          updatedBy: 'system'
+          category: setting.category
         }
       });
     }
