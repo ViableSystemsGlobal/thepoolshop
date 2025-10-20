@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useBranding } from './branding-context';
 
 export type ThemeColor = 'purple' | 'blue' | 'green' | 'orange' | 'red' | 'indigo' | 'pink' | 'teal';
 
@@ -113,6 +114,7 @@ const themeColorValues = {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeColor, setThemeColor] = useState<ThemeColor>('purple');
   const [customLogo, setCustomLogo] = useState<string | null>(null);
+  const branding = useBranding();
 
   // Load theme and logo from localStorage on mount
   useEffect(() => {
@@ -126,6 +128,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setCustomLogo(savedLogo);
     }
   }, []);
+
+  // Update logo from branding context
+  useEffect(() => {
+    if (branding.branding.companyLogo) {
+      setCustomLogo(branding.branding.companyLogo);
+    }
+  }, [branding.branding.companyLogo]);
 
   // Save theme to localStorage when it changes
   const handleSetThemeColor = (color: ThemeColor) => {
@@ -148,7 +157,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getThemeColor = () => {
-    return themeColorValues[themeColor];
+    // Use branding color if available, otherwise use theme color
+    return branding.branding.primaryColor || themeColorValues[themeColor];
   };
 
   return (

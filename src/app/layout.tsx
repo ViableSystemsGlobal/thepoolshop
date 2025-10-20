@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/contexts/theme-context";
+import { BrandingProvider } from "@/contexts/branding-context";
 import { ToastProvider } from "@/contexts/toast-context";
 import { LoadingProvider } from "@/contexts/loading-context";
 import { CompanyProvider } from "@/contexts/company-context";
@@ -29,23 +30,25 @@ export default function RootLayout({
           <html lang="en">
             <body className="antialiased" suppressHydrationWarning={true}>
               <HydrationBoundary>
-                <ThemeProvider>
-                  <LoadingProvider>
-                    <ToastProvider>
-                      <CompanyProvider>
-                        <AuthSessionProvider>
-                          <InitialLoader />
-                          <TaskNotificationStarter />
-                          <DynamicFavicon />
-                          <AppLayout>
-                            {children}
-                          </AppLayout>
-                          <ToastContainer />
-                        </AuthSessionProvider>
-                      </CompanyProvider>
-                    </ToastProvider>
-                  </LoadingProvider>
-                </ThemeProvider>
+                <BrandingProvider>
+                  <ThemeProvider>
+                    <LoadingProvider>
+                      <ToastProvider>
+                        <CompanyProvider>
+                          <AuthSessionProvider>
+                            <InitialLoader />
+                            <TaskNotificationStarter />
+                            <DynamicFavicon />
+                            <AppLayout>
+                              {children}
+                            </AppLayout>
+                            <ToastContainer />
+                          </AuthSessionProvider>
+                        </CompanyProvider>
+                      </ToastProvider>
+                    </LoadingProvider>
+                  </ThemeProvider>
+                </BrandingProvider>
               </HydrationBoundary>
             </body>
           </html>
