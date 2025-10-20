@@ -55,9 +55,11 @@ export async function POST(request: NextRequest) {
     
     if (contentType?.includes('multipart/form-data')) {
       // Handle file upload (favicon)
-      const formData = await request.formData();
-      const file = formData.get('file') as File;
-      const type = formData.get('type') as string;
+    const formData = await request.formData();
+    console.log('🔍 Upload API - Form data received');
+    const file = formData.get('file') as File;
+    const type = formData.get('type') as string;
+    console.log('🔍 Upload API - File:', file?.name, 'Type:', type);
       
       if (type === 'favicon' && file) {
         try {
