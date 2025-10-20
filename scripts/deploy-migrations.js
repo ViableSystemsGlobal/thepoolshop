@@ -27,13 +27,13 @@ try {
   });
   console.log('✅ Migrations deployed successfully!\n');
 
-  // Step 3: Complete setup (includes seeding + permissions)
-  console.log('🌱 Step 3/3: Running complete database setup...');
-  execSync('node ./node_modules/tsx/dist/cli.mjs scripts/complete-setup.ts', {
-    stdio: 'inherit',
-    cwd: process.cwd()
-  });
-  console.log('✅ Complete database setup finished!\n');
+// Step 3: Migrate permissions system (comprehensive setup)
+console.log('🌱 Step 3/3: Running permissions system migration...');
+execSync('node ./node_modules/tsx/dist/cli.mjs scripts/migrate-permissions-system.ts', {
+  stdio: 'inherit',
+  cwd: process.cwd()
+});
+console.log('✅ Permissions system migration finished!\n');
 
   console.log('🎉 Deployment completed successfully!');
   console.log('\nYou can now login with:');
