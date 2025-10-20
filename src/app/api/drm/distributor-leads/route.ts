@@ -149,6 +149,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Ensure the session user exists in DB to satisfy FK constraints
+    const ensuredUser = await (prisma as any).user.upsert({
+      where: { id: session.user.id },
+      update: {},
+      create: {
+        id: session.user.id,
+        email: session.user.email || 'admin@adpools.com',
+        name: session.user.name || 'System Administrator',
+        role: 'SUPER_ADMIN',
+        isActive: true
+      }
+    });
+
     console.log('📝 Processing form data...');
     const formData = await request.formData();
     console.log('📝 Form data received, extracting fields...');
@@ -255,7 +268,7 @@ export async function POST(request: NextRequest) {
         investmentCapacity: distributorLeadData.investmentCapacity || null,
         targetMarket: distributorLeadData.targetMarket || null,
         notes: distributorLeadData.notes || null,
-        submittedBy: session.user.id,
+        submittedBy: ensuredUser.id,
         status: 'PENDING',
         images: {
           create: imagesToCreate
@@ -265,7 +278,7 @@ export async function POST(request: NextRequest) {
             productId,
             quantity: 1,
             interestLevel: 'MEDIUM',
-            addedBy: session.user.id
+            addedBy: ensuredUser.id
           }))
         }
       },

@@ -345,6 +345,18 @@ export async function PUT(
       });
 
       if (!existingDistributor) {
+        // Ensure session user exists to satisfy FK on approvedBy
+        const ensuredUser = await (prisma as any).user.upsert({
+          where: { id: session.user.id },
+          update: {},
+          create: {
+            id: session.user.id,
+            email: session.user.email || 'admin@adpools.com',
+            name: session.user.name || 'System Administrator',
+            role: 'SUPER_ADMIN',
+            isActive: true
+          }
+        });
         const contactName = `${updatedLead.firstName} ${updatedLead.lastName}`;
         const businessName = updatedLead.businessName;
       
@@ -378,7 +390,7 @@ export async function PUT(
             businessLicense: updatedLead.businessLicense,
             taxCertificate: updatedLead.taxCertificate,
             status: 'ACTIVE',
-            approvedBy: session.user.id
+            approvedBy: ensuredUser.id
           }
         });
 
