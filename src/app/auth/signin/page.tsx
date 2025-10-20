@@ -174,7 +174,7 @@ export default function SignIn() {
         {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-gray-500">
-            © 2024 {companySettings.companyName}. All rights reserved.
+            © 2025 {companySettings.companyName}. All rights reserved.
           </p>
         </div>
       </div>
