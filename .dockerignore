@@ -78,6 +78,7 @@ docs/
 scripts/
 !scripts/deploy.sh
 !scripts/seed-postgres.ts
+!scripts/setup-all-permissions.js
 
 # Test files
 test/
