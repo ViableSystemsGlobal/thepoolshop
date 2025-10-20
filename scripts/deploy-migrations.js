@@ -27,13 +27,13 @@ try {
   });
   console.log('✅ Migrations deployed successfully!\n');
 
-  // Step 3: Seed database
-  console.log('🌱 Step 3/3: Seeding database...');
-  execSync('node ./node_modules/tsx/dist/cli.mjs scripts/seed-postgres.ts', {
+  // Step 3: Complete setup (includes seeding + permissions)
+  console.log('🌱 Step 3/3: Running complete database setup...');
+  execSync('node ./node_modules/tsx/dist/cli.mjs scripts/complete-setup.ts', {
     stdio: 'inherit',
     cwd: process.cwd()
   });
-  console.log('✅ Database seeded successfully!\n');
+  console.log('✅ Complete database setup finished!\n');
 
   console.log('🎉 Deployment completed successfully!');
   console.log('\nYou can now login with:');
