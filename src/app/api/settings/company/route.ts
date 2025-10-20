@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
     // }
 
     const contentType = request.headers.get('content-type');
+    console.log('🔍 Upload API - Content-Type:', contentType);
     
     let companyName, description, favicon;
     
