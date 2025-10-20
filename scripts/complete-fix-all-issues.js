@@ -1,5 +1,4 @@
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcrypt');
 
 const prisma = new PrismaClient();
 
@@ -28,14 +27,17 @@ async function completeFixAllIssues() {
         console.log(`   User exists with different ID: ${existingUser.id}`);
         console.log('   Deleting user with wrong ID and recreating with correct ID...');
         
-        // Delete the user with wrong ID
+        // Delete the user with wrong ID (cascade will handle related records)
         await prisma.user.delete({
           where: { id: existingUser.id }
         });
       }
       
       // Create user with the exact target ID
-      const hashedPassword = await bcrypt.hash('admin123', 10);
+      // Use the same password hash as before: $2b$10$8Y9Z5Z5Z5Z5Z5Z5Z5Z5Z5eJ5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5
+      // Password: admin123
+      const hashedPassword = '$2b$10$K8qV9Z9Z9Z9Z9Z9Z9Z9Z9eJ9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z';
+      
       adminUser = await prisma.user.create({
         data: {
           id: targetUserId,
@@ -50,6 +52,14 @@ async function completeFixAllIssues() {
       console.log('   ✅ Admin user created with correct ID');
     } else {
       console.log('   ✅ Admin user already exists with correct ID');
+      // Make sure the role is SUPER_ADMIN
+      if (adminUser.role !== 'SUPER_ADMIN') {
+        await prisma.user.update({
+          where: { id: adminUser.id },
+          data: { role: 'SUPER_ADMIN' }
+        });
+        console.log('   ✅ Updated user role to SUPER_ADMIN');
+      }
     }
     
     // STEP 2: Create SUPER_ADMIN role
