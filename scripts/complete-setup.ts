@@ -231,18 +231,31 @@ async function main() {
       });
 
       // Create abilities for this role
-      for (const ability of abilities) {
-        await prisma.ability.upsert({
-          where: { 
-            roleId_ability: {
+      for (const abilityName of abilities) {
+        // First, create or find the ability
+        const ability = await prisma.ability.upsert({
+          where: { name: abilityName },
+          update: {},
+          create: {
+            name: abilityName,
+            resource: abilityName.split('.')[0],
+            action: abilityName.split('.')[1],
+            description: `${abilityName.split('.')[1]} ${abilityName.split('.')[0]}`
+          }
+        });
+
+        // Then create the role-ability relationship
+        await prisma.roleAbility.upsert({
+          where: {
+            roleId_abilityId: {
               roleId: role.id,
-              ability: ability
+              abilityId: ability.id
             }
           },
           update: {},
           create: {
             roleId: role.id,
-            ability: ability
+            abilityId: ability.id
           }
         });
       }
