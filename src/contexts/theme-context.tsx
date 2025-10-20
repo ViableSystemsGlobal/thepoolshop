@@ -112,7 +112,7 @@ const themeColorValues = {
 };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeColor, setThemeColor] = useState<ThemeColor>('purple');
+  const [themeColor, setThemeColor] = useState<ThemeColor>('red');
   const [customLogo, setCustomLogo] = useState<string | null>(null);
   const branding = useBranding();
 
