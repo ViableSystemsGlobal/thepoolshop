@@ -228,12 +228,19 @@ async function main() {
         where: { roleId: role.id }
       });
       
-      // Create new assignments
+      // Create new assignments using upsert to avoid conflicts
       for (const abilityName of abilities) {
         const ability = createdAbilities.find(a => a.name === abilityName);
         if (ability) {
-          await prisma.roleAbility.create({
-            data: {
+          await prisma.roleAbility.upsert({
+            where: {
+              roleId_abilityId: {
+                roleId: role.id,
+                abilityId: ability.id
+              }
+            },
+            update: {},
+            create: {
               roleId: role.id,
               abilityId: ability.id
             }
