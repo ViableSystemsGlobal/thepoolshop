@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
         const filename = `favicon_${timestamp}.${extension}`;
         const filepath = `/uploads/branding/${filename}`;
         
-        // Save to public directory
-        const publicDir = path.join(process.cwd(), 'public', 'uploads', 'branding');
+        // Save to persistent volume directory
+        const publicDir = '/app/uploads/branding';
         
         // Ensure directory exists
         if (!fs.existsSync(publicDir)) {
