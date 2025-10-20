@@ -60,8 +60,10 @@ export async function POST(request: NextRequest) {
       const type = formData.get('type') as string;
       
       if (type === 'favicon' && file) {
-        // Save favicon file
-        const bytes = await file.arrayBuffer();
+        try {
+          console.log('🔍 Upload API - Processing favicon file:', file.name);
+          // Save favicon file
+          const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
         
         // Generate unique filename
@@ -103,6 +105,11 @@ export async function POST(request: NextRequest) {
           success: true,
           filePath: filepath
         });
+        console.log('✅ Upload API - Database updated with favicon path:', filepath);
+        } catch (error) {
+          console.error('❌ Upload API - Error processing favicon:', error);
+          throw error;
+        }
       }
     } else {
       // Handle JSON data
