@@ -158,7 +158,8 @@ export default function SystemSettingsPage() {
     formData.append('type', 'favicon');
 
     try {
-      const response = await fetch('/api/settings/company', {
+      // Use the dedicated branding upload endpoint
+      const response = await fetch('/api/upload/branding', {
         method: 'POST',
         body: formData,
       });
@@ -166,7 +167,21 @@ export default function SystemSettingsPage() {
       if (response.ok) {
         const data = await response.json();
         success("Favicon Updated", "Your favicon has been successfully updated.");
-        await refreshCompanyData();
+        
+        // Update the favicon in the database
+        const settingsResponse = await fetch('/api/settings/company', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            favicon: data.url
+          }),
+        });
+        
+        if (settingsResponse.ok) {
+          await refreshCompanyData();
+        }
       } else {
         throw new Error('Upload failed');
       }
@@ -187,8 +202,8 @@ export default function SystemSettingsPage() {
         },
         body: JSON.stringify({
           companyName,
-          description,
-          favicon
+          description
+          // Don't include favicon here - it's uploaded separately via handleFaviconUpload
         }),
       });
 

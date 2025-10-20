@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
 
     // Create persistent uploads directory if it doesn't exist (mounted volume)
     const uploadsDir = join('/app', 'uploads', 'branding');
+    console.log('🔍 Branding Upload API - Upload directory:', uploadsDir);
+    
     if (!existsSync(uploadsDir)) {
+      console.log('🔍 Branding Upload API - Creating directory');
       await mkdir(uploadsDir, { recursive: true });
     }
 
@@ -36,11 +39,13 @@ export async function POST(request: NextRequest) {
     const fileExtension = file.name.split('.').pop();
     const fileName = `${type.toLowerCase()}_${timestamp}.${fileExtension}`;
     const filePath = join(uploadsDir, fileName);
+    console.log('🔍 Branding Upload API - Saving file to:', filePath);
 
     // Convert file to buffer and save
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     await writeFile(filePath, buffer);
+    console.log('✅ Branding Upload API - File saved successfully');
 
     // Return the public URL
     const publicUrl = `/uploads/branding/${fileName}`;
