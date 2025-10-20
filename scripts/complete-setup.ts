@@ -278,7 +278,6 @@ async function main() {
       where: { email: 'admin@adpools.com' },
       update: { 
         role: 'SUPER_ADMIN',
-        roleId: superAdminRole.id,
         password: hashedPassword
       },
       create: {
@@ -286,9 +285,24 @@ async function main() {
         name: 'System Administrator',
         password: hashedPassword,
         role: 'SUPER_ADMIN',
-        roleId: superAdminRole.id,
         isActive: true,
       },
+    });
+
+    // Assign the SUPER_ADMIN role to the user
+    await prisma.userRoleAssignment.upsert({
+      where: {
+        userId_roleId: {
+          userId: admin.id,
+          roleId: superAdminRole.id
+        }
+      },
+      update: { isActive: true },
+      create: {
+        userId: admin.id,
+        roleId: superAdminRole.id,
+        isActive: true
+      }
     });
     console.log('✅ Admin user created/updated');
 
