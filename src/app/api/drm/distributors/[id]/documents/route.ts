@@ -84,8 +84,8 @@ export async function POST(
     const fileExtension = file.name.split('.').pop();
     const fileName = `${distributorId}_${imageType}_${timestamp}.${fileExtension}`;
     
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = `public/uploads/distributors/${distributorId}`;
+    // Create persistent uploads directory if it doesn't exist (mounted volume)
+    const uploadsDir = `/app/uploads/distributors/${distributorId}`;
     const fs = require('fs');
     const path = require('path');
     
