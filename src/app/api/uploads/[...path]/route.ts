@@ -8,7 +8,10 @@ export async function GET(
 ) {
   try {
     const relPath = (params.path || []).join('/');
+    console.log('🔍 Uploads API - Requested path:', relPath);
+    
     if (!relPath) {
+      console.log('❌ No path provided');
       return new Response('Not Found', { status: 404 });
     }
 
@@ -17,9 +20,14 @@ export async function GET(
     // Fallback: project public folder (useful for local/dev)
     const publicPath = join(process.cwd(), 'public', 'uploads', relPath);
 
+    console.log('🔍 Checking volume path:', volPath, 'exists:', existsSync(volPath));
+    console.log('🔍 Checking public path:', publicPath, 'exists:', existsSync(publicPath));
+
     const filePath = existsSync(volPath) ? volPath : publicPath;
+    console.log('🔍 Using file path:', filePath);
 
     if (!existsSync(filePath)) {
+      console.log('❌ File not found at:', filePath);
       return new Response('Not Found', { status: 404 });
     }
 
