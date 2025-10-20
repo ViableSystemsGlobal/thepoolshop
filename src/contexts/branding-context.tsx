@@ -34,8 +34,8 @@ const defaultBranding: BrandingSettings = {
   companyName: 'AdPools Group',
   companyLogo: '',
   favicon: '/uploads/branding/favicon_1760896671527.jpg',
-  primaryColor: '#8B5CF6',
-  secondaryColor: '#7C3AED',
+  primaryColor: '#dc2626', // Red as default
+  secondaryColor: '#b91c1c', // Dark red as default
   description: 'A practical, single-tenant system for sales and distribution management'
 };
 
@@ -43,6 +43,8 @@ const defaultBranding: BrandingSettings = {
 function hexToTailwindClasses(hexColor: string) {
   // Map common hex colors to Tailwind classes
   const colorMap: { [key: string]: string } = {
+    '#dc2626': 'red-600',
+    '#b91c1c': 'red-700',
     '#8B5CF6': 'purple-600',
     '#7C3AED': 'purple-700',
     '#2563eb': 'blue-600',
@@ -51,8 +53,6 @@ function hexToTailwindClasses(hexColor: string) {
     '#15803d': 'green-700',
     '#ea580c': 'orange-600',
     '#c2410c': 'orange-700',
-    '#dc2626': 'red-600',
-    '#b91c1c': 'red-700',
     '#4f46e5': 'indigo-600',
     '#4338ca': 'indigo-700',
     '#db2777': 'pink-600',
@@ -61,7 +61,7 @@ function hexToTailwindClasses(hexColor: string) {
     '#0f766e': 'teal-700',
   };
 
-  const primaryClass = colorMap[hexColor] || 'purple-600';
+  const primaryClass = colorMap[hexColor] || 'red-600';
   const primaryLight = primaryClass.replace('-600', '-500');
   const primaryDark = primaryClass.replace('-600', '-700');
   const primaryBg = primaryClass.replace('-600', '-50');

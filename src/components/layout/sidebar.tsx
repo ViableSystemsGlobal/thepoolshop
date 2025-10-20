@@ -184,9 +184,9 @@ const navigation = [
 ];
 
 const shortcuts = [
-  { name: "Overdue Tasks", href: "/tasks?status=OVERDUE", icon: CheckSquare, badge: "0", badgeColor: "bg-purple-600" },
-  { name: "Overdue Invoices", href: "/invoices?status=OVERDUE&paymentStatus=UNPAID", icon: FileText, badge: "0", badgeColor: "bg-purple-600" },
-  { name: "Low/No Stock", href: "/inventory/stock?stockStatus=low-stock", icon: Package, badge: "0", badgeColor: "bg-purple-600" },
+  { name: "Overdue Tasks", href: "/tasks?status=OVERDUE", icon: CheckSquare, badge: "0" },
+  { name: "Overdue Invoices", href: "/invoices?status=OVERDUE&paymentStatus=UNPAID", icon: FileText, badge: "0" },
+  { name: "Low/No Stock", href: "/inventory/stock?stockStatus=low-stock", icon: Package, badge: "0" },
 ];
 
 export default function Sidebar() {
