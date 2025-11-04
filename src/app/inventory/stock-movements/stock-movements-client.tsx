@@ -11,7 +11,7 @@ import { AddStockMovementModal } from "@/components/modals/add-stock-movement-mo
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { DataTable } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/components/ui/dropdown-menu-custom";
 import { BulkStockMovementModal } from "@/components/modals/bulk-stock-movement-modal";
 import { 
   Plus, 
@@ -53,6 +53,7 @@ const parseProductImages = (images: string | null | undefined): string[] => {
   return [];
 };
 
+
 // Product Image Component
 const ProductImage = ({ product, size = 'sm' }: { product: { id: string; name: string; sku: string; images?: string | null }; size?: 'xs' | 'sm' | 'md' }) => {
   const images = parseProductImages(product.images);
@@ -62,12 +63,15 @@ const ProductImage = ({ product, size = 'sm' }: { product: { id: string; name: s
     md: 'h-10 w-10'
   };
   
+  // Use image path directly like products page does - no complex normalization needed
+  const imageUrl = images.length > 0 ? images[0] : null;
+  
   return (
     <div className={`${sizeClasses[size]} rounded-lg bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0`}>
-      {images.length > 0 ? (
+      {imageUrl ? (
         <>
           <img
-            src={images[0]}
+            src={imageUrl}
             alt={product.name}
             className="h-full w-full object-cover"
             onError={(e) => {
@@ -155,52 +159,16 @@ function StockMovementsContent({ initialMovements }: StockMovementsClientProps) 
   const [selectedWarehouse, setSelectedWarehouse] = useState("all");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { success, error: showError } = useToast();
 
-  // Helper function to get proper button background classes
-  const getButtonBackgroundClasses = () => {
-    const colorMap: { [key: string]: string } = {
-      'purple-600': 'bg-purple-600 hover:bg-purple-700',
-      'blue-600': 'bg-blue-600 hover:bg-blue-700',
-      'green-600': 'bg-green-600 hover:bg-green-700',
-      'orange-600': 'bg-orange-600 hover:bg-orange-700',
-      'red-600': 'bg-red-600 hover:bg-red-700',
-      'indigo-600': 'bg-indigo-600 hover:bg-indigo-700',
-      'pink-600': 'bg-pink-600 hover:bg-pink-700',
-      'teal-600': 'bg-teal-600 hover:bg-teal-700',
-    };
-    return colorMap[theme.primary] || 'bg-blue-600 hover:bg-blue-700';
-  };
 
   const handleViewMovement = (movement: StockMovement) => {
     router.push(`/products/${movement.product.id}`);
   };
 
-  const [aiRecommendations, setAiRecommendations] = useState([
-    {
-      id: '1',
-      title: 'Review unusual movements',
-      description: 'Several large stock adjustments require management review and approval.',
-      priority: 'high' as const,
-      completed: false,
-    },
-    {
-      id: '2',
-      title: 'Optimize transfer patterns',
-      description: 'Analyze frequent transfers between warehouses for efficiency improvements.',
-      priority: 'medium' as const,
-      completed: false,
-    },
-    {
-      id: '3',
-      title: 'Update movement tracking',
-      description: 'Enhance tracking documentation for better inventory audit trails.',
-      priority: 'low' as const,
-      completed: false,
-    },
-  ]);
+
 
   const movementTypes: StockMovementType[] = [
     {
@@ -306,11 +274,8 @@ function StockMovementsContent({ initialMovements }: StockMovementsClientProps) 
   }, [selectedType, searchParams]);
 
   const handleRecommendationComplete = (id: string) => {
-    setAiRecommendations(prev => 
-      prev.map(rec => 
-        rec.id === id ? { ...rec, completed: true } : rec
-      )
-    );
+    // Handle recommendation completion (AI card will manage its own state)
+    console.log('Recommendation completed:', id);
     success("Recommendation completed! Great job!");
   };
 
@@ -452,7 +417,8 @@ function StockMovementsContent({ initialMovements }: StockMovementsClientProps) 
           </Button>
           <Button 
             onClick={() => setIsAddModalOpen(true)}
-            className={`${getButtonBackgroundClasses()} text-white`}
+            className="text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: getThemeColor() }}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Stock Movement
@@ -467,8 +433,9 @@ function StockMovementsContent({ initialMovements }: StockMovementsClientProps) 
           <AIRecommendationCard
             title="Stock Movement AI"
             subtitle="Your intelligent assistant for movement tracking"
-            recommendations={aiRecommendations}
             onRecommendationComplete={handleRecommendationComplete}
+            page="stock-movements"
+            enableAI={true}
           />
         </div>
 
@@ -617,7 +584,8 @@ function StockMovementsContent({ initialMovements }: StockMovementsClientProps) 
                   size="sm"
                   onClick={() => success('Delete functionality coming soon!')}
                   disabled={selectedMovements.length === 0}
-                  className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className="text-white disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+                  style={{ backgroundColor: getThemeColor() }}
                 >
                   Delete
                 </Button>
@@ -783,7 +751,6 @@ function StockMovementsContent({ initialMovements }: StockMovementsClientProps) 
                         onClick: () => handleReverseMovement(movement)
                       }
                     ]}
-                    align="right"
                   />
                 )
               }
@@ -882,7 +849,8 @@ function StockMovementsContent({ initialMovements }: StockMovementsClientProps) 
               </Button>
               <Button
                 onClick={() => setIsMoreFiltersOpen(false)}
-                className={`${getButtonBackgroundClasses()} text-white`}
+                className="text-white hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: getThemeColor() }}
               >
                 Apply Filters
               </Button>

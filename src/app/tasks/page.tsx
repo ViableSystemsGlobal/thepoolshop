@@ -112,7 +112,7 @@ interface TaskStats {
 // Component that uses useSearchParams
 function TasksPageContent() {
   const { data: session } = useSession();
-  const { themeColor, getThemeClasses } = useTheme();
+  const { themeColor, getThemeClasses, getThemeColor } = useTheme();
   const { success: showSuccess, error: showError } = useToast();
   const themeClasses = getThemeClasses();
   const searchParams = useSearchParams();
@@ -652,7 +652,8 @@ function TasksPageContent() {
             <Button
               onClick={() => setViewMode('list')}
               variant={viewMode === 'list' ? 'default' : 'outline'}
-              className="flex items-center gap-2"
+              className={`flex items-center gap-2 ${viewMode === 'list' ? 'text-white hover:opacity-90 transition-opacity' : ''}`}
+              style={viewMode === 'list' ? { backgroundColor: getThemeColor() || '#dc2626' } : undefined}
             >
               <List className="w-4 h-4" />
               List
@@ -660,7 +661,8 @@ function TasksPageContent() {
             <Button
               onClick={() => setViewMode('kanban')}
               variant={viewMode === 'kanban' ? 'default' : 'outline'}
-              className="flex items-center gap-2"
+              className={`flex items-center gap-2 ${viewMode === 'kanban' ? 'text-white hover:opacity-90 transition-opacity' : ''}`}
+              style={viewMode === 'kanban' ? { backgroundColor: getThemeColor() || '#dc2626' } : undefined}
             >
               <Grid3X3 className="w-4 h-4" />
               Kanban
@@ -668,14 +670,16 @@ function TasksPageContent() {
             <Button
               onClick={() => setViewMode('calendar')}
               variant={viewMode === 'calendar' ? 'default' : 'outline'}
-              className="flex items-center gap-2"
+              className={`flex items-center gap-2 ${viewMode === 'calendar' ? 'text-white hover:opacity-90 transition-opacity' : ''}`}
+              style={viewMode === 'calendar' ? { backgroundColor: getThemeColor() || '#dc2626' } : undefined}
             >
               <Calendar className="w-4 h-4" />
               Calendar
             </Button>
             <Button
               onClick={() => setIsCreateTaskModalOpen(true)}
-              className={`bg-${themeClasses.primary} text-white hover:bg-${themeClasses.primaryDark} flex items-center gap-2`}
+              className="text-white hover:opacity-90 transition-opacity flex items-center gap-2"
+              style={{ backgroundColor: getThemeColor() || '#dc2626' }}
             >
               <Plus className="w-4 h-4" />
               Create Task

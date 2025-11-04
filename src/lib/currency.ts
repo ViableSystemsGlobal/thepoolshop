@@ -31,7 +31,8 @@ export async function getExchangeRate(
 
     const effectiveDate = date || new Date();
 
-    const exchangeRate = await prisma.exchangeRate.findFirst({
+    // First, try to find direct rate
+    let exchangeRate = await prisma.exchangeRate.findFirst({
       where: {
         fromCurrency,
         toCurrency,
@@ -44,6 +45,29 @@ export async function getExchangeRate(
       },
       orderBy: { effectiveFrom: 'desc' }
     });
+
+    // If no direct rate found, try reverse rate (inverse calculation)
+    if (!exchangeRate) {
+      const reverseRate = await prisma.exchangeRate.findFirst({
+        where: {
+          fromCurrency: toCurrency,
+          toCurrency: fromCurrency,
+          isActive: true,
+          effectiveFrom: { lte: effectiveDate },
+          OR: [
+            { effectiveTo: null },
+            { effectiveTo: { gte: effectiveDate } }
+          ]
+        },
+        orderBy: { effectiveFrom: 'desc' }
+      });
+
+      if (reverseRate && reverseRate.rate) {
+        // Calculate inverse rate
+        const inverseRate = 1 / Number(reverseRate.rate);
+        return Math.round(inverseRate * 10000) / 10000; // Round to 4 decimal places
+      }
+    }
 
     return exchangeRate ? Number(exchangeRate.rate) : null;
   } catch (error) {

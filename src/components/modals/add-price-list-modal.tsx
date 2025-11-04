@@ -30,7 +30,7 @@ interface AddPriceListModalProps {
 }
 
 export function AddPriceListModal({ isOpen, onClose, onSuccess, initialData }: AddPriceListModalProps) {
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const [formData, setFormData] = useState({
     name: "",
     channel: "retail",
@@ -46,8 +46,9 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess, initialData }: A
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Get theme classes
+  // Get theme classes and color
   const theme = getThemeClasses();
+  const themeColor = getThemeColor();
   const { success, error: showError } = useToast();
 
   // Helper function to get proper focus ring classes
@@ -379,7 +380,12 @@ export function AddPriceListModal({ isOpen, onClose, onSuccess, initialData }: A
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading} className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}>
+              <Button 
+                type="submit" 
+                disabled={isLoading} 
+                className="text-white hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: themeColor }}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

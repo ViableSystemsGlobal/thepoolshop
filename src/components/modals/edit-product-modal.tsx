@@ -132,10 +132,10 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
           const data = await response.json();
           setCategories(data || []);
         }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
-  };
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
 
   const fetchUnits = async () => {
     try {
@@ -155,6 +155,27 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
       fetchUnits();
     }
   }, [isOpen]);
+
+  // Listen for category refresh events
+  useEffect(() => {
+    const handleCategoryRefresh = async () => {
+      try {
+        const response = await fetch('/api/categories');
+        if (response.ok) {
+          const data = await response.json();
+          setCategories(data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
+    window.addEventListener('categoryAdded', handleCategoryRefresh);
+    
+    return () => {
+      window.removeEventListener('categoryAdded', handleCategoryRefresh);
+    };
+  }, []);
 
   // Fetch exchange rate when currencies change
   useEffect(() => {
@@ -212,23 +233,41 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product }: EditPr
     }));
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
     setIsUploading(true);
     
-    // For now, create mock URLs - in production, upload to server
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        setImages(prev => [...prev, result]);
-      };
-      reader.readAsDataURL(file);
-    });
-    
-    setIsUploading(false);
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        // Upload file to server
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', 'product');
+
+        const response = await fetch('/api/upload/images', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to upload image');
+        }
+
+        const result = await response.json();
+        return result.url;
+      });
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+      setImages(prev => [...prev, ...uploadedUrls]);
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      setError('Failed to upload images');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const removeImage = (index: number) => {

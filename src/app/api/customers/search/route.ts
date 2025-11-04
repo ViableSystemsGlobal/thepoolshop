@@ -6,23 +6,21 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Customer Search API: Starting request');
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // console.log('🔍 Customer Search API: Session exists:', !!session);
+    const session = await getServerSession(authOptions);
+    console.log('🔍 Customer Search API: Session exists:', !!session);
     
-    // if (!session?.user) {
-    //   console.log('❌ Customer Search API: No session');
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    if (!session?.user) {
+      console.log('❌ Customer Search API: No session');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // const userId = (session.user as any).id;
-    const userId = 'cmgxgoy9w00008z2z4ajxyw47'; // Hardcoded for testing
+    const userId = (session.user as any).id;
     console.log('🔍 Customer Search API: User ID:', userId);
     
-    // if (!userId) {
-    //   console.log('❌ Customer Search API: No user ID');
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    if (!userId) {
+      console.log('❌ Customer Search API: No user ID');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';

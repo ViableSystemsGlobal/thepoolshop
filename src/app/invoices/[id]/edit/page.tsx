@@ -71,7 +71,7 @@ export default function EditInvoicePage() {
   const params = useParams();
   const router = useRouter();
   const { success, error: showError } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
 
   // Form state
@@ -84,6 +84,8 @@ export default function EditInvoicePage() {
   const [notes, setNotes] = useState('');
   const [taxInclusive, setTaxInclusive] = useState(false);
   const [status, setStatus] = useState('DRAFT');
+  const [invoiceCurrency, setInvoiceCurrency] = useState<string>('GHS');
+  const [originalCurrency, setOriginalCurrency] = useState<string>('GHS');
 
   // Line items
   const [lines, setLines] = useState<LineItem[]>([]);
@@ -115,6 +117,54 @@ export default function EditInvoicePage() {
     }
   }, [dueDate]);
 
+  // Currency helper function
+  const currencySymbol = (code: string) => {
+    switch (code) {
+      case 'USD': return '$';
+      case 'GHS': return 'GH₵';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'NGN': return '₦';
+      case 'KES': return 'KSh';
+      case 'ZAR': return 'R';
+      default: return code + ' ';
+    }
+  };
+
+  // Currency conversion function
+  const convertAmount = async (amount: number, from: string, to: string): Promise<number> => {
+    if (!amount || from === to) return amount;
+    try {
+      const res = await fetch('/api/currency/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromCurrency: from, toCurrency: to, amount })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Number(data.convertedAmount ?? amount);
+      }
+      // Fallback: try pull exchange rates from settings
+      const settingsRes = await fetch('/api/settings/currency');
+      if (settingsRes.ok) {
+        const settings = await settingsRes.json();
+        const rateRow = (settings.exchangeRates || []).find((r: any) => r.fromCurrency === from && r.toCurrency === to);
+        if (rateRow && rateRow.rate) {
+          return Math.round((amount * Number(rateRow.rate)) * 100) / 100;
+        }
+      }
+    } catch {}
+    // Final static fallback for common pairs
+    const staticRates: Record<string, Record<string, number>> = {
+      USD: { GHS: 12.5, EUR: 0.85, GBP: 0.78 },
+      GHS: { USD: 0.08, EUR: 0.068, GBP: 0.062 },
+      EUR: { USD: 1.18, GHS: 14.7 },
+      GBP: { USD: 1.28, GHS: 16.0 },
+    };
+    const rate = staticRates[from]?.[to];
+    return rate ? Math.round((amount * rate) * 100) / 100 : amount;
+  };
+
   // Filter products based on search term
   useEffect(() => {
     if (productSearchTerm.trim()) {
@@ -144,6 +194,8 @@ export default function EditInvoicePage() {
         setNotes(invoice.notes || '');
         setTaxInclusive(invoice.taxInclusive || false);
         setStatus(invoice.status);
+        setInvoiceCurrency(invoice.currency || 'GHS');
+        setOriginalCurrency(invoice.currency || 'GHS');
         
         // Set customer
         if (invoice.account) {
@@ -290,6 +342,37 @@ export default function EditInvoicePage() {
     }
   }, [taxInclusive]);
 
+  // Convert currency when invoiceCurrency changes (but not on initial load)
+  useEffect(() => {
+    if (invoiceCurrency && originalCurrency && invoiceCurrency !== originalCurrency && lines.length > 0) {
+      const convertPrices = async () => {
+        const updated: LineItem[] = [];
+        for (const line of lines) {
+          const convertedUnitPrice = await convertAmount(line.unitPrice, originalCurrency, invoiceCurrency);
+          
+          // Recalculate line with converted price
+          const baseAmount = line.quantity * convertedUnitPrice * (1 - line.discount / 100);
+          const recalculatedTaxes = line.taxes.map(tax => ({
+            ...tax,
+            amount: baseAmount * (tax.rate / 100)
+          }));
+          const totalTaxAmount = recalculatedTaxes.reduce((sum, tax) => sum + tax.amount, 0);
+          
+          updated.push({
+            ...line,
+            unitPrice: convertedUnitPrice,
+            taxes: recalculatedTaxes,
+            lineTotal: taxInclusive ? baseAmount + totalTaxAmount : baseAmount
+          });
+        }
+        setLines(updated);
+        // Update original currency to the new currency so we can convert from the new base
+        setOriginalCurrency(invoiceCurrency);
+      };
+      convertPrices();
+    }
+  }, [invoiceCurrency]);
+
   // Calculate totals
   const totals = lines.reduce((acc, line) => {
     const subtotal = line.quantity * line.unitPrice;
@@ -354,6 +437,7 @@ export default function EditInvoicePage() {
           notes,
           taxInclusive,
           status,
+          currency: invoiceCurrency,
           lines: lines.map(line => ({
             productId: line.productId,
             productName: line.productName,
@@ -425,7 +509,8 @@ export default function EditInvoicePage() {
                 <Button
                   onClick={handleSubmit}
                   disabled={isSubmitting}
-                  className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                  className="text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: getThemeColor() }}
                 >
                   <Save className="h-4 w-4 mr-2" />
                   Save Changes
@@ -483,19 +568,38 @@ export default function EditInvoicePage() {
                   </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <select
-                    id="status"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="DRAFT">Draft</option>
-                    <option value="SENT">Sent</option>
-                    <option value="OVERDUE">Overdue</option>
-                    <option value="VOID">Void</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="status">Status</Label>
+                    <select
+                      id="status"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="DRAFT">Draft</option>
+                      <option value="SENT">Sent</option>
+                      <option value="OVERDUE">Overdue</option>
+                      <option value="VOID">Void</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="currency">Currency</Label>
+                    <select
+                      id="currency"
+                      value={invoiceCurrency}
+                      onChange={(e) => setInvoiceCurrency(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="GHS">GHS (GH₵)</option>
+                      <option value="USD">USD ($)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="GBP">GBP (£)</option>
+                      <option value="NGN">NGN (₦)</option>
+                      <option value="KES">KES (KSh)</option>
+                      <option value="ZAR">ZAR (R)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
@@ -569,7 +673,7 @@ export default function EditInvoicePage() {
                               >
                                 <div className="font-medium">{product.name}</div>
                                 <div className="text-sm text-gray-500">
-                                  SKU: {product.sku} • GH₵{product.price?.toFixed(2) || '0.00'}
+                                  SKU: {product.sku} • {currencySymbol(invoiceCurrency)}{product.price?.toFixed(2) || '0.00'}
                                 </div>
                               </div>
                             ))
@@ -636,7 +740,7 @@ export default function EditInvoicePage() {
                             <Label className="text-xs">Line Total</Label>
                             <div className="flex items-center h-10 px-3 border rounded-md bg-gray-50">
                               <span className="text-sm font-medium">
-                                GH₵{line.lineTotal.toFixed(2)}
+                                {currencySymbol(invoiceCurrency)}{line.lineTotal.toFixed(2)}
                               </span>
                             </div>
                           </div>
@@ -722,8 +826,8 @@ export default function EditInvoicePage() {
                           <div className="text-xs text-gray-500">SKU: {line.sku}</div>
                         </div>
                         <div>{line.quantity}</div>
-                        <div>GH₵{line.unitPrice.toFixed(2)}</div>
-                        <div className="font-medium">GH₵{line.lineTotal.toFixed(2)}</div>
+                        <div>{currencySymbol(invoiceCurrency)}{line.unitPrice.toFixed(2)}</div>
+                        <div className="font-medium">{currencySymbol(invoiceCurrency)}{line.lineTotal.toFixed(2)}</div>
                       </div>
                     ))}
                   </div>
@@ -741,14 +845,14 @@ export default function EditInvoicePage() {
                 {!taxInclusive && (
                   <div className="flex justify-between items-center py-1">
                     <span className="text-gray-600">Subtotal:</span>
-                    <span className="font-medium">GH₵{totals.subtotal.toFixed(2)}</span>
+                    <span className="font-medium">{currencySymbol(invoiceCurrency)}{totals.subtotal.toFixed(2)}</span>
                   </div>
                 )}
                 
                 {totals.totalDiscount > 0 && (
                   <div className="flex justify-between items-center py-1">
                     <span className="text-gray-600">Discount:</span>
-                    <span className="font-medium text-green-600">-GH₵{totals.totalDiscount.toFixed(2)}</span>
+                    <span className="font-medium text-green-600">-{currencySymbol(invoiceCurrency)}{totals.totalDiscount.toFixed(2)}</span>
                   </div>
                 )}
                 
@@ -758,14 +862,14 @@ export default function EditInvoicePage() {
                   return (
                     <div key={taxId} className="flex justify-between items-center py-1">
                       <span className="text-gray-600">{tax?.name || 'Tax'} ({tax?.rate}%):</span>
-                      <span className="font-medium">GH₵{amount.toFixed(2)}</span>
+                      <span className="font-medium">{currencySymbol(invoiceCurrency)}{amount.toFixed(2)}</span>
                     </div>
                   );
                 })}
                 
                 <div className="flex justify-between items-center py-1 text-base font-bold border-t">
                   <span>{taxInclusive ? 'Total (Tax Inclusive):' : 'Total:'}</span>
-                  <span className={`text-${theme.primary}`}>GH₵{totals.total.toFixed(2)}</span>
+                  <span className={`text-${theme.primary}`}>{currencySymbol(invoiceCurrency)}{totals.total.toFixed(2)}</span>
                 </div>
               </div>
             )}

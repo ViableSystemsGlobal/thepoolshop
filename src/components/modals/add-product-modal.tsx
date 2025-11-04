@@ -33,8 +33,9 @@ interface AddProductModalProps {
 
 export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalProps) {
   const { success, error: showError } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
+  const themeColor = getThemeColor();
   const [formData, setFormData] = useState({
     type: "PRODUCT" as "PRODUCT" | "SERVICE",
     sku: "",
@@ -72,6 +73,19 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
       fetchUnits();
     }
   }, [isOpen]);
+
+  // Listen for category refresh events
+  useEffect(() => {
+    const handleCategoryRefresh = () => {
+      fetchCategories();
+    };
+
+    window.addEventListener('categoryAdded', handleCategoryRefresh);
+    
+    return () => {
+      window.removeEventListener('categoryAdded', handleCategoryRefresh);
+    };
+  }, []);
 
   // Fetch exchange rate when currencies change
   useEffect(() => {
@@ -267,9 +281,23 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
     setIsUploading(true);
     try {
       const uploadPromises = Array.from(files).map(async (file) => {
-        // For now, we'll create a mock URL. In production, upload to cloud storage
-        const mockUrl = URL.createObjectURL(file);
-        return mockUrl;
+        // Upload file to server
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', 'product');
+
+        const response = await fetch('/api/upload/images', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to upload image');
+        }
+
+        const result = await response.json();
+        return result.url;
       });
 
       const uploadedUrls = await Promise.all(uploadPromises);
@@ -278,6 +306,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
         images: [...prev.images, ...uploadedUrls]
       }));
     } catch (error) {
+      console.error('Error uploading images:', error);
       setError('Failed to upload images');
     } finally {
       setIsUploading(false);
@@ -715,65 +744,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
                   </div>
                 </div>
               )}
-
-              {/* Quick Price List Assignment */}
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-md font-medium text-gray-800">Quick Pricing</h4>
-                  <span className="text-xs text-gray-500">Add to price lists</span>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                    <input
-                      type="checkbox"
-                      id="retail-price"
-                      className="rounded border-gray-300"
-                    />
-                    <label htmlFor="retail-price" className="text-sm font-medium text-gray-700">
-                      Retail Price List
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                    <input
-                      type="checkbox"
-                      id="distributor-price"
-                      className="rounded border-gray-300"
-                    />
-                    <label htmlFor="distributor-price" className="text-sm font-medium text-gray-700">
-                      Distributor Price List
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                    <input
-                      type="checkbox"
-                      id="wholesale-price"
-                      className="rounded border-gray-300"
-                    />
-                    <label htmlFor="wholesale-price" className="text-sm font-medium text-gray-700">
-                      Wholesale Price List
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                    <input
-                      type="checkbox"
-                      id="online-price"
-                      className="rounded border-gray-300"
-                    />
-                    <label htmlFor="online-price" className="text-sm font-medium text-gray-700">
-                      Online Price List
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="mt-3 text-xs text-gray-500">
-                  <p>✓ Products will be automatically added to selected price lists with the import price</p>
-                  <p>✓ You can adjust individual prices later in Price List management</p>
-                </div>
-              </div>
             </div>
 
             {/* Units of Measure */}
@@ -868,7 +838,22 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading} className={`bg-${theme.primary} hover:bg-${theme.primaryDark}`}>
+              <Button 
+                type="submit" 
+                disabled={isLoading} 
+                className="text-white border-0"
+                style={{ backgroundColor: themeColor || '#2563eb' }}
+                onMouseEnter={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.opacity = '0.9';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.opacity = '1';
+                  }
+                }}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

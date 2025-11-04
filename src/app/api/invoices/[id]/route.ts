@@ -2,6 +2,149 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { generateInvoiceQRData, generateQRCode } from '@/lib/qrcode';
+
+// Helper function to generate sales order number
+async function generateSalesOrderNumber(): Promise<string> {
+  let attempts = 0;
+  const maxAttempts = 10;
+  let baseNumber = 1;
+
+  // Get the highest existing sales order number
+  const lastOrder = await prisma.salesOrder.findFirst({
+    orderBy: { createdAt: 'desc' },
+    select: { number: true }
+  });
+
+  if (lastOrder?.number) {
+    // Extract number from format SO-000001
+    const match = lastOrder.number.match(/\d+$/);
+    if (match) {
+      baseNumber = parseInt(match[0], 10) + 1;
+    }
+  }
+
+  while (attempts < maxAttempts) {
+    const orderNumber = `SO-${baseNumber.toString().padStart(6, '0')}`;
+    
+    // Check if this number already exists
+    const exists = await prisma.salesOrder.findUnique({
+      where: { number: orderNumber },
+      select: { id: true }
+    });
+    
+    if (!exists) {
+      return orderNumber;
+    }
+    
+    attempts++;
+    baseNumber++;
+  }
+
+  // Fallback: use timestamp
+  return `SO-${Date.now().toString().slice(-6)}`;
+}
+
+// Helper function to create sales order from invoice
+async function createSalesOrderFromInvoice(invoiceId: string, ownerId: string): Promise<void> {
+  // Check if sales order already exists for this invoice
+  const existingOrder = await prisma.salesOrder.findFirst({
+    where: { invoiceId },
+    select: { id: true, number: true }
+  });
+
+  if (existingOrder) {
+    console.log(`ℹ️ Sales order already exists for invoice ${invoiceId}: ${existingOrder.number}`);
+    return;
+  }
+
+  // Fetch invoice with lines and account
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: {
+      lines: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              sku: true
+            }
+          }
+        }
+      },
+      account: {
+        select: {
+          id: true,
+          name: true
+        }
+      }
+    }
+  });
+
+  if (!invoice) {
+    throw new Error('Invoice not found');
+  }
+
+  if (!invoice.accountId) {
+    console.log(`ℹ️ Invoice ${invoice.number} has no accountId, skipping sales order creation`);
+    return;
+  }
+
+  // Generate sales order number
+  const orderNumber = await generateSalesOrderNumber();
+
+  // Create sales order with lines
+  const salesOrder = await prisma.salesOrder.create({
+    data: {
+      number: orderNumber,
+      invoiceId: invoiceId,
+      accountId: invoice.accountId,
+      ownerId: ownerId,
+      status: 'PENDING',
+      subtotal: invoice.subtotal,
+      tax: invoice.tax,
+      discount: invoice.discount || 0,
+      total: invoice.total,
+      notes: `Auto-created from invoice ${invoice.number}`,
+      lines: {
+        create: invoice.lines.map(line => {
+          // Calculate tax from taxes JSON array if available
+          let taxAmount = 0;
+          if (line.taxes) {
+            try {
+              const taxes = typeof line.taxes === 'string' ? JSON.parse(line.taxes) : line.taxes;
+              if (Array.isArray(taxes)) {
+                taxAmount = taxes.reduce((sum: number, tax: any) => sum + (Number(tax.amount) || 0), 0);
+              }
+            } catch (e) {
+              console.warn('Error parsing taxes:', e);
+            }
+          }
+          
+          return {
+            productId: line.productId,
+            description: line.productName || line.description || '',
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            discount: line.discount || 0,
+            tax: taxAmount,
+            lineTotal: line.lineTotal
+          };
+        })
+      }
+    },
+    include: {
+      lines: {
+        include: {
+          product: true
+        }
+      }
+    }
+  });
+
+  console.log(`✅ Created sales order ${salesOrder.number} from invoice ${invoice.number}`);
+}
 
 export async function GET(
   request: NextRequest,
@@ -11,36 +154,16 @@ export async function GET(
     const { id } = await params;
     console.log('🔍 GET invoice API - Starting request for ID:', id);
 
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
 
     const invoice = await prisma.invoice.findUnique({
       where: { id },
-      select: {
-        id: true,
-        number: true,
-        subject: true,
-        status: true,
-        paymentStatus: true,
-        total: true,
-        subtotal: true,
-        tax: true,
-        discount: true,
-        amountPaid: true,
-        amountDue: true,
-        taxInclusive: true,
-        notes: true,
-        paymentTerms: true,
-        customerType: true,
-        qrCodeData: true,
-        qrCodeGeneratedAt: true,
-        issueDate: true,
-        dueDate: true,
-        paidDate: true,
-        createdAt: true,
+      include: {
         owner: {
           select: { id: true, name: true, email: true },
         },
@@ -85,11 +208,154 @@ export async function GET(
             }
           }
         },
-      } as any,
+        payments: {
+          include: {
+            payment: {
+              select: {
+                id: true,
+                number: true,
+                amount: true,
+                method: true,
+                reference: true,
+                receivedAt: true,
+                receiptUrl: true,
+                notes: true,
+                receiver: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+      },
     });
 
     if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    // Recalculate payment status from actual allocations AND credit notes (fixes stale data)
+    const [allAllocations, creditNoteApplications] = await Promise.all([
+      prisma.paymentAllocation.findMany({
+        where: { invoiceId: id },
+        select: { amount: true }
+      }),
+      prisma.creditNoteApplication.findMany({
+        where: { invoiceId: id },
+        select: { amount: true }
+      })
+    ]);
+    
+    // Sum payments from allocations
+    const totalPaidFromPayments = allAllocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
+    
+    // Sum credit notes applied
+    const totalPaidFromCreditNotes = creditNoteApplications.reduce((sum, app) => sum + Number(app.amount), 0);
+    
+    // Total paid = payments + credit notes
+    const totalPaid = totalPaidFromPayments + totalPaidFromCreditNotes;
+    const amountDue = Math.max(0, invoice.total - totalPaid);
+    
+    console.log(`🔍 Recalculating invoice ${invoice.number}:`, {
+      invoiceTotal: invoice.total,
+      paymentAllocations: allAllocations.map(a => Number(a.amount)),
+      creditNoteApplications: creditNoteApplications.map(a => Number(a.amount)),
+      totalPaidFromPayments,
+      totalPaidFromCreditNotes,
+      totalPaid,
+      amountDue,
+      currentStatus: invoice.paymentStatus,
+      currentAmountPaid: invoice.amountPaid,
+      currentAmountDue: invoice.amountDue
+    });
+    
+    let paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+    if (totalPaid === 0) {
+      paymentStatus = 'UNPAID';
+    } else if (Math.abs(totalPaid - invoice.total) < 0.01 || totalPaid >= invoice.total || amountDue <= 0.01) {
+      // Use small tolerance for floating point comparison
+      // If amountDue is <= 0.01, consider it PAID
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIALLY_PAID';
+    }
+    
+    // Check if status is changing to PAID
+    const isBecomingPaid = paymentStatus === 'PAID' && invoice.paymentStatus !== 'PAID';
+    
+    // Update invoice if payment status or amounts have changed
+    if (invoice.paymentStatus !== paymentStatus || 
+        Math.abs(invoice.amountPaid - totalPaid) > 0.01 || 
+        Math.abs(invoice.amountDue - amountDue) > 0.01) {
+      await prisma.invoice.update({
+        where: { id },
+        data: {
+          amountPaid: totalPaid,
+          amountDue: amountDue,
+          paymentStatus: paymentStatus,
+          paidDate: paymentStatus === 'PAID' ? (invoice.paidDate || new Date()) : null
+        }
+      });
+      
+      // Update the invoice object to return correct values
+      invoice.amountPaid = totalPaid;
+      invoice.amountDue = amountDue;
+      invoice.paymentStatus = paymentStatus;
+      if (paymentStatus === 'PAID' && !invoice.paidDate) {
+        invoice.paidDate = new Date();
+      }
+      
+      console.log(`✅ Recalculated payment status for invoice ${invoice.number}: ${paymentStatus} (Total: ${invoice.total}, Paid: ${totalPaid}, Due: ${amountDue})`);
+      
+      // Create sales order when invoice becomes paid (only if accountId exists)
+      if (isBecomingPaid && invoice.accountId) {
+        try {
+          await createSalesOrderFromInvoice(invoice.id, invoice.ownerId);
+        } catch (error) {
+          console.error(`❌ Error creating sales order from invoice ${invoice.number}:`, error);
+          // Don't fail the invoice update if order creation fails
+        }
+      }
+    } else {
+      console.log(`ℹ️ Invoice ${invoice.number} status is already correct: ${paymentStatus}`);
+    }
+
+    // Generate QR code if it doesn't exist
+    if (!invoice.qrCodeData) {
+      try {
+        const customerName = invoice.account?.name || 
+                            invoice.distributor?.businessName || 
+                            (invoice.lead ? `${invoice.lead.firstName} ${invoice.lead.lastName}`.trim() : '') ||
+                            'Company';
+        const qrData = generateInvoiceQRData(invoice.number, {
+          companyName: customerName
+        });
+        const qrCodeDataUrl = await generateQRCode(qrData);
+        
+        // Update invoice with QR code
+        await prisma.invoice.update({
+          where: { id },
+          data: {
+            qrCodeData: qrCodeDataUrl,
+            qrCodeGeneratedAt: new Date()
+          }
+        });
+        
+        invoice.qrCodeData = qrCodeDataUrl;
+        invoice.qrCodeGeneratedAt = new Date();
+        
+        console.log('✅ Generated QR code for invoice');
+      } catch (qrError) {
+        console.error('⚠️ Failed to generate QR code:', qrError);
+        // Continue without QR code - not critical
+      }
     }
 
     console.log('✅ Invoice found:', invoice.number);
@@ -112,11 +378,15 @@ export async function PUT(
     const { id } = await params;
     console.log('🔍 PUT invoice API - Starting request for ID:', id);
 
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const body = await request.json();
     console.log('🔍 PUT invoice API - Request body:', body);
@@ -133,6 +403,7 @@ export async function PUT(
       taxInclusive,
       status,
       paymentStatus,
+      currency,
       lines,
     } = body;
 
@@ -150,19 +421,21 @@ export async function PUT(
     }
 
     // Calculate totals if lines are provided
-    let updateData: any = {
-      subject,
-      accountId: accountId || null,
-      distributorId: distributorId || null,
-      leadId: leadId || null,
-      customerType: customerType || 'STANDARD',
-      dueDate: dueDate ? new Date(dueDate) : undefined,
-      paymentTerms,
-      notes,
-      taxInclusive,
-      status,
-      paymentStatus,
-    };
+    let updateData: any = {};
+    
+    // Only update fields that are provided
+    if (subject !== undefined) updateData.subject = subject;
+    if (accountId !== undefined) updateData.accountId = accountId || null;
+    if (distributorId !== undefined) updateData.distributorId = distributorId || null;
+    if (leadId !== undefined) updateData.leadId = leadId || null;
+    if (customerType !== undefined) updateData.customerType = customerType || 'STANDARD';
+    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : undefined;
+    if (paymentTerms !== undefined) updateData.paymentTerms = paymentTerms;
+    if (notes !== undefined) updateData.notes = notes;
+    if (taxInclusive !== undefined) updateData.taxInclusive = taxInclusive;
+    if (status !== undefined) updateData.status = status;
+    if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
+    if (currency !== undefined) updateData.currency = currency;
 
     if (lines && Array.isArray(lines)) {
       let subtotal = 0;
@@ -257,11 +530,15 @@ export async function DELETE(
     const { id } = await params;
     console.log('🔍 DELETE invoice API - Starting request for ID:', id);
 
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Check if invoice exists
     const existingInvoice = await prisma.invoice.findFirst({

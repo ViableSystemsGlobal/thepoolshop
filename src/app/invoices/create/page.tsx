@@ -61,6 +61,9 @@ interface Product {
   name: string;
   sku: string;
   price: number;
+  originalPrice?: number | null;
+  originalPriceCurrency?: string | null;
+  baseCurrency?: string | null;
   images?: string | null; // JSON string in database, will be parsed to string[]
 }
 
@@ -120,6 +123,113 @@ const ProductImage = ({ product, size = 'sm' }: { product: Product; size?: 'xs' 
       ) : (
         <Package className="h-3 w-3 text-gray-500" />
       )}
+    </div>
+  );
+};
+
+// Product Price Display Component - converts and displays price in target currency (GHS for invoices)
+const ProductPriceDisplay = ({ 
+  product 
+}: { 
+  product: Product;
+}) => {
+  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const targetCurrency = 'GHS'; // Invoices are always in GHS
+
+  useEffect(() => {
+    const convertPrice = async () => {
+      setIsLoading(true);
+      try {
+        const baseCurrency = product.baseCurrency || 'USD';
+        const originalCurrency = product.originalPriceCurrency || baseCurrency;
+        const hasOriginal = typeof product.originalPrice === 'number' && !Number.isNaN(product.originalPrice as number);
+
+        // Prefer originalPrice if available (it's the source of truth)
+        if (hasOriginal && originalCurrency) {
+          if (originalCurrency === targetCurrency) {
+            // Already in target currency, use directly
+            setDisplayPrice(Number(product.originalPrice));
+            setIsLoading(false);
+            return;
+          } else {
+            // Need to convert from original currency to target currency
+            try {
+              const res = await fetch('/api/currency/convert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  fromCurrency: originalCurrency, 
+                  toCurrency: targetCurrency, 
+                  amount: Number(product.originalPrice)
+                })
+              });
+              if (res.ok) {
+                const data = await res.json();
+                setDisplayPrice(Number(data.convertedAmount ?? product.originalPrice));
+                setIsLoading(false);
+                return;
+              }
+            } catch (error) {
+              console.error('Error converting price:', error);
+            }
+          }
+        }
+
+        // Fallback: if no originalPrice, use product.price
+        if (baseCurrency === targetCurrency && typeof product.price === 'number') {
+          setDisplayPrice(product.price);
+          setIsLoading(false);
+          return;
+        }
+
+        // Last resort: convert product.price from baseCurrency to target currency
+        if (product.price) {
+          try {
+            const res = await fetch('/api/currency/convert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                fromCurrency: baseCurrency, 
+                toCurrency: targetCurrency, 
+                amount: product.price
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              setDisplayPrice(Number(data.convertedAmount ?? product.price));
+            } else {
+              setDisplayPrice(product.price);
+            }
+          } catch (error) {
+            console.error('Error converting price:', error);
+            setDisplayPrice(product.price);
+          }
+        } else {
+          setDisplayPrice(0);
+        }
+      } catch (error) {
+        console.error('Error in price conversion:', error);
+        setDisplayPrice(product.price || 0);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    convertPrice();
+  }, [product]);
+
+  if (isLoading) {
+    return (
+      <div className="text-sm font-medium text-gray-400">
+        GH₵...
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-sm font-medium text-gray-900">
+      GH₵{(displayPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
     </div>
   );
 };
@@ -288,31 +398,89 @@ export default function CreateInvoicePage() {
     }
   };
 
-  const addLineItem = (product: Product) => {
-    const baseAmount = product.price || 0;
-    
-    // Calculate taxes immediately
-    const taxes = globalTaxes.map(tax => {
-      const taxAmount = baseAmount * (tax.rate / 100);
-      return { ...tax, amount: taxAmount };
-    });
-    
-    const totalTaxAmount = taxes.reduce((sum, tax) => sum + tax.amount, 0);
-    
-    const newLine: LineItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      productId: product.id,
-      productName: product.name,
-      sku: product.sku,
-      quantity: 1,
-      unitPrice: product.price || 0,
-      discount: 0,
-      taxes: taxes,
-      lineTotal: taxInclusive ? baseAmount + totalTaxAmount : baseAmount,
-    };
-    setLines([...lines, newLine]);
-    setShowProductSearch(false);
-    setProductSearchTerm("");
+  const addLineItem = async (product: Product) => {
+    try {
+      const targetCurrency = 'GHS'; // Invoices are always in GHS
+      const baseCurrency = product.baseCurrency || 'USD';
+      const originalCurrency = product.originalPriceCurrency || baseCurrency;
+      const hasOriginal = typeof product.originalPrice === 'number' && !Number.isNaN(product.originalPrice as number);
+
+      let unitPrice = product.price || 0;
+
+      // Prefer originalPrice if available (it's the source of truth)
+      if (hasOriginal && originalCurrency) {
+        if (originalCurrency === targetCurrency) {
+          // Already in target currency, use directly
+          unitPrice = Number(product.originalPrice);
+        } else {
+          // Need to convert from original currency to target currency
+          try {
+            const res = await fetch('/api/currency/convert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                fromCurrency: originalCurrency, 
+                toCurrency: targetCurrency, 
+                amount: Number(product.originalPrice)
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              unitPrice = Number(data.convertedAmount ?? product.originalPrice);
+            }
+          } catch (error) {
+            console.error('Error converting price:', error);
+          }
+        }
+      } else if (baseCurrency !== targetCurrency && product.price) {
+        // Convert product.price from baseCurrency to target currency
+        try {
+          const res = await fetch('/api/currency/convert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              fromCurrency: baseCurrency, 
+              toCurrency: targetCurrency, 
+              amount: product.price
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            unitPrice = Number(data.convertedAmount ?? product.price);
+          }
+        } catch (error) {
+          console.error('Error converting price:', error);
+        }
+      }
+
+      const baseAmount = unitPrice;
+      
+      // Calculate taxes immediately
+      const taxes = globalTaxes.map(tax => {
+        const taxAmount = baseAmount * (tax.rate / 100);
+        return { ...tax, amount: taxAmount };
+      });
+      
+      const totalTaxAmount = taxes.reduce((sum, tax) => sum + tax.amount, 0);
+      
+      const newLine: LineItem = {
+        id: Math.random().toString(36).substr(2, 9),
+        productId: product.id,
+        productName: product.name,
+        sku: product.sku,
+        quantity: 1,
+        unitPrice: unitPrice,
+        discount: 0,
+        taxes: taxes,
+        lineTotal: taxInclusive ? baseAmount + totalTaxAmount : baseAmount,
+      };
+      setLines([...lines, newLine]);
+      setShowProductSearch(false);
+      setProductSearchTerm("");
+    } catch (error) {
+      console.error('Error adding line item:', error);
+      showError('Error', 'Failed to add product. Please try again.');
+    }
   };
 
   const handleBarcodeScan = (barcode: string, product: any) => {
@@ -953,9 +1121,7 @@ export default function CreateInvoicePage() {
                                   <div className="text-xs text-gray-500">{product.sku}</div>
                                 </div>
                               </div>
-                              <div className="text-sm font-medium text-gray-900">
-                                GH₵{product.price?.toLocaleString() || '0'}
-                              </div>
+                              <ProductPriceDisplay product={product} />
                             </div>
                           </button>
                         ))

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { StockMovementType } from '@prisma/client';
 
 export interface StockReservation {
   productId: string;
@@ -204,12 +205,12 @@ export class StockReservationService {
             data: {
               productId: item.productId,
               stockItemId: stockItem.id,
-              type: 'OUT',
+              type: StockMovementType.SALE,
               quantity: deductQty,
               warehouseId: stockItem.warehouseId,
               reference: `Invoice ${invoiceId}`,
               notes: `Stock deducted for paid invoice`,
-              createdBy: userId
+              userId: userId
             }
           });
 

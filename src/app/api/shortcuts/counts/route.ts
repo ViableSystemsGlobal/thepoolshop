@@ -12,10 +12,10 @@ export async function GET(request: NextRequest) {
 
     const today = new Date();
 
-    // Get overdue tasks count
-    const overdueTasks = await prisma.task.count({
+    // Get pending tasks count
+    const pendingTasks = await prisma.task.count({
       where: {
-        status: 'OVERDUE'
+        status: 'PENDING'
       }
     });
 
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     }).length;
 
     return NextResponse.json({
-      overdueTasks,
+      pendingTasks,
       overdueInvoices,
       lowStock
     });

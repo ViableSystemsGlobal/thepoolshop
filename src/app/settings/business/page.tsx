@@ -21,7 +21,7 @@ import Link from "next/link";
 
 export default function BusinessSettingsPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
 
   const businessSettings = [
@@ -105,7 +105,10 @@ export default function BusinessSettingsPage() {
             <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">
               <Settings className="h-5 w-5" />
             </button>
-            <button className="p-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg">
+            <button 
+              className="p-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: getThemeColor() }}
+            >
               <Plus className="h-5 w-5" />
             </button>
           </div>

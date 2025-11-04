@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -72,6 +72,7 @@ model User {
   createdCreditNotes         CreditNote[]               @relation("CreditNoteOwner")
   voidedCreditNotes          CreditNote[]               @relation("CreditNoteVoider")
   creditNoteApplications     CreditNoteApplication[]    @relation("CreditNoteApplicationUser")
+  aiChatConversations        AiChatConversation[]       @relation("AiChatConversations")
 
   @@map("users")
 }
@@ -221,6 +222,7 @@ model PriceList {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   items            PriceListItem[]
+  quotations       Quotation[]
 
   @@map("price_lists")
 }
@@ -437,6 +439,7 @@ model Quotation {
   tax           Float           @default(0)
   total         Float           @default(0)
   taxInclusive  Boolean         @default(false)
+  priceListId   String?
   accountId     String?
   distributorId String?
   leadId        String?
@@ -467,6 +470,7 @@ model Quotation {
   agentId       String?
   proformas     Proforma[]
   lines         QuotationLine[]
+  priceList     PriceList?      @relation(fields: [priceListId], references: [id])
   account       Account?        @relation(fields: [accountId], references: [id])
   distributor   Distributor?    @relation(fields: [distributorId], references: [id])
   lead          Lead?           @relation(fields: [leadId], references: [id])
@@ -486,6 +490,9 @@ model QuotationLine {
   productId   String
   quantity    Float
   unitPrice   Float
+  unitPriceCurrency String?
+  fxRateUsed  Float?
+  priceListIdUsed String?
   discount    Float     @default(0)
   lineTotal   Float
   createdAt   DateTime  @default(now())
@@ -587,6 +594,7 @@ model StockMovement {
   fromWarehouseId String?
   toWarehouseId   String?
   warehouseId     String?
+  supplierId      String?
   reference       String?
   reason          String?
   notes           String?
@@ -597,8 +605,34 @@ model StockMovement {
   fromWarehouse   Warehouse?        @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
   toWarehouse     Warehouse?        @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
   warehouse       Warehouse?        @relation("CurrentWarehouse", fields: [warehouseId], references: [id])
+  supplier        Supplier?         @relation(fields: [supplierId], references: [id])
 
   @@map("stock_movements")
+}
+
+model Supplier {
+  id            String   @id @default(cuid())
+  name          String
+  email         String?
+  phone         String?
+  address       String?
+  city          String?
+  country       String?  @default("Ghana")
+  taxId         String?
+  paymentTerms  String?
+  status        SupplierStatus @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  movements     StockMovement[]
+
+  @@map("suppliers")
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
 }
 
 model Backorder {
@@ -2345,6 +2379,21 @@ model CommissionAudit {
   @@index([commissionId])
   @@index([action])
   @@map("commission_audits")
+}
+
+model AiChatConversation {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String?  // First message or auto-generated title
+  messages    Json     // Array of messages: [{role: "user"|"assistant", content: string, timestamp: Date}]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation("AiChatConversations", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("ai_chat_conversations")
 }
 
 enum AgentRole {

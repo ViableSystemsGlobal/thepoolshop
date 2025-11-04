@@ -236,29 +236,8 @@ export default function PaymentsPage() {
             <AIRecommendationCard
               title="Payment Management AI"
               subtitle="Your intelligent assistant for cash flow optimization"
-              recommendations={[
-                {
-                  id: '1',
-                  title: "Track outstanding invoices",
-                  description: "Monitor and follow up on unpaid invoices to improve cash flow",
-                  priority: 'high',
-                  completed: false
-                },
-                {
-                  id: '2',
-                  title: "Monthly payment analysis",
-                  description: `Collected ${formatCurrency(metrics.thisMonth, currency)} this month vs ${formatCurrency(metrics.lastMonth, currency)} last month`,
-                  priority: 'medium',
-                  completed: false
-                },
-                {
-                  id: '3',
-                  title: "Payment reconciliation",
-                  description: `${metrics.totalPayments} payments recorded totaling ${formatCurrency(metrics.totalAmount, currency)}`,
-                  priority: 'low',
-                  completed: false
-                }
-              ]}
+              page="payments"
+              enableAI={true}
               onRecommendationComplete={(id) => {
                 console.log('Recommendation completed:', id);
               }}

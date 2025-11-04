@@ -9,14 +9,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // TEMPORARY: Skip authentication for testing
     const { id } = await params;
     console.log('🔍 GET quotation API - Starting request for ID:', id);
     
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
 
     const quotation = await prisma.quotation.findUnique({
       where: { id },
@@ -29,6 +30,7 @@ export async function GET(
         subtotal: true,
         tax: true,
         taxInclusive: true,
+        currency: true,
         notes: true,
         validUntil: true,
         customerType: true,
@@ -85,17 +87,18 @@ export async function PUT(
   try {
     const { id } = await params;
     
-    // TEMPORARY: Skip authentication for testing
     console.log('🔍 PUT quotation API - Starting request for ID:', id);
     
-    // const session = await getServerSession(authOptions);
-    // 
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // const userId = (session.user as any).id;
-    const userId = 'cmgxgoy9w00008z2z4ajxyw47'; // TEMPORARY: Hardcoded user ID for testing (correct user ID)
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const body = await request.json();
     
     
@@ -111,6 +114,7 @@ export async function PUT(
       status,
       lines = [],
       taxInclusive = false,
+      currency,
     } = body;
 
     // Validate required fields
@@ -121,12 +125,11 @@ export async function PUT(
       );
     }
 
-    // TEMPORARY: Skip owner check for testing
     // Check if quotation exists and user has access
     const existingQuotation = await prisma.quotation.findFirst({
       where: {
         id,
-        // ownerId: userId,  // TEMPORARY: Commented out for testing
+        ownerId: userId,
       },
     });
 
@@ -174,6 +177,7 @@ export async function PUT(
       subject,
       validUntil: validUntil ? new Date(validUntil) : null,
       notes,
+      currency: currency || existingQuotation.currency || 'GHS',
       subtotal,
       tax: totalTax,
       total: subtotal + totalTax,
@@ -257,21 +261,24 @@ export async function PUT(
         );
       }
       
-      // Update lead status to CONVERTED_TO_OPPORTUNITY
+      // Fetch lead first to preserve assignedTo
+      const lead = await prisma.lead.findUnique({
+        where: { id: existingQuotation.leadId },
+        select: { firstName: true, lastName: true, company: true, assignedTo: true },
+      });
+
+      // Update lead status to CONVERTED_TO_OPPORTUNITY, preserving assignedTo
       await prisma.lead.update({
         where: { id: existingQuotation.leadId },
         data: {
           status: 'CONVERTED_TO_OPPORTUNITY' as any,
           dealValue: quotation.total,
           probability: 25, // Default probability when quote is sent
+          assignedTo: lead?.assignedTo || undefined, // Preserve assignedTo field
         },
       });
 
       // Create an Opportunity
-      const lead = await prisma.lead.findUnique({
-        where: { id: existingQuotation.leadId },
-        select: { firstName: true, lastName: true, company: true },
-      });
 
       const opportunityName = lead?.company || `${lead?.firstName} ${lead?.lastName}` || 'Untitled Opportunity';
 
@@ -368,13 +375,15 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
-    // const userId = (session.user as any).id;
-    const userId = 'cmgxgoy9w00008z2z4ajxyw47'; // Hardcoded for testing
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Check if quotation exists and user has access
     const existingQuotation = await prisma.quotation.findFirst({

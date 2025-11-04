@@ -116,25 +116,47 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [customLogo, setCustomLogo] = useState<string | null>(null);
   const branding = useBranding();
 
-  // Load theme and logo from localStorage on mount
+  // Load theme and logo from branding context (system-wide settings)
   useEffect(() => {
-    const savedTheme = localStorage.getItem('themeColor') as ThemeColor;
-    if (savedTheme && themeConfig[savedTheme]) {
-      setThemeColor(savedTheme);
-    }
-    
-    const savedLogo = localStorage.getItem('customLogo');
-    if (savedLogo) {
-      setCustomLogo(savedLogo);
-    }
-  }, []);
-
-  // Update logo from branding context
-  useEffect(() => {
+    // Always use branding settings for system-wide consistency
     if (branding.branding.companyLogo) {
       setCustomLogo(branding.branding.companyLogo);
     }
-  }, [branding.branding.companyLogo]);
+    
+    // Set theme color based on branding primary color
+    if (branding.branding.primaryColor) {
+      const hexColor = branding.branding.primaryColor.toLowerCase();
+      
+      // Check if it's a custom color (not a preset)
+      const presetColorMap: { [key: string]: ThemeColor } = {
+        '#dc2626': 'red',
+        '#b91c1c': 'red',
+        '#9333ea': 'purple',
+        '#7c3aed': 'purple',
+        '#2563eb': 'blue',
+        '#1d4ed8': 'blue',
+        '#16a34a': 'green',
+        '#15803d': 'green',
+        '#ea580c': 'orange',
+        '#c2410c': 'orange',
+        '#4f46e5': 'indigo',
+        '#4338ca': 'indigo',
+        '#db2777': 'pink',
+        '#be185d': 'pink',
+        '#0d9488': 'teal',
+        '#0f766e': 'teal',
+      };
+      
+      // If it's a preset color, use the mapped theme color
+      // Otherwise, default to 'red' but keep the hex value in branding
+      if (presetColorMap[hexColor]) {
+        setThemeColor(presetColorMap[hexColor]);
+      } else {
+        // Custom color - use red as default theme but branding will use the hex value
+        setThemeColor('red');
+      }
+    }
+  }, [branding.branding.companyLogo, branding.branding.primaryColor]);
 
   // Save theme to localStorage when it changes
   const handleSetThemeColor = (color: ThemeColor) => {
@@ -153,12 +175,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getThemeClasses = () => {
-    return themeConfig[themeColor];
+    // Use branding context for consistent theming across all users
+    return branding.getThemeClasses();
   };
 
   const getThemeColor = () => {
-    // Use branding color if available, otherwise use theme color
-    return branding.branding.primaryColor || themeColorValues[themeColor];
+    // Always use branding color for system-wide consistency
+    return branding.branding.primaryColor || '#dc2626'; // Default to red
   };
 
   return (

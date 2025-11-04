@@ -2,12 +2,21 @@
 
 import { useState, useEffect, useRef } from "react";
 import { MessageCircle, X, Send } from "lucide-react";
+import { useTheme } from "@/contexts/theme-context";
+import { useToast } from "@/contexts/toast-context";
+import { useBranding } from "@/contexts/branding-context";
 
 interface FloatingChatButtonProps {
   customBackground?: string;
 }
 
 export function FloatingChatButton({ customBackground }: FloatingChatButtonProps = {}) {
+  const { getThemeColor } = useTheme();
+  const { error: showError } = useToast();
+  const { branding } = useBranding();
+  const themeColor = getThemeColor();
+  // Use branding chat button image if available, otherwise use customBackground prop
+  const chatButtonImage = branding.chatButtonImage || customBackground;
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
@@ -15,6 +24,7 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
   const [showPreview, setShowPreview] = useState(false);
   const [hasDismissedPreview, setHasDismissedPreview] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const chatModalRef = useRef<HTMLDivElement>(null);
 
   // Handle click outside to close
@@ -68,26 +78,28 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
       return;
     }
     
-    // Only show if:
-    // 1. User hasn't seen it in the last 24 hours
+    // Show preview periodically:
+    // 1. User hasn't dismissed it permanently
     // 2. User has visited at least 2 times (not first visit)
     // 3. Not on mobile (less intrusive)
+    // 4. Either hasn't been shown in last 7 days, or visit count is a multiple of 10
     const now = Date.now();
     const lastShownTime = lastShown ? parseInt(lastShown) : 0;
     const isMobile = window.innerWidth < 768;
+    const daysSinceLastShown = (now - lastShownTime) / (24 * 60 * 60 * 1000);
     const shouldShow = visitCount >= 2 && 
-                      (now - lastShownTime) > 24 * 60 * 60 * 1000 && 
-                      !isMobile;
+                      !isMobile &&
+                      (daysSinceLastShown >= 7 || (visitCount % 10 === 0 && daysSinceLastShown >= 1));
     
     if (shouldShow) {
       const showTimer = setTimeout(() => {
         setShowPreview(true);
         localStorage.setItem('kwame-preview-last-shown', now.toString());
-      }, 3000); // Slightly longer delay
+      }, 3000); // Show after 3 seconds
       
       const hideTimer = setTimeout(() => {
         setShowPreview(false);
-      }, 10000); // Shorter display time
+      }, 10000); // Hide after 10 seconds
       
       return () => {
         clearTimeout(showTimer);
@@ -97,20 +109,57 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
   }, []);
 
   const handleSendMessage = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || isLoading) return;
 
     const userMessage = { role: 'user' as const, content: message };
-    setChatHistory([...chatHistory, userMessage]);
+    const updatedHistory = [...chatHistory, userMessage];
+    setChatHistory(updatedHistory);
     setMessage("");
+    setIsLoading(true);
 
-    // Placeholder AI response
-    setTimeout(() => {
+    try {
+      // Build conversation history for API (exclude welcome message)
+      const welcomeMessageText = "👋 Hi! I'm Kwame, your AI assistant.\n\nI'm here to help you navigate the system, answer questions, and make your work easier. Feel free to ask me anything!";
+      const conversationHistory = updatedHistory
+        .filter(msg => msg.content !== welcomeMessageText)
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+
+      const response = await fetch('/api/ai/kwame', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message,
+          conversationHistory: conversationHistory.slice(-10) // Last 10 messages for context
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get response');
+      }
+
+      const data = await response.json();
       const aiResponse = {
         role: 'assistant' as const,
-        content: "Hello! I'm your AI assistant. I'll be connected soon to help you with questions about the system."
+        content: data.response?.text || "I'm sorry, I couldn't process your request. Please try again."
       };
       setChatHistory(prev => [...prev, aiResponse]);
-    }, 1000);
+    } catch (error) {
+      console.error('Error sending message to Kwame:', error);
+      const errorMessage = {
+        role: 'assistant' as const,
+        content: error instanceof Error ? error.message : "I'm sorry, I encountered an error. Please try again or check your AI settings."
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
+      showError(error instanceof Error ? error.message : 'Failed to send message');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Enhanced dismissal function with animation
@@ -154,7 +203,10 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
         }`}>
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-4 max-w-xs">
             <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center">
+              <div 
+                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: themeColor }}
+              >
                 <MessageCircle className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1">
@@ -188,12 +240,12 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
           isOpen ? 'scale-0' : 'scale-100'
         }`}
         style={{
-          background: customBackground 
-            ? `url(${customBackground}) center/cover` 
-            : 'linear-gradient(135deg, #2563eb, #1d4ed8)'
+          background: chatButtonImage 
+            ? `url(${chatButtonImage}) center/cover` 
+            : themeColor
         }}
       >
-        {!customBackground && <MessageCircle className="h-6 w-6 text-white" />}
+        {!chatButtonImage && <MessageCircle className="h-6 w-6 text-white" />}
       </button>
 
       {/* Chat Modal */}
@@ -203,7 +255,10 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
           className="fixed bottom-6 right-6 w-96 h-[500px] bg-white rounded-2xl shadow-2xl z-50 flex flex-col border border-gray-200"
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-t-2xl flex items-center justify-between">
+          <div 
+            className="text-white p-4 rounded-t-2xl flex items-center justify-between"
+            style={{ backgroundColor: themeColor }}
+          >
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-white bg-opacity-20 flex items-center justify-center">
                 <MessageCircle className="h-5 w-5" />
@@ -231,14 +286,26 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-2 ${
                     msg.role === 'user'
-                      ? 'bg-blue-600 text-white'
+                      ? 'text-white'
                       : 'bg-gray-100 text-gray-900'
                   }`}
+                  style={msg.role === 'user' ? { backgroundColor: themeColor } : {}}
                 >
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                 </div>
               </div>
             ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 text-gray-900 max-w-[80%] rounded-2xl px-4 py-2">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Input */}
@@ -254,15 +321,33 @@ export function FloatingChatButton({ customBackground }: FloatingChatButtonProps
                   }
                 }}
                 placeholder="Type your message..."
-                className="flex-1 resize-none border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="flex-1 resize-none border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 text-sm"
+                style={{ 
+                  focusRingColor: themeColor,
+                  '--tw-ring-color': themeColor 
+                } as React.CSSProperties & { focusRingColor?: string; '--tw-ring-color'?: string }}
+                onFocus={(e) => {
+                  e.target.style.boxShadow = `0 0 0 2px ${themeColor}40`;
+                }}
+                onBlur={(e) => {
+                  e.target.style.boxShadow = '';
+                }}
                 rows={2}
               />
               <button
                 onClick={handleSendMessage}
-                disabled={!message.trim()}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl px-4 py-2"
+                disabled={!message.trim() || isLoading}
+                className="disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2 transition-opacity"
+                style={{ 
+                  backgroundColor: themeColor,
+                  opacity: (!message.trim() || isLoading) ? 0.5 : 1
+                }}
               >
-                <Send className="h-5 w-5" />
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
               </button>
             </div>
           </div>

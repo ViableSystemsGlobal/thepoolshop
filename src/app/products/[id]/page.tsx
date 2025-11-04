@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
-import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol } from "@/components/ui/currency-toggle";
+import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol, useExchangeRates } from "@/components/ui/currency-toggle";
 import { EditProductModal } from "@/components/modals/edit-product-modal";
 import { AddProductToPriceListFromProductModal } from "@/components/modals/add-product-to-price-list-from-product-modal";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
@@ -112,6 +112,38 @@ export default function ProductDetailsPage() {
   const { success, error: showError } = useToast();
   const theme = getThemeClasses();
   const { currency, changeCurrency } = useCurrency();
+  const { rates: exchangeRates } = useExchangeRates();
+  
+  // Helper function to format currency using exchange rates from API
+  const formatCurrencyWithRate = (amount: number, toCurrency: string, fromCurrency: string): string => {
+    const selectedCurrency = { code: 'GHS', symbol: 'GH₵', name: 'Ghana Cedi' };
+    const currencyMap: { [key: string]: { code: string; symbol: string } } = {
+      'GHS': { code: 'GHS', symbol: 'GH₵' },
+      'USD': { code: 'USD', symbol: '$' },
+      'EUR': { code: 'EUR', symbol: '€' }
+    };
+    const curr = currencyMap[toCurrency] || selectedCurrency;
+    
+    let convertedAmount = amount;
+    if (fromCurrency !== toCurrency) {
+      const rateKey = `${fromCurrency}_${toCurrency}`;
+      const rate = exchangeRates[rateKey];
+      
+      if (rate) {
+        convertedAmount = amount * rate;
+      } else {
+        // Fallback if rate not found
+        convertedAmount = amount;
+      }
+    }
+    
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(convertedAmount);
+    
+    return `${curr.symbol}${formatted}`;
+  };
   
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -1085,24 +1117,24 @@ export default function ProductDetailsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="text-center p-6 bg-gray-50 rounded-lg">
                       <div className="text-3xl font-bold text-gray-900">
-                        {formatCurrencyWithSymbol(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
+                        {formatCurrencyWithRate(product.price || 0, currency, product.originalPriceCurrency || product.baseCurrency || 'GHS')}
                       </div>
                       <div className="text-sm text-gray-600 mt-2">Selling Price</div>
                       {product.originalPriceCurrency && product.originalPriceCurrency !== currency && (
                         <div className="text-xs text-gray-500 mt-2">
-                          Original: {formatCurrencyWithSymbol(product.price || 0, product.originalPriceCurrency || 'GHS', product.originalPriceCurrency || 'GHS')}
+                          Original: {formatCurrencyWithRate(product.price || 0, product.originalPriceCurrency || 'GHS', product.originalPriceCurrency || 'GHS')}
                         </div>
                       )}
                     </div>
                     
                     <div className="text-center p-6 bg-gray-50 rounded-lg">
                       <div className="text-3xl font-bold text-gray-900">
-                        {formatCurrencyWithSymbol(product.cost || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
+                        {formatCurrencyWithRate(product.cost || 0, currency, product.originalCostCurrency || product.importCurrency || 'USD')}
                       </div>
                       <div className="text-sm text-gray-600 mt-2">Cost Price</div>
                       {product.originalCostCurrency && product.originalCostCurrency !== currency && (
                         <div className="text-xs text-gray-500 mt-2">
-                          Original: {formatCurrencyWithSymbol(product.cost || 0, product.originalCostCurrency || 'USD', product.originalCostCurrency || 'USD')}
+                          Original: {formatCurrencyWithRate(product.cost || 0, product.originalCostCurrency || 'USD', product.originalCostCurrency || 'USD')}
                         </div>
                       )}
                     </div>

@@ -93,6 +93,10 @@ export function AddCategoryModal({ isOpen, onClose, onSuccess, parentCategory }:
 
       if (response.ok) {
         success("Category Created", `"${formData.name}" has been successfully added to your categories.`);
+        
+        // Dispatch event to notify other components to refresh categories
+        const event = new CustomEvent('categoryAdded');
+        window.dispatchEvent(event);
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to create category');

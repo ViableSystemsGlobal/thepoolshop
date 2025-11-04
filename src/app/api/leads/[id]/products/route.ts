@@ -47,6 +47,10 @@ export async function GET(
             price: true,
             cost: true,
             description: true,
+            baseCurrency: true,
+            originalPrice: true,
+            originalPriceCurrency: true,
+            images: true,
           }
         });
         
@@ -80,6 +84,10 @@ export async function GET(
               price: true,
               cost: true,
               description: true,
+              baseCurrency: true,
+              originalPrice: true,
+              originalPriceCurrency: true,
+              images: true,
             }
           }
         }

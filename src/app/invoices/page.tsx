@@ -40,7 +40,9 @@ import {
   AlertCircle,
   CreditCard,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
@@ -99,7 +101,7 @@ function InvoicesPageContent() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { success, error: showError } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -110,7 +112,21 @@ function InvoicesPageContent() {
   const [loading, setLoading] = useState(true);
   const [sendInvoiceModalOpen, setSendInvoiceModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  
+  // Bulk selection state
+  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
+  const [isAllSelected, setIsAllSelected] = useState(false);
   const [currency, setCurrency] = useState('GHS');
+
+  // Sync isAllSelected with filteredInvoices
+  useEffect(() => {
+    if (filteredInvoices.length === 0) {
+      setIsAllSelected(false);
+    } else {
+      const allSelected = selectedInvoices.size === filteredInvoices.length && filteredInvoices.length > 0;
+      setIsAllSelected(allSelected);
+    }
+  }, [selectedInvoices, filteredInvoices]);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -236,6 +252,58 @@ function InvoicesPageContent() {
     }
 
     setFilteredInvoices(filtered);
+  };
+
+  // Bulk selection functions
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedInvoices(new Set());
+      setIsAllSelected(false);
+    } else {
+      const allIds = new Set(filteredInvoices.map(inv => inv.id));
+      setSelectedInvoices(allIds);
+      setIsAllSelected(true);
+    }
+  };
+
+  const handleSelectInvoice = (invoiceId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setSelectedInvoices(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(invoiceId)) {
+        newSelected.delete(invoiceId);
+      } else {
+        newSelected.add(invoiceId);
+      }
+      return newSelected;
+    });
+  };
+
+  const handleStatusUpdate = async (invoice: Invoice, newStatus: string) => {
+    try {
+      const response = await fetch(`/api/invoices/${invoice.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus
+        }),
+      });
+
+      if (response.ok) {
+        success("Status Updated", `Invoice ${invoice.number} status updated to ${newStatus}`);
+        loadInvoices();
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || "Failed to update status");
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      showError("Failed to update status");
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -369,7 +437,10 @@ function InvoicesPageContent() {
           </div>
           <div className="flex space-x-3">
             <Link href="/invoices/create">
-              <Button className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}>
+              <Button 
+                className="text-white hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: getThemeColor() }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Invoice
               </Button>
@@ -384,32 +455,11 @@ function InvoicesPageContent() {
             <AIRecommendationCard
               title="Invoice Management AI"
               subtitle="Your intelligent assistant for payment optimization"
-              recommendations={[
-                {
-                  id: '1',
-                  title: "Follow up on overdue invoices",
-                  description: `${stats.overdueAmount > 0 ? `${formatCurrency(stats.overdueAmount, currency)} in overdue amounts` : 'No overdue invoices'}`,
-                  priority: stats.overdueAmount > 0 ? 'high' : 'low',
-                  completed: false
-                },
-                {
-                  id: '2',
-                  title: "Payment reminders",
-                  description: "Send payment reminders to customers with outstanding balances",
-                  priority: 'medium',
-                  completed: false
-                },
-                {
-                  id: '3',
-                  title: "Monthly summary",
-                  description: `Total revenue this month: ${formatCurrency(stats.paidThisMonth, currency)}`,
-                  priority: 'low',
-                  completed: false
-                }
-              ]}
               onRecommendationComplete={(id) => {
                 console.log('Recommendation completed:', id);
               }}
+              page="invoices"
+              enableAI={true}
             />
           </div>
 
@@ -507,6 +557,22 @@ function InvoicesPageContent() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleSelectAll();
+                        }}
+                        className="flex items-center justify-center w-4 h-4 hover:opacity-75 transition-opacity"
+                      >
+                        {isAllSelected ? (
+                          <CheckSquare className="h-4 w-4 text-blue-600" />
+                        ) : (
+                          <Square className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Invoice
                     </th>
@@ -559,14 +625,18 @@ function InvoicesPageContent() {
                     ))
                   ) : filteredInvoices.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
+                      <td colSpan={8} className="px-6 py-12 text-center">
                         <p className="text-gray-500 mb-4">
                           {searchTerm || statusFilter || paymentStatusFilter
                             ? "No invoices match your filters" 
                             : "No invoices yet"}
                         </p>
                         <Link href="/invoices/create">
-                          <Button size="sm" className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}>
+                          <Button 
+                            size="sm" 
+                            className="text-white hover:opacity-90 transition-opacity"
+                            style={{ backgroundColor: getThemeColor() }}
+                          >
                             <Plus className="h-4 w-4 mr-2" />
                             Create First Invoice
                           </Button>
@@ -580,6 +650,22 @@ function InvoicesPageContent() {
                         className={getInvoiceRowClassName(invoice)}
                         onClick={() => router.push(`/invoices/${invoice.id}`)}
                       >
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={(e) => handleSelectInvoice(invoice.id, e)}
+                            className="flex items-center justify-center w-4 h-4 hover:opacity-75 transition-opacity"
+                            type="button"
+                          >
+                            {selectedInvoices.has(invoice.id) ? (
+                              <CheckSquare className="h-4 w-4 text-blue-600" />
+                            ) : (
+                              <Square className="h-4 w-4 text-gray-400" />
+                            )}
+                          </button>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <FileText className="h-4 w-4 text-gray-400 mr-2" />
@@ -608,8 +694,35 @@ function InvoicesPageContent() {
                             {new Date(invoice.dueDate).toLocaleDateString()}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {getStatusBadge(invoice.status)}
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="focus:outline-none">
+                                {getStatusBadge(invoice.status)}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(invoice, 'DRAFT')}>
+                                <span className="w-2 h-2 bg-gray-500 rounded-full mr-2"></span>
+                                Draft
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(invoice, 'SENT')}>
+                                <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                                Sent
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(invoice, 'OVERDUE')}>
+                                <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                                Overdue
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(invoice, 'VOID')}>
+                                <span className="w-2 h-2 bg-gray-500 rounded-full mr-2"></span>
+                                Void
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {getPaymentStatusBadge(invoice.paymentStatus)}

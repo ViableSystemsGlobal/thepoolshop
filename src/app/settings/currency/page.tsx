@@ -13,7 +13,10 @@ import {
   Save,
   Settings,
   TrendingUp,
-  Globe
+  Globe,
+  Edit2,
+  CheckCircle,
+  AlertCircle
 } from "lucide-react";
 
 interface Currency {
@@ -57,6 +60,13 @@ export default function CurrencySettingsPage() {
   const [exchangeRateUpdateInterval, setExchangeRateUpdateInterval] = useState('daily');
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
 
+  // Working exchange rate state
+  const [isEditingWorkingRate, setIsEditingWorkingRate] = useState(false);
+  const [workingRateFromCurrency, setWorkingRateFromCurrency] = useState('USD');
+  const [workingRateToCurrency, setWorkingRateToCurrency] = useState('GHS');
+  const [workingRate, setWorkingRate] = useState<number | null>(null);
+  const [workingRateData, setWorkingRateData] = useState<ExchangeRate | null>(null);
+
   useEffect(() => {
     fetchCurrencySettings();
   }, []);
@@ -72,6 +82,28 @@ export default function CurrencySettingsPage() {
         setAutoUpdateExchangeRates(data.autoUpdateExchangeRates);
         setExchangeRateUpdateInterval(data.exchangeRateUpdateInterval);
         setExchangeRates(data.exchangeRates || []);
+        
+        // Find current working rate (latest active rate without end date)
+        const activeRates = (data.exchangeRates || []).filter((r: ExchangeRate) => r.isActive);
+        if (activeRates.length > 0) {
+          // Get the most common rate pair (USD to GHS typically)
+          const usdToGhs = activeRates.find((r: ExchangeRate) => 
+            r.fromCurrency === 'USD' && r.toCurrency === (data.baseCurrency || 'GHS')
+          );
+          if (usdToGhs) {
+            setWorkingRateData(usdToGhs);
+            setWorkingRate(usdToGhs.rate);
+            setWorkingRateFromCurrency(usdToGhs.fromCurrency);
+            setWorkingRateToCurrency(usdToGhs.toCurrency);
+          } else {
+            // Fall back to first active rate
+            const latest = activeRates[0];
+            setWorkingRateData(latest);
+            setWorkingRate(latest.rate);
+            setWorkingRateFromCurrency(latest.fromCurrency);
+            setWorkingRateToCurrency(latest.toCurrency);
+          }
+        }
       } else {
         showError('Failed to load currency settings');
       }
@@ -109,6 +141,97 @@ export default function CurrencySettingsPage() {
     } catch (error) {
       console.error('Error saving currency settings:', error);
       showError('Error saving currency settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUpdateWorkingRate = async () => {
+    if (!workingRate || workingRate <= 0) {
+      showError('Please enter a valid exchange rate');
+      return;
+    }
+
+    if (workingRateFromCurrency === workingRateToCurrency) {
+      showError('From and To currencies must be different');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Update or create the working rate
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Check if there's an existing rate for this currency pair
+      // Look for any active rate with the same from/to currencies
+      const existingRateIndex = exchangeRates.findIndex(r => 
+        r.fromCurrency === workingRateFromCurrency && 
+        r.toCurrency === workingRateToCurrency
+      );
+
+      let updatedRates = [...exchangeRates];
+      
+      if (existingRateIndex >= 0 && exchangeRates[existingRateIndex].id) {
+        // Update existing rate - set effectiveTo on old rates for same currency pair
+        // Deactivate old rates for this currency pair
+        updatedRates = updatedRates.map(r => {
+          if (r.fromCurrency === workingRateFromCurrency && 
+              r.toCurrency === workingRateToCurrency &&
+              r.id === exchangeRates[existingRateIndex].id) {
+            // Update the rate we found
+            return {
+              ...r,
+              rate: workingRate,
+              isActive: true,
+              effectiveFrom: today,
+              effectiveTo: null
+            };
+          }
+          return r;
+        });
+      } else {
+        // Add new rate (no existing rate or no ID)
+        const newRate: ExchangeRate = {
+          fromCurrency: workingRateFromCurrency,
+          toCurrency: workingRateToCurrency,
+          rate: workingRate,
+          source: 'manual',
+          effectiveFrom: today,
+          effectiveTo: null,
+          isActive: true
+        };
+        updatedRates.push(newRate);
+      }
+
+      // Save to backend
+      const response = await fetch('/api/settings/currency', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          baseCurrency,
+          defaultExchangeRateSource,
+          autoUpdateExchangeRates,
+          exchangeRateUpdateInterval,
+          exchangeRates: updatedRates
+        }),
+      });
+
+      const responseData = await response.json();
+
+      if (response.ok) {
+        success('Working exchange rate updated successfully');
+        setIsEditingWorkingRate(false);
+        fetchCurrencySettings(); // Refresh to get updated data
+      } else {
+        const errorMessage = responseData.error || 'Failed to update working exchange rate';
+        console.error('API Error:', responseData);
+        showError(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error updating working exchange rate:', error);
+      showError('Error updating working exchange rate: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setIsSaving(false);
     }
@@ -163,6 +286,133 @@ export default function CurrencySettingsPage() {
             {isSaving ? 'Saving...' : 'Save Settings'}
           </Button>
         </div>
+
+        {/* Current Working Exchange Rate */}
+        <Card className="border-2 border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <TrendingUp className="h-5 w-5 mr-2 text-blue-600" />
+              Current Working Exchange Rate
+            </CardTitle>
+            <CardDescription>
+              This rate is used for new products, quotations, and conversions. Past invoices and quotes are not affected.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!isEditingWorkingRate ? (
+              <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-blue-200">
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <CheckCircle className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Current Rate</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {workingRate ? (
+                        <>1 {workingRateFromCurrency} = {workingRate.toFixed(4)} {workingRateToCurrency}</>
+                      ) : (
+                        <span className="text-gray-400">No rate set</span>
+                      )}
+                    </p>
+                    {workingRateData?.effectiveFrom && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Effective from: {new Date(workingRateData.effectiveFrom).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button 
+                  onClick={() => setIsEditingWorkingRate(true)}
+                  variant="outline"
+                  className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                >
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Update Rate
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4 p-4 bg-white rounded-lg border border-blue-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      From Currency
+                    </label>
+                    <select
+                      value={workingRateFromCurrency}
+                      onChange={(e) => setWorkingRateFromCurrency(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="GHS">GHS - Ghana Cedi</option>
+                      <option value="EUR">EUR - Euro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      To Currency
+                    </label>
+                    <select
+                      value={workingRateToCurrency}
+                      onChange={(e) => setWorkingRateToCurrency(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="GHS">GHS - Ghana Cedi</option>
+                      <option value="EUR">EUR - Euro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Exchange Rate
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.0001"
+                      value={workingRate || ''}
+                      onChange={(e) => setWorkingRate(parseFloat(e.target.value) || null)}
+                      placeholder="e.g., 12.5"
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      1 {workingRateFromCurrency} = ? {workingRateToCurrency}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Button 
+                    onClick={handleUpdateWorkingRate}
+                    disabled={isSaving || !workingRate}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {isSaving ? 'Saving...' : 'Save Working Rate'}
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setIsEditingWorkingRate(false);
+                      // Reset to current values
+                      if (workingRateData) {
+                        setWorkingRate(workingRateData.rate);
+                        setWorkingRateFromCurrency(workingRateData.fromCurrency);
+                        setWorkingRateToCurrency(workingRateData.toCurrency);
+                      }
+                    }}
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                <div className="flex items-start space-x-2 p-3 bg-blue-50 rounded-md border border-blue-200">
+                  <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> Updating this rate will affect new products, quotations, and price calculations going forward. 
+                    All existing invoices and quotes will remain unchanged as they use locked prices from when they were created.
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Base Currency Configuration */}
         <Card>

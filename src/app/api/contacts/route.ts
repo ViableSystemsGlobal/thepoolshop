@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = (session.user as any).id;
+    const userRole = (session.user as any).role;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -19,11 +20,17 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const accountId = searchParams.get('accountId');
 
-    const where: any = {
-      account: {
+    // Super Admins and Admins can see all contacts, others see only contacts from their accounts
+    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+    
+    const where: any = {};
+    
+    // Only filter by account owner if user is not Super Admin or Admin
+    if (!isSuperAdmin) {
+      where.account = {
         ownerId: userId,
-      },
-    };
+      };
+    }
 
     if (accountId) {
       where.accountId = accountId;
@@ -95,12 +102,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the account belongs to the user
+    // Verify the account belongs to the user (or user is Super Admin)
+    const userRole = (session.user as any).role;
+    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+    
+    const accountWhere: any = { id: accountId };
+    if (!isSuperAdmin) {
+      accountWhere.ownerId = userId;
+    }
+    
     const account = await prisma.account.findFirst({
-      where: {
-        id: accountId,
-        ownerId: userId,
-      },
+      where: accountWhere,
     });
 
     if (!account) {

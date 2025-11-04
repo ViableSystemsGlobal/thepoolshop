@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { writeFile, mkdir } from 'fs/promises';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,8 +28,25 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     console.log('Creating warehouse...');
+    
+    // Check if request is FormData (for image upload) or JSON
+    const contentType = request.headers.get('content-type') || '';
+    let name, code, address, city, country, image: File | null = null;
+    
+    if (contentType.includes('multipart/form-data')) {
+      // Handle FormData (with potential image upload)
+      const formData = await request.formData();
+      name = formData.get('name') as string;
+      code = formData.get('code') as string;
+      address = formData.get('address') as string;
+      city = formData.get('city') as string;
+      country = formData.get('country') as string;
+      image = formData.get('image') as File | null;
+    } else {
+      // Handle JSON (backward compatibility)
     const body = await request.json();
-    const { name, code, address, city, country } = body;
+      ({ name, code, address, city, country } = body);
+    }
 
     console.log('Warehouse data:', { name, code, address, city, country });
 
@@ -52,14 +72,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Handle image upload
+    let imagePath: string | undefined = undefined;
+    if (image && image.size > 0) {
+      try {
+        // Save to public/uploads/warehouses for development, or /app/uploads/warehouses for production
+        const isProduction = process.env.NODE_ENV === 'production';
+        const uploadsDir = isProduction 
+          ? join('/app', 'uploads', 'warehouses')
+          : join(process.cwd(), 'public', 'uploads', 'warehouses');
+        await mkdir(uploadsDir, { recursive: true });
+
+        // Generate unique filename
+        const timestamp = Date.now();
+        const fileExtension = image.name.split('.').pop();
+        const uniqueId = randomUUID().substring(0, 8);
+        const filename = `${code}-${timestamp}-${uniqueId}.${fileExtension}`;
+        const filepath = join(uploadsDir, filename);
+
+        // Convert File to Buffer and save
+        const bytes = await image.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filepath, buffer);
+
+        // Update image path (relative to uploads root)
+        imagePath = `uploads/warehouses/${filename}`;
+        console.log('Image uploaded successfully:', imagePath);
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        return NextResponse.json(
+          { error: "Failed to upload image" },
+          { status: 500 }
+        );
+      }
+    }
+
     console.log('Creating warehouse in database...');
     const warehouse = await prisma.warehouse.create({
       data: {
         name,
         code,
-        address,
-        city,
-        country,
+        address: address || null,
+        city: city || null,
+        country: country || null,
+        image: imagePath,
         isActive: true, // Default to active
       },
     });

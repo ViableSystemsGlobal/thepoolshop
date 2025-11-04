@@ -3,35 +3,203 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { CommissionService } from '@/lib/commission-service';
+import { sendPaymentNotifications, sendOrderCreatedNotifications } from '@/lib/payment-order-notifications';
 
 // Helper function to generate payment number
+// Uses a retry mechanism to ensure uniqueness even under race conditions
 async function generatePaymentNumber(): Promise<string> {
-  const count = await prisma.payment.count();
-  const nextNumber = count + 1;
-  return `PAY-${nextNumber.toString().padStart(6, '0')}`;
+  let attempts = 0;
+  const maxAttempts = 10;
+  let baseNumber = 1;
+  
+  // Get the highest existing payment number as starting point
+  const lastPayment = await prisma.payment.findFirst({
+    orderBy: { createdAt: 'desc' },
+    select: { number: true }
+  });
+  
+  if (lastPayment?.number) {
+    // Extract number from format PAY-000001
+    const match = lastPayment.number.match(/\d+$/);
+    if (match) {
+      baseNumber = parseInt(match[0], 10) + 1;
+    }
+  }
+  
+  while (attempts < maxAttempts) {
+    const paymentNumber = `PAY-${baseNumber.toString().padStart(6, '0')}`;
+    
+    // Check if this number already exists (race condition protection)
+    const exists = await prisma.payment.findUnique({
+      where: { number: paymentNumber },
+      select: { id: true }
+    });
+    
+    if (!exists) {
+      return paymentNumber;
+    }
+    
+    // If it exists, increment and try again
+    attempts++;
+    baseNumber++;
+  }
+  
+  // Fallback: use timestamp if all attempts fail
+  const timestamp = Date.now();
+  return `PAY-${timestamp.toString().slice(-6)}`;
+}
+
+// Helper function to generate sales order number
+async function generateSalesOrderNumber(): Promise<string> {
+  let attempts = 0;
+  const maxAttempts = 10;
+  let baseNumber = 1;
+
+  const lastOrder = await prisma.salesOrder.findFirst({
+    orderBy: { createdAt: 'desc' },
+    select: { number: true }
+  });
+
+  if (lastOrder?.number) {
+    const match = lastOrder.number.match(/\d+$/);
+    if (match) {
+      baseNumber = parseInt(match[0], 10) + 1;
+    }
+  }
+
+  while (attempts < maxAttempts) {
+    const orderNumber = `SO-${baseNumber.toString().padStart(6, '0')}`;
+    const exists = await prisma.salesOrder.findUnique({
+      where: { number: orderNumber },
+      select: { id: true }
+    });
+    if (!exists) return orderNumber;
+    attempts++;
+    baseNumber++;
+  }
+
+  return `SO-${Date.now().toString().slice(-6)}`;
+}
+
+// Helper function to create sales order from invoice
+async function createSalesOrderFromInvoice(invoiceId: string, ownerId: string): Promise<any> {
+  const existingOrder = await prisma.salesOrder.findFirst({
+    where: { invoiceId },
+    select: { id: true, number: true }
+  });
+
+  if (existingOrder) {
+    console.log(`ℹ️ Sales order already exists for invoice ${invoiceId}: ${existingOrder.number}`);
+    return null;
+  }
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: {
+      lines: {
+        include: {
+          product: {
+            select: { id: true, name: true, sku: true }
+          }
+        }
+      },
+      account: {
+        select: { id: true, name: true }
+      }
+    }
+  });
+
+  if (!invoice || !invoice.accountId) {
+    console.log(`ℹ️ Invoice ${invoiceId} not found or has no accountId, skipping sales order creation`);
+    return;
+  }
+
+  const orderNumber = await generateSalesOrderNumber();
+
+  const salesOrder = await prisma.salesOrder.create({
+    data: {
+      number: orderNumber,
+      invoiceId: invoiceId,
+      accountId: invoice.accountId,
+      ownerId: ownerId,
+      status: 'PENDING',
+      subtotal: invoice.subtotal,
+      tax: invoice.tax,
+      discount: invoice.discount || 0,
+      total: invoice.total,
+      notes: `Auto-created from invoice ${invoice.number}`,
+      lines: {
+        create: invoice.lines.map(line => {
+          // Calculate tax from taxes JSON array if available
+          let taxAmount = 0;
+          if (line.taxes) {
+            try {
+              const taxes = typeof line.taxes === 'string' ? JSON.parse(line.taxes) : line.taxes;
+              if (Array.isArray(taxes)) {
+                taxAmount = taxes.reduce((sum: number, tax: any) => sum + (Number(tax.amount) || 0), 0);
+              }
+            } catch (e) {
+              console.warn('Error parsing taxes:', e);
+            }
+          }
+          
+          return {
+            productId: line.productId,
+            description: line.productName || line.description || '',
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            discount: line.discount || 0,
+            tax: taxAmount,
+            lineTotal: line.lineTotal
+          };
+        })
+      }
+    }
+  });
+
+  console.log(`✅ Created sales order ${salesOrder.number} from invoice ${invoice.number}`);
+  return salesOrder;
 }
 
 // Helper function to update invoice payment status
 async function updateInvoicePaymentStatus(invoiceId: string, userId?: string) {
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
-    include: {
-      payments: {
-        select: { amount: true }
-      }
-    }
+    select: { total: true, paymentStatus: true }
   });
 
   if (!invoice) return;
 
   const previousPaymentStatus = invoice.paymentStatus;
-  const totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const amountDue = invoice.total - totalPaid;
+  
+  // Get both payment allocations AND credit note applications
+  const [allAllocations, creditNoteApplications] = await Promise.all([
+    prisma.paymentAllocation.findMany({
+      where: { invoiceId },
+      select: { amount: true }
+    }),
+    prisma.creditNoteApplication.findMany({
+      where: { invoiceId },
+      select: { amount: true }
+    })
+  ]);
+  
+  // Sum payments from allocations
+  const totalPaidFromPayments = allAllocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
+  
+  // Sum credit notes applied
+  const totalPaidFromCreditNotes = creditNoteApplications.reduce((sum, app) => sum + Number(app.amount), 0);
+  
+  // Total paid = payments + credit notes
+  const totalPaid = totalPaidFromPayments + totalPaidFromCreditNotes;
+  const amountDue = Math.max(0, invoice.total - totalPaid);
 
   let paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
   if (totalPaid === 0) {
     paymentStatus = 'UNPAID';
-  } else if (totalPaid >= invoice.total) {
+  } else if (Math.abs(totalPaid - invoice.total) < 0.01 || totalPaid >= invoice.total || amountDue <= 0.01) {
+    // Use small tolerance for floating point comparison
+    // If amountDue is <= 0.01, consider it PAID
     paymentStatus = 'PAID';
   } else {
     paymentStatus = 'PARTIALLY_PAID';
@@ -211,6 +379,9 @@ export async function POST(request: NextRequest) {
     // Generate payment number
     const paymentNumber = await generatePaymentNumber();
 
+    // Track invoices that become paid to create orders
+    const invoicesToCreateOrders: Array<{ invoiceId: string; ownerId: string }> = [];
+
     // Create payment with allocations in a transaction
     const payment = await prisma.$transaction(async (tx) => {
       // Create the payment
@@ -247,27 +418,53 @@ export async function POST(request: NextRequest) {
 
         // Update invoice payment statuses directly in transaction
         for (const alloc of invoiceAllocations) {
+          // Get invoice with current total
           const invoice = await tx.invoice.findUnique({
             where: { id: alloc.invoiceId },
-            include: {
-              payments: {
-                select: { amount: true }
-              }
-            }
+            select: { total: true }
           });
 
           if (invoice) {
-            const totalPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
-            const amountDue = invoice.total - totalPaid;
+            // Get both payment allocations AND credit note applications
+            const [allAllocations, creditNoteApplications] = await Promise.all([
+              tx.paymentAllocation.findMany({
+                where: { invoiceId: alloc.invoiceId },
+                select: { amount: true }
+              }),
+              tx.creditNoteApplication.findMany({
+                where: { invoiceId: alloc.invoiceId },
+                select: { amount: true }
+              })
+            ]);
+            
+            // Sum payments from allocations
+            const totalPaidFromPayments = allAllocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
+            
+            // Sum credit notes applied
+            const totalPaidFromCreditNotes = creditNoteApplications.reduce((sum, app) => sum + Number(app.amount), 0);
+            
+            // Total paid = payments + credit notes
+            const totalPaid = totalPaidFromPayments + totalPaidFromCreditNotes;
+            const amountDue = Math.max(0, invoice.total - totalPaid);
 
             let paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
             if (totalPaid === 0) {
               paymentStatus = 'UNPAID';
-            } else if (totalPaid >= invoice.total) {
+            } else if (Math.abs(totalPaid - invoice.total) < 0.01 || totalPaid >= invoice.total || amountDue <= 0.01) {
+              // Use small tolerance for floating point comparison
+              // If amountDue is <= 0.01, consider it PAID
               paymentStatus = 'PAID';
             } else {
               paymentStatus = 'PARTIALLY_PAID';
             }
+
+            // Get the invoice before updating to check if it's becoming paid
+            const invoiceBeforeUpdate = await tx.invoice.findUnique({
+              where: { id: alloc.invoiceId },
+              select: { paymentStatus: true, accountId: true, ownerId: true }
+            });
+
+            const isBecomingPaid = paymentStatus === 'PAID' && invoiceBeforeUpdate?.paymentStatus !== 'PAID';
 
             await tx.invoice.update({
               where: { id: alloc.invoiceId },
@@ -279,16 +476,27 @@ export async function POST(request: NextRequest) {
               }
             });
 
+            // Track invoices that become paid to create orders after transaction
+            if (isBecomingPaid && invoiceBeforeUpdate?.accountId && invoiceBeforeUpdate?.ownerId) {
+              invoicesToCreateOrders.push({
+                invoiceId: alloc.invoiceId,
+                ownerId: invoiceBeforeUpdate.ownerId
+              });
+            }
+
             // Update linked opportunity when invoice is fully paid
             if (paymentStatus === 'PAID') {
-              const invoiceWithQuotation = await tx.invoice.findUnique({
+              const invoiceWithDetails = await tx.invoice.findUnique({
                 where: { id: alloc.invoiceId },
-                select: { quotationId: true }
+                select: { 
+                  quotationId: true,
+                  total: true
+                }
               });
 
-              if (invoiceWithQuotation?.quotationId) {
+              if (invoiceWithDetails?.quotationId) {
                 const quotationWithOpportunity = await tx.quotation.findUnique({
-                  where: { id: invoiceWithQuotation.quotationId },
+                  where: { id: invoiceWithDetails.quotationId },
                   select: { opportunityId: true }
                 });
 
@@ -297,11 +505,13 @@ export async function POST(request: NextRequest) {
                     where: { id: quotationWithOpportunity.opportunityId },
                     data: {
                       stage: 'WON',
+                      value: invoiceWithDetails.total, // Set value from invoice total
                       probability: 100,
+                      wonDate: new Date(),
                       closeDate: new Date()
                     }
                   });
-                  console.log('✅ Updated opportunity to WON with 100% probability:', quotationWithOpportunity.opportunityId);
+                  console.log(`✅ Updated opportunity to WON with value: ${invoiceWithDetails.total} and 100% probability:`, quotationWithOpportunity.opportunityId);
                 }
               }
             }
@@ -313,6 +523,61 @@ export async function POST(request: NextRequest) {
     }, {
       timeout: 10000 // Increase timeout to 10 seconds
     });
+
+    // Send payment notifications for each invoice allocation
+    if (invoiceAllocations.length > 0) {
+      for (const alloc of invoiceAllocations) {
+        try {
+          const invoice = await prisma.invoice.findUnique({
+            where: { id: alloc.invoiceId },
+            include: {
+              account: {
+                select: { id: true, name: true, email: true, phone: true }
+              }
+            }
+          });
+
+          if (invoice && invoice.account) {
+            await sendPaymentNotifications(invoice, payment, invoice.account);
+          }
+        } catch (error) {
+          console.error(`❌ Error sending payment notifications for invoice ${alloc.invoiceId}:`, error);
+          // Don't fail the payment if notifications fail
+        }
+      }
+    }
+
+    // Create sales orders for invoices that became paid
+    for (const { invoiceId, ownerId } of invoicesToCreateOrders) {
+      try {
+        const salesOrder = await createSalesOrderFromInvoice(invoiceId, ownerId);
+        
+        // Send order creation notifications
+        if (salesOrder) {
+          try {
+            // Get the account/customer for the order
+            const invoiceWithAccount = await prisma.invoice.findUnique({
+              where: { id: invoiceId },
+              include: {
+                account: {
+                  select: { id: true, name: true, email: true, phone: true }
+                }
+              }
+            });
+
+            if (invoiceWithAccount?.account) {
+              await sendOrderCreatedNotifications(salesOrder, invoiceWithAccount.account);
+            }
+          } catch (notificationError) {
+            console.error(`❌ Error sending order creation notifications:`, notificationError);
+            // Don't fail order creation if notifications fail
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error creating sales order from invoice ${invoiceId}:`, error);
+        // Don't fail the payment if order creation fails
+      }
+    }
 
     // Auto-create commissions for invoices that became PAID
     if (invoiceAllocations.length > 0) {
@@ -357,10 +622,22 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(payment, { status: 201 });
-  } catch (error) {
-    console.error('Error creating payment:', error);
+  } catch (error: any) {
+    console.error('❌ Error creating payment:', error);
+    console.error('❌ Error details:', {
+      message: error?.message,
+      code: error?.code,
+      meta: error?.meta,
+      stack: error?.stack
+    });
+    
+    // Return more detailed error message
+    const errorMessage = error?.message || 'Failed to create payment';
     return NextResponse.json(
-      { error: 'Failed to create payment' },
+      { 
+        error: errorMessage,
+        details: error?.meta || error?.code || 'Unknown error'
+      },
       { status: 500 }
     );
   }

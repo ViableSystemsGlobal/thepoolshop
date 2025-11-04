@@ -349,6 +349,8 @@ export default function RoutesMappingPage() {
               onRecommendationComplete={(id) => {
                 console.log('Recommendation completed:', id);
               }}
+              page="routes-mapping"
+              enableAI={true}
             />
           </div>
 

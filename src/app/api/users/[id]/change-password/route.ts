@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import bcrypt from "bcryptjs";
 
 // PUT /api/users/[id]/change-password - Change user password
 export async function PUT(
@@ -10,7 +11,8 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    const userRole = (session?.user as any)?.role;
+    if (!session?.user || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -35,10 +37,13 @@ export async function PUT(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Hash password before storing
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
     // Update password
     await prisma.user.update({
       where: { id: resolvedParams.id },
-      data: { password: newPassword } as any
+      data: { password: hashedPassword }
     });
 
     // Log audit trail (temporarily disabled)

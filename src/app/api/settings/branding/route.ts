@@ -21,7 +21,12 @@ export async function GET() {
             'favicon',
             'primary_color',
             'secondary_color',
-            'company_description'
+            'company_description',
+            'pdf_header_image',
+            'pdf_footer_image',
+            'chat_button_image',
+            'email_template_header',
+            'email_template_footer'
           ]
         }
       }
@@ -32,9 +37,14 @@ export async function GET() {
       companyName: settings.find(s => s.key === 'company_name')?.value || 'AdPools Group',
       companyLogo: settings.find(s => s.key === 'company_logo')?.value || '/uploads/branding/company_logo_default.svg',
       favicon: settings.find(s => s.key === 'favicon')?.value || '/uploads/branding/favicon_default.svg',
-      primaryColor: settings.find(s => s.key === 'primary_color')?.value || '#3B82F6',
-      secondaryColor: settings.find(s => s.key === 'secondary_color')?.value || '#1E40AF',
-      description: settings.find(s => s.key === 'company_description')?.value || 'A practical, single-tenant system for sales and distribution management'
+      primaryColor: settings.find(s => s.key === 'primary_color')?.value || '#dc2626',
+      secondaryColor: settings.find(s => s.key === 'secondary_color')?.value || '#b91c1c',
+      description: settings.find(s => s.key === 'company_description')?.value || 'A practical, single-tenant system for sales and distribution management',
+      pdfHeaderImage: settings.find(s => s.key === 'pdf_header_image')?.value || '',
+      pdfFooterImage: settings.find(s => s.key === 'pdf_footer_image')?.value || '',
+      chatButtonImage: settings.find(s => s.key === 'chat_button_image')?.value || '',
+      emailTemplateHeader: settings.find(s => s.key === 'email_template_header')?.value || '',
+      emailTemplateFooter: settings.find(s => s.key === 'email_template_footer')?.value || ''
     };
 
     return NextResponse.json(brandingSettings);
@@ -63,28 +73,47 @@ export async function POST(request: NextRequest) {
       favicon,
       primaryColor,
       secondaryColor,
-      description
+      description,
+      pdfHeaderImage,
+      pdfFooterImage,
+      chatButtonImage,
+      emailTemplateHeader,
+      emailTemplateFooter
     } = body;
+
+    // Validate required fields
+    if (!primaryColor) {
+      return NextResponse.json(
+        { error: 'Primary color is required' },
+        { status: 400 }
+      );
+    }
 
     // Update or create settings
     const settingsToUpdate = [
-      { key: 'company_name', value: companyName },
-      { key: 'company_logo', value: companyLogo },
-      { key: 'favicon', value: favicon },
+      { key: 'company_name', value: companyName || 'AdPools Group' },
+      { key: 'company_logo', value: companyLogo || '' },
+      { key: 'favicon', value: favicon || '' },
       { key: 'primary_color', value: primaryColor },
-      { key: 'secondary_color', value: secondaryColor },
-      { key: 'company_description', value: description }
+      { key: 'secondary_color', value: secondaryColor || primaryColor },
+      { key: 'company_description', value: description || 'A practical, single-tenant system for sales and distribution management' },
+      { key: 'pdf_header_image', value: pdfHeaderImage || '' },
+      { key: 'pdf_footer_image', value: pdfFooterImage || '' },
+      { key: 'chat_button_image', value: chatButtonImage || '' },
+      { key: 'email_template_header', value: emailTemplateHeader || '' },
+      { key: 'email_template_footer', value: emailTemplateFooter || '' }
     ];
 
     for (const setting of settingsToUpdate) {
       await prisma.systemSettings.upsert({
         where: { key: setting.key },
-        update: { value: setting.value },
+        update: { 
+          value: String(setting.value || '')
+        },
         create: {
           key: setting.key,
-          value: setting.value,
-          category: 'branding',
-          updatedBy: session.user.id
+          value: String(setting.value || ''),
+          category: 'branding'
         }
       });
     }

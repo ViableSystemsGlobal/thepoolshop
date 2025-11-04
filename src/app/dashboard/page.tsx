@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/contexts/theme-context"
 import { MiniLineChart } from "@/components/ui/mini-line-chart"
-import { DashboardAICard } from "@/components/dashboard-ai-card"
+import { AIRecommendationCard } from "@/components/ai-recommendation-card"
 import { SkeletonMetricCard, SkeletonCard, SkeletonChart } from "@/components/ui/skeleton"
 import { 
   Package, 
@@ -39,6 +39,7 @@ interface DashboardData {
     pendingQuotations: number;
     monthlyRevenue: number;
     revenueChange: number;
+    revenueYTD: number;
   };
   trends: {
     productsTrend: number[];
@@ -57,7 +58,7 @@ interface DashboardData {
 }
 
 export default function Dashboard() {
-  const { getThemeClasses } = useTheme()
+  const { getThemeClasses, getThemeColor } = useTheme()
   const theme = getThemeClasses()
   const router = useRouter()
   
@@ -89,7 +90,8 @@ export default function Dashboard() {
     totalCustomers: 0,
     pendingQuotations: 0,
     monthlyRevenue: 0,
-    revenueChange: 0
+    revenueChange: 0,
+    revenueYTD: 0
   };
   
   const trends = dashboardData?.trends || {
@@ -100,55 +102,6 @@ export default function Dashboard() {
   };
   
   const recentActivity = dashboardData?.recentActivity || [];
-  
-  // AI Recommendations for Dashboard
-  const aiRecommendations = [
-    {
-      id: 'follow-up-quotations',
-      title: 'Follow up on pending quotations',
-      description: `${metrics.pendingQuotations} quotations need attention`,
-      priority: 'high' as const,
-      action: 'View Quotations',
-      href: '/quotations',
-      completed: false
-    },
-    {
-      id: 'update-prices',
-      title: 'Update product prices',
-      description: 'Price list needs review for better margins',
-      priority: 'medium' as const,
-      action: 'Manage Prices',
-      href: '/price-lists',
-      completed: false
-    },
-    {
-      id: 'contact-leads',
-      title: 'Contact new leads',
-      description: 'New leads waiting for follow-up',
-      priority: 'high' as const,
-      action: 'View Leads',
-      href: '/crm/leads',
-      completed: false
-    },
-    {
-      id: 'low-stock-alert',
-      title: 'Check low stock items',
-      description: '24 items need restocking',
-      priority: 'medium' as const,
-      action: 'View Stock',
-      href: '/inventory/stock',
-      completed: false
-    },
-    {
-      id: 'revenue-optimization',
-      title: 'Optimize revenue streams',
-      description: 'Analyze top-performing products',
-      priority: 'low' as const,
-      action: 'View Analytics',
-      href: '/reports',
-      completed: false
-    }
-  ];
   
   const handleRecommendationComplete = (id: string) => {
     console.log('Recommendation completed:', id);
@@ -208,12 +161,13 @@ export default function Dashboard() {
               onClick={() => router.push('/quotations/create')}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Quick Add
+              Quick Quote
             </Button>
             <Button 
               size="sm" 
-              className={`bg-${theme.primary} hover:bg-${theme.primaryDark}`}
-              onClick={() => router.push('/products/create')}
+              className="text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: getThemeColor() }}
+              onClick={() => router.push('/products?new=1')}
             >
               <Plus className="h-4 w-4 mr-2" />
               New Product
@@ -222,9 +176,10 @@ export default function Dashboard() {
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {loading ? (
             <>
+              <SkeletonMetricCard />
               <SkeletonMetricCard />
               <SkeletonMetricCard />
               <SkeletonMetricCard />
@@ -309,6 +264,30 @@ export default function Dashboard() {
                   </div>
                 </CardContent>
               </Card>
+
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Revenue YTD</CardTitle>
+                  <div className={`p-2 bg-${theme.primaryBg} rounded-lg`}>
+                    <DollarSign className={`h-4 w-4 text-${theme.primary}`} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {metrics.revenueYTD >= 1000000 
+                      ? `GH₵${(metrics.revenueYTD / 1000000).toFixed(2)}M`
+                      : metrics.revenueYTD >= 1000
+                      ? `GH₵${(metrics.revenueYTD / 1000).toFixed(1)}K`
+                      : `GH₵${metrics.revenueYTD.toFixed(2)}`}
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center text-xs text-gray-500">
+                      <Calendar className="h-3 w-3 mr-1 text-blue-500" />
+                      Year to date
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>
@@ -327,7 +306,7 @@ export default function Dashboard() {
               <Button 
                 className="w-full justify-start h-12 text-left" 
                 variant="outline"
-                onClick={() => router.push('/products/create')}
+                onClick={() => router.push('/products?new=1')}
               >
                 <div className="flex items-center w-full">
                   <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
@@ -359,7 +338,7 @@ export default function Dashboard() {
               <Button 
                 className="w-full justify-start h-12 text-left" 
                 variant="outline"
-                onClick={() => router.push('/crm/accounts/create')}
+                onClick={() => router.push('/crm/accounts?new=1')}
               >
                 <div className="flex items-center w-full">
                   <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
@@ -391,7 +370,7 @@ export default function Dashboard() {
               <Button 
                 className="w-full justify-start h-12 text-left" 
                 variant="outline"
-                onClick={() => router.push('/crm/leads/create')}
+                onClick={() => router.push('/crm/leads?new=1')}
               >
                 <div className="flex items-center w-full">
                   <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
@@ -423,7 +402,7 @@ export default function Dashboard() {
               <Button 
                 className="w-full justify-start h-12 text-left" 
                 variant="outline"
-                onClick={() => router.push('/drm/distributors/create')}
+                onClick={() => router.push('/drm/distributors?new=1')}
               >
                 <div className="flex items-center w-full">
                   <div className={`p-2 bg-${theme.primaryBg} rounded-lg mr-3`}>
@@ -521,11 +500,12 @@ export default function Dashboard() {
 
           {/* AI Actions Today */}
           <div className="lg:col-span-1">
-            <DashboardAICard
+            <AIRecommendationCard
               title="Dashboard AI"
-              subtitle="Your intelligent business assistant"
-              recommendations={aiRecommendations}
+              subtitle="Next best 5 actions that move the needle"
               onRecommendationComplete={handleRecommendationComplete}
+              page="dashboard"
+              enableAI={true}
             />
           </div>
         </div>

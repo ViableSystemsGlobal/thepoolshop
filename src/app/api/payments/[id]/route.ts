@@ -153,21 +153,38 @@ export async function DELETE(
         // Recalculate invoice payment status
         const invoice = await tx.invoice.findUnique({
           where: { id: allocation.invoiceId },
-          include: {
-            payments: {
-              select: { amount: true }
-            }
-          }
+          select: { total: true }
         });
 
         if (invoice) {
-          const totalPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
-          const amountDue = invoice.total - totalPaid;
+          // Get both payment allocations AND credit note applications
+          const [allAllocations, creditNoteApplications] = await Promise.all([
+            tx.paymentAllocation.findMany({
+              where: { invoiceId: allocation.invoiceId },
+              select: { amount: true }
+            }),
+            tx.creditNoteApplication.findMany({
+              where: { invoiceId: allocation.invoiceId },
+              select: { amount: true }
+            })
+          ]);
+          
+          // Sum payments from allocations
+          const totalPaidFromPayments = allAllocations.reduce((sum, alloc) => sum + Number(alloc.amount), 0);
+          
+          // Sum credit notes applied
+          const totalPaidFromCreditNotes = creditNoteApplications.reduce((sum, app) => sum + Number(app.amount), 0);
+          
+          // Total paid = payments + credit notes
+          const totalPaid = totalPaidFromPayments + totalPaidFromCreditNotes;
+          const amountDue = Math.max(0, invoice.total - totalPaid);
 
           let paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
           if (totalPaid === 0) {
             paymentStatus = 'UNPAID';
-          } else if (totalPaid >= invoice.total) {
+          } else if (Math.abs(totalPaid - invoice.total) < 0.01 || totalPaid >= invoice.total || amountDue <= 0.01) {
+            // Use small tolerance for floating point comparison
+            // If amountDue is <= 0.01, consider it PAID
             paymentStatus = 'PAID';
           } else {
             paymentStatus = 'PARTIALLY_PAID';

@@ -14,7 +14,6 @@ import {
   Palette,
   Star,
   Settings,
-  Check,
   Upload,
   Building,
   Globe,
@@ -24,24 +23,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-const colorOptions = [
-  { name: 'Purple', value: 'purple', preview: 'bg-purple-600' },
-  { name: 'Blue', value: 'blue', preview: 'bg-blue-600' },
-  { name: 'Green', value: 'green', preview: 'bg-green-600' },
-  { name: 'Orange', value: 'orange', preview: 'bg-orange-600' },
-  { name: 'Red', value: 'red', preview: 'bg-red-600' },
-  { name: 'Indigo', value: 'indigo', preview: 'bg-indigo-600' },
-  { name: 'Pink', value: 'pink', preview: 'bg-pink-600' },
-  { name: 'Teal', value: 'teal', preview: 'bg-teal-600' },
-];
 
 export default function SystemSettingsPage() {
-  const { themeColor, setThemeColor, getThemeClasses, customLogo, setCustomLogo } = useTheme();
+  const { getThemeClasses, customLogo, setCustomLogo } = useTheme();
   const { success, error: showError } = useToast();
   const { companyName: contextCompanyName, description: contextDescription, favicon, refreshCompanyData } = useCompany();
-  const [previewMode, setPreviewMode] = useState(false);
-  const [previewColor, setPreviewColor] = useState(themeColor);
-  const [originalColor, setOriginalColor] = useState(themeColor);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [chatBackground, setChatBackground] = useState<string>("");
   const [isUploadingChatBg, setIsUploadingChatBg] = useState(false);
@@ -56,46 +42,7 @@ export default function SystemSettingsPage() {
     if (saved) setChatBackground(saved);
   }, []);
 
-  // Use preview color when in preview mode, otherwise use current theme
-  const currentColor = previewMode ? previewColor : themeColor;
-  
-  // Get theme classes
-  const getCurrentThemeClasses = () => {
-    const colorMap: { [key: string]: any } = {
-      purple: { primary: "purple-600", primaryDark: "purple-700", primaryBg: "purple-50", primaryHover: "purple-100", primaryText: "purple-700" },
-      blue: { primary: "blue-600", primaryDark: "blue-700", primaryBg: "blue-50", primaryHover: "blue-100", primaryText: "blue-700" },
-      green: { primary: "green-600", primaryDark: "green-700", primaryBg: "green-50", primaryHover: "green-100", primaryText: "green-700" },
-      orange: { primary: "orange-600", primaryDark: "orange-700", primaryBg: "orange-50", primaryHover: "orange-100", primaryText: "orange-700" },
-      red: { primary: "red-600", primaryDark: "red-700", primaryBg: "red-50", primaryHover: "red-100", primaryText: "red-700" },
-      indigo: { primary: "indigo-600", primaryDark: "indigo-700", primaryBg: "indigo-50", primaryHover: "indigo-100", primaryText: "indigo-700" },
-      pink: { primary: "pink-600", primaryDark: "pink-700", primaryBg: "pink-50", primaryHover: "pink-100", primaryText: "pink-700" },
-      teal: { primary: "teal-600", primaryDark: "teal-700", primaryBg: "teal-50", primaryHover: "teal-100", primaryText: "teal-700" },
-    };
-    return colorMap[currentColor] || colorMap.purple;
-  };
-
-  const theme = getCurrentThemeClasses();
-
-  const handleColorChange = (color: string) => {
-    if (previewMode) {
-      setPreviewColor(color as any);
-    } else {
-      setThemeColor(color as any);
-      success("Theme Updated", `Your theme has been changed to ${color.charAt(0).toUpperCase() + color.slice(1)}`);
-    }
-  };
-
-  const applyPreview = () => {
-    setThemeColor(previewColor as any);
-    setOriginalColor(previewColor as any);
-    setPreviewMode(false);
-    success("Theme Applied", `Your theme has been changed to ${previewColor.charAt(0).toUpperCase() + previewColor.slice(1)}`);
-  };
-
-  const cancelPreview = () => {
-    setPreviewColor(originalColor);
-    setPreviewMode(false);
-  };
+  const theme = getThemeClasses();
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -270,23 +217,24 @@ export default function SystemSettingsPage() {
               <p className="text-gray-600">Customize appearance, branding, and system preferences</p>
             </div>
           </div>
-          {previewMode && (
-            <div className="flex items-center space-x-3">
-              <Button variant="outline" onClick={cancelPreview}>
-                Cancel
-              </Button>
-              <Button 
-                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-                onClick={applyPreview}
-              >
-                Apply Changes
-              </Button>
-            </div>
-          )}
         </div>
 
         {/* Quick Links */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Link href="/settings/appearance">
+            <Card className="border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer">
+              <CardContent className="p-4 flex items-center space-x-3">
+                <div className="p-2 bg-pink-50 rounded-lg">
+                  <Palette className="h-5 w-5 text-pink-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">Appearance & Theme</h3>
+                  <p className="text-xs text-gray-500">Colors & logo</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          
           <Link href="/settings/system/branding">
             <Card className="border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer">
               <CardContent className="p-4 flex items-center space-x-3">
@@ -328,55 +276,7 @@ export default function SystemSettingsPage() {
               </CardContent>
             </Card>
           </Link>
-          
-          <Card className="border border-gray-200 opacity-60">
-            <CardContent className="p-4 flex items-center space-x-3">
-              <div className="p-2 bg-gray-50 rounded-lg">
-                <Shield className="h-5 w-5 text-gray-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-900">Security</h3>
-                <p className="text-xs text-gray-500">Coming soon</p>
-              </div>
-            </CardContent>
-          </Card>
         </div>
-
-        {/* Theme Color Selection */}
-        <Card className="border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Palette className="h-5 w-5 text-gray-600" />
-              <span>Theme Color</span>
-            </CardTitle>
-            <CardDescription>
-              Choose your primary accent color. This will be used throughout the application for buttons, links, and highlights.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
-              {colorOptions.map((color) => (
-                <button
-                  key={color.value}
-                  onClick={() => handleColorChange(color.value)}
-                  className={`relative p-4 rounded-lg border-2 transition-all hover:scale-105 ${
-                    currentColor === color.value
-                      ? `border-${theme.primary} bg-${theme.primaryBg}`
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className={`w-8 h-8 rounded-full ${color.preview} mx-auto mb-2`}></div>
-                  <div className="text-sm font-medium text-gray-900">{color.name}</div>
-                  {currentColor === color.value && (
-                    <div className={`absolute top-2 right-2 w-5 h-5 rounded-full bg-${theme.primary} flex items-center justify-center`}>
-                      <Check className="h-3 w-3 text-white" />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Company Logo */}
         <Card className="border border-gray-200">

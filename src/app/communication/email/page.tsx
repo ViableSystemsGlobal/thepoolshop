@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,9 +29,10 @@ interface EmailMessage {
 
 export default function EmailCommunicationPage() {
   const { data: session } = useSession();
-  const { themeColor, getThemeClasses } = useTheme();
+  const { themeColor, getThemeClasses, getThemeColor } = useTheme();
   const { success: showSuccess, error: showError } = useToast();
   const themeClasses = getThemeClasses();
+  const themeColorValue = getThemeColor();
 
   // Form state
   const [subject, setSubject] = useState('');
@@ -345,14 +346,19 @@ export default function EmailCommunicationPage() {
                 />
               </div>
 
-              <Button
+              <button
                 onClick={handleSendSingle}
                 disabled={isLoading || recipients.length === 0 || !subject || !message}
-                className={`bg-${themeClasses.primary} text-white hover:bg-${themeClasses.primaryDark}`}
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 text-white hover:opacity-90 transition-opacity border-0 shadow-sm hover:shadow-md"
+                style={{ 
+                  backgroundColor: themeColorValue || '#dc2626', 
+                  color: '#ffffff',
+                  borderColor: themeColorValue || '#dc2626'
+                }}
               >
                 <Send className="w-4 h-4 mr-2" />
                 {isLoading ? 'Sending...' : 'Send Email'}
-              </Button>
+              </button>
             </div>
           </Card>
         )}
@@ -448,14 +454,19 @@ export default function EmailCommunicationPage() {
                 />
               </div>
 
-              <Button
+              <button
                 onClick={handleSendBulk}
                 disabled={isLoading || recipients.length === 0 || !subject || !message}
-                className={`bg-${themeClasses.primary} text-white hover:bg-${themeClasses.primaryDark}`}
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 text-white hover:opacity-90 transition-opacity border-0 shadow-sm hover:shadow-md"
+                style={{ 
+                  backgroundColor: themeColorValue || '#dc2626', 
+                  color: '#ffffff',
+                  borderColor: themeColorValue || '#dc2626'
+                }}
               >
                 <Send className="w-4 h-4 mr-2" />
                 {isLoading ? 'Sending...' : `Send to ${recipients.length} Recipients`}
-              </Button>
+              </button>
             </div>
           </Card>
         )}

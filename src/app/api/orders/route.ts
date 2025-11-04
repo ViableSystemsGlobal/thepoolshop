@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { sendOrderCreatedNotifications } from '@/lib/payment-order-notifications';
 
 // Helper function to get setting value from database
 async function getSettingValue(key: string, defaultValue: string = ''): Promise<string> {
@@ -273,6 +274,17 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Order created successfully:', orderNumber);
 
+    // Send order creation notifications
+    try {
+      const customer = order.account || order.distributor || order.contact;
+      if (customer) {
+        await sendOrderCreatedNotifications(order, customer);
+      }
+    } catch (notificationError) {
+      console.error('❌ Error sending order creation notifications:', notificationError);
+      // Don't fail the order creation if notifications fail
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Order created successfully',
@@ -310,6 +322,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const distributorId = searchParams.get('distributorId');
+    const accountId = searchParams.get('accountId');
     const status = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
@@ -319,9 +332,14 @@ export async function GET(request: NextRequest) {
     const where: any = {};
     if (distributorId) where.distributorId = distributorId;
     if (status) where.status = status;
+    
+    // Build where clause for SalesOrder
+    const salesOrderWhere: any = {};
+    if (accountId) salesOrderWhere.accountId = accountId;
+    if (status) salesOrderWhere.status = status;
 
-    // Get orders with pagination
-    const [orders, totalCount] = await Promise.all([
+    // Get both Order and SalesOrder models
+    const [ordersResult, salesOrdersResult, ordersCount, salesOrdersCount] = await Promise.all([
       prisma.order.findMany({
         where,
         include: {
@@ -360,17 +378,117 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        orderBy: { createdAt: 'desc' },
-        skip: offset,
-        take: limit
+        orderBy: { createdAt: 'desc' }
       }),
-      prisma.order.count({ where })
+      prisma.salesOrder.findMany({
+        where: salesOrderWhere,
+        include: {
+          account: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true
+            }
+          },
+          invoice: {
+            select: {
+              id: true,
+              paymentStatus: true,
+              payments: {
+                include: {
+                  payment: {
+                    select: {
+                      method: true
+                    }
+                  }
+                },
+                orderBy: {
+                  createdAt: 'desc'
+                },
+                take: 1
+              }
+            }
+          },
+          lines: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true
+                }
+              }
+            }
+          },
+          owner: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.order.count({ where }),
+      prisma.salesOrder.count({ where: status ? { status: status as 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'READY_TO_SHIP' | 'SHIPPED' | 'DELIVERED' | 'COMPLETED' | 'CANCELLED' } : {} })
     ]);
+
+    // Combine and transform orders - convert SalesOrder to Order-like format
+    const allOrders = [
+      ...ordersResult.map(order => ({
+        ...order,
+        orderNumber: order.orderNumber,
+        type: 'order' as const
+      })),
+      ...salesOrdersResult.map(salesOrder => {
+        // Get payment method from invoice if available
+        let paymentMethod = 'credit'; // Default
+        if (salesOrder.invoice && salesOrder.invoice.payments && salesOrder.invoice.payments.length > 0) {
+          const latestPayment = salesOrder.invoice.payments[0];
+          if (latestPayment.payment) {
+            paymentMethod = latestPayment.payment.method || 'credit';
+          }
+        }
+        
+        return {
+          id: salesOrder.id,
+          orderNumber: salesOrder.number,
+          totalAmount: Number(salesOrder.total),
+          status: salesOrder.status,
+          paymentMethod: paymentMethod,
+          customerType: 'account',
+          notes: salesOrder.notes,
+          deliveryAddress: salesOrder.deliveryAddress,
+          deliveryDate: salesOrder.deliveryDate,
+          createdAt: salesOrder.createdAt,
+          updatedAt: salesOrder.updatedAt,
+          distributor: null,
+          account: salesOrder.account,
+          contact: null,
+          items: salesOrder.lines.map(line => ({
+            id: line.id,
+            quantity: Number(line.quantity),
+            unitPrice: Number(line.unitPrice),
+            totalPrice: Number(line.lineTotal),
+            notes: line.description,
+            product: line.product
+          })),
+          createdByUser: {
+            id: salesOrder.ownerId,
+            name: salesOrder.owner?.name || 'System'
+          },
+          type: 'salesOrder' as const
+        };
+      })
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(offset, offset + limit);
+
+    const totalCount = ordersCount + salesOrdersCount;
 
     return NextResponse.json({
       success: true,
       data: {
-        orders,
+        orders: allOrders,
         pagination: {
           page,
           limit,

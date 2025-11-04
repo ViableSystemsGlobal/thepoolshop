@@ -80,8 +80,9 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [grnFile, setGrnFile] = useState<File | null>(null);
   const [poFile, setPoFile] = useState<File | null>(null);
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
+  const themeColor = getThemeColor();
   const { success, error: showError } = useToast();
 
   const handleGrnFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -706,7 +707,8 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
             <Button 
               type="submit"
               disabled={isSubmitting || formData.quantity === 0 || !formData.productId || !formData.warehouseId}
-              className={`bg-${theme.primary} hover:bg-${theme.primaryHover} text-white`}
+              className="text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: getThemeColor() || '#dc2626' }}
             >
               {isSubmitting ? "Adding..." : "Add Movement"}
             </Button>

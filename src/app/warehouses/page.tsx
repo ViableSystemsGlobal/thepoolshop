@@ -24,7 +24,7 @@ import {
   CheckCircle,
   XCircle
 } from "lucide-react";
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/components/ui/dropdown-menu-custom";
 
 interface Warehouse {
   id: string;
@@ -44,6 +44,7 @@ export default function WarehousesPage() {
   const router = useRouter();
   const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
+  const themeColor = getThemeColor();
   
   const handleViewWarehouse = (warehouse: Warehouse) => {
     router.push(`/warehouses/${warehouse.id}`);
@@ -57,29 +58,7 @@ export default function WarehousesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedWarehouses, setSelectedWarehouses] = useState<string[]>([]);
 
-  const [aiRecommendations, setAiRecommendations] = useState([
-    {
-      id: '1',
-      title: 'Optimize warehouse capacity',
-      description: 'Review warehouse utilization and optimize space allocation for better efficiency.',
-      priority: 'high' as const,
-      completed: false,
-    },
-    {
-      id: '2',
-      title: 'Update warehouse locations',
-      description: 'Verify and update warehouse address information for accurate logistics.',
-      priority: 'medium' as const,
-      completed: false,
-    },
-    {
-      id: '3',
-      title: 'Review inactive warehouses',
-      description: 'Evaluate inactive warehouse status and consider reactivation or removal.',
-      priority: 'low' as const,
-      completed: false,
-    },
-  ]);
+
 
   const fetchWarehouses = async () => {
     try {
@@ -111,11 +90,8 @@ export default function WarehousesPage() {
   };
 
   const handleRecommendationComplete = (id: string) => {
-    setAiRecommendations(prev => 
-      prev.map(rec => 
-        rec.id === id ? { ...rec, completed: true } : rec
-      )
-    );
+    // Handle recommendation completion (AI card will manage its own state)
+    console.log('Recommendation completed:', id);
     success("Recommendation completed! Great job!");
   };
 
@@ -179,8 +155,9 @@ export default function WarehousesPage() {
           <AIRecommendationCard
             title="Warehouse Management AI"
             subtitle="Your intelligent assistant for warehouse optimization"
-            recommendations={aiRecommendations}
             onRecommendationComplete={handleRecommendationComplete}
+            page="warehouses"
+            enableAI={true}
           />
         </div>
 
@@ -320,15 +297,32 @@ export default function WarehousesPage() {
                     <div className="flex items-center">
                       {warehouse.image ? (
                         <img 
+                          key={warehouse.id}
                           src={`/${warehouse.image}`} 
                           alt={warehouse.name}
                           className="w-10 h-10 rounded-lg object-cover mr-3"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const iconDiv = target.nextElementSibling;
+                            if (iconDiv && iconDiv.tagName === 'DIV') {
+                              (iconDiv as HTMLElement).style.display = 'flex';
+                            }
+                          }}
                         />
-                      ) : (
-                        <div className="p-2 rounded-lg bg-blue-100 mr-3">
-                          <Building className="h-4 w-4 text-blue-600" />
+                      ) : null}
+                      <div 
+                        className="p-2 rounded-lg mr-3 items-center justify-center"
+                        style={{ 
+                          backgroundColor: theme.primaryBg || 'rgba(59, 130, 246, 0.1)',
+                          display: warehouse.image ? 'none' : 'flex'
+                        }}
+                      >
+                        <Building 
+                          className="h-4 w-4"
+                          style={{ color: themeColor || '#2563eb' }}
+                        />
                         </div>
-                      )}
                       <div>
                         <div className="font-medium text-gray-900">{warehouse.name}</div>
                       </div>

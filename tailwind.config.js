@@ -113,7 +113,7 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: "#ea580c", // Orange-600
+          DEFAULT: "#dc2626", // Red-600
           foreground: "#ffffff",
         },
         secondary: {
@@ -142,7 +142,7 @@ module.exports = {
         },
         border: "#e5e7eb", // Gray-200
         input: "#e5e7eb", // Gray-200
-        ring: "#ea580c", // Orange-600
+        ring: "#dc2626", // Red-600
         background: "#ffffff",
         foreground: "#111827", // Gray-900
       },

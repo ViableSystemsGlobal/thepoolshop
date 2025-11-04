@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { NotificationService, SystemNotificationTriggers } from "@/lib/notification-service";
+import bcrypt from "bcryptjs";
 
 // GET /api/users - Get all users with pagination
 export async function GET(request: NextRequest) {
@@ -101,6 +102,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!password || password.trim().length < 6) {
+      return NextResponse.json(
+        { error: "Password is required and must be at least 6 characters" },
+        { status: 400 }
+      );
+    }
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email }
@@ -129,13 +137,17 @@ export async function POST(request: NextRequest) {
     console.log('Original role:', role);
     console.log('Mapped role:', mappedRole);
 
+    // Hash password (required, validated above)
+    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log('✅ Password hashed successfully');
+
     // Create user
     const user = await prisma.user.create({
       data: {
         email,
         name,
         phone,
-        password: password || null,
+        password: hashedPassword,
         role: mappedRole as any,
         isActive: true
       } as any,

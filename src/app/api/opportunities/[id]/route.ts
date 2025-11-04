@@ -172,6 +172,44 @@ export async function PUT(
       }
     }
 
+    // If stage is being set to WON and value is not provided or is 0, 
+    // automatically populate from invoices (preferred) or quotations
+    let dealValue = value;
+    let dealProbability = probability;
+    
+    if (stage === 'WON' && (!value || value === 0)) {
+      // Get the current opportunity with relations to check for invoices/quotations
+      const currentOpportunity = await prisma.opportunity.findUnique({
+        where: { id: params.id },
+        include: {
+          invoices: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          },
+          quotations: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
+        }
+      });
+
+      if (currentOpportunity) {
+        // Prefer invoice total, fallback to quotation total
+        if (currentOpportunity.invoices && currentOpportunity.invoices.length > 0) {
+          dealValue = currentOpportunity.invoices[0].total;
+          console.log(`✅ Setting deal value from invoice: ${dealValue}`);
+        } else if (currentOpportunity.quotations && currentOpportunity.quotations.length > 0) {
+          dealValue = currentOpportunity.quotations[0].total;
+          console.log(`✅ Setting deal value from quotation: ${dealValue}`);
+        }
+        
+        // If we found a value, set probability to 100%
+        if (dealValue && dealValue > 0) {
+          dealProbability = 100;
+        }
+      }
+    }
+
     // Update the opportunity
     const opportunity = await prisma.opportunity.update({
       where: {
@@ -180,8 +218,8 @@ export async function PUT(
       data: {
         ...(name && { name }),
         ...(stage && { stage }),
-        ...(value !== undefined && { value }),
-        ...(probability !== undefined && { probability }),
+        ...(dealValue !== undefined && { value: dealValue }),
+        ...(dealProbability !== undefined && { probability: dealProbability }),
         ...(closeDate && { closeDate: new Date(closeDate) }),
         ...(lostReason && { lostReason }),
         ...(stage === 'WON' && { wonDate: new Date() })

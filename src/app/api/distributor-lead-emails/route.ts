@@ -77,13 +77,25 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Convert message to HTML if it's plain text
+    const messageHtml = content.includes('<') && content.includes('>') 
+      ? content 
+      : content.replace(/\n/g, '<br>');
+    
+    // Generate email template with theme colors
+    const { generateEmailTemplate, generatePlainText } = await import('@/lib/email-template');
+    const htmlContent = await generateEmailTemplate(messageHtml);
+    
+    // Generate plain text version
+    const plainText = generatePlainText(content);
+
     // Send email
     const mailOptions = {
       from: `"${smtpFromName}" <${smtpFromAddress}>`,
       to: to,
       subject: subject,
-      text: content,
-      html: content.replace(/\n/g, '<br>'),
+      text: plainText,
+      html: htmlContent,
     };
 
     const info = await transporter.sendMail(mailOptions);

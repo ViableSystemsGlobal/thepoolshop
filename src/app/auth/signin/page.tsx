@@ -5,9 +5,10 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Building2, ArrowRight } from "lucide-react"
+import { Building2, ArrowRight, AlertCircle } from "lucide-react"
 import Image from "next/image"
 import { useTheme } from "@/contexts/theme-context"
+import { useToast } from "@/contexts/toast-context"
 
 interface CompanySettings {
   companyName: string;
@@ -19,7 +20,9 @@ export default function SignIn() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const { getThemeColor } = useTheme()
+  const { error: showError } = useToast()
   const [companySettings, setCompanySettings] = useState<CompanySettings>({
     companyName: "AdPools Group",
     companyLogo: "",
@@ -57,6 +60,7 @@ export default function SignIn() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
     try {
       const result = await signIn("credentials", {
@@ -68,10 +72,16 @@ export default function SignIn() {
       if (result?.ok) {
         window.location.href = "/dashboard"
       } else {
-        alert("Invalid credentials")
+        // Clear password field for security
+        setPassword("")
+        setError("Invalid email or password. Please try again.")
+        showError("Login Failed", "The email or password you entered is incorrect. Please check your credentials and try again.")
       }
     } catch (error) {
-      alert("An error occurred")
+      console.error("Login error:", error)
+      setPassword("")
+      setError("An unexpected error occurred. Please try again.")
+      showError("Login Error", "An error occurred while signing in. Please try again later.")
     } finally {
       setIsLoading(false)
     }
@@ -145,12 +155,25 @@ export default function SignIn() {
                   id="password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    setError(null) // Clear error when user types
+                  }}
                   placeholder="Enter your password"
-                  className="h-11 border-gray-200 focus:border-orange-300 focus:ring-orange-200"
+                  className={`h-11 border-gray-200 focus:border-orange-300 focus:ring-orange-200 ${
+                    error ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''
+                  }`}
                   required
                 />
               </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="flex items-start space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-800">{error}</p>
+                </div>
+              )}
 
               <Button 
                 type="submit" 

@@ -52,13 +52,10 @@ interface Quotation {
     discount: number;
     lineTotal: number;
     product?: {
-      id: string;
       name: string;
-      sku: string;
-      price: number;
+      sku?: string;
       images?: string | null;
     };
-    sku?: string;
     images?: string | null;
   }>;
 }
@@ -79,407 +76,128 @@ const parseProductImages = (images: string | null | undefined): string[] => {
   return [];
 };
 
+// Version 3.0 - Open window synchronously to avoid popup blocker
 export const downloadQuotationAsPDF = async (
   quotation: any, 
   customLogo?: string,
   showError?: (message: string) => void,
   success?: (message: string) => void
 ) => {
-  const defaultShowError = (message: string) => console.error(message);
-  const defaultSuccess = (message: string) => console.log(message);
+  const VERSION = '3.0.0';
+  console.log(`[Quotation PDF Download v${VERSION}] Starting download for quotation ${quotation?.id}`);
   
-  const errorHandler = showError || defaultShowError;
-  const successHandler = success || defaultSuccess;
+  const errorHandler = showError || ((message: string) => console.error(message));
+  const successHandler = success || ((message: string) => console.log(message));
+  
+  // Validate quotation object
+  if (!quotation || !quotation.id) {
+    errorHandler('Invalid quotation data');
+    return;
+  }
   
   try {
-    // Create a new window with the quotation content formatted for printing
-    const printWindow = window.open('', '_blank');
+    // Open window SYNCHRONOUSLY (in response to user click) to avoid popup blocker
+    const timestamp = Date.now();
+    const pdfUrl = `/api/quotations/${quotation.id}/pdf?t=${timestamp}&v=${VERSION}`;
     
-    if (!printWindow) {
-      errorHandler("Unable to open print window. Please check your popup blocker.");
+    console.log(`[Quotation PDF Download] Opening window synchronously`);
+    
+    // Open window immediately (synchronously) - this must happen in direct response to user click
+    const newWindow = window.open('', '_blank', 'noopener,noreferrer');
+    
+    if (!newWindow) {
+      console.error('[Quotation PDF Download] Popup blocked');
+      errorHandler('Please allow popups to view the PDF');
+      return;
+    }
+    
+    // Show loading message in the new window
+    newWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Loading Quotation PDF...</title>
+          <style>
+            body {
+              font-family: system-ui, -apple-system, sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              background: #f5f5f5;
+            }
+            .loader {
+              text-align: center;
+            }
+            .spinner {
+              border: 4px solid #f3f3f3;
+              border-top: 4px solid #3498db;
+              border-radius: 50%;
+              width: 40px;
+              height: 40px;
+              animation: spin 1s linear infinite;
+              margin: 0 auto 20px;
+            }
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="loader">
+            <div class="spinner"></div>
+            <p>Loading quotation PDF...</p>
+          </div>
+        </body>
+      </html>
+    `);
+    newWindow.document.close();
+    
+    // Now fetch the PDF content asynchronously
+    console.log(`[Quotation PDF Download] Fetching PDF from: ${pdfUrl}`);
+    
+    const response = await fetch(pdfUrl, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('[Quotation PDF Download] PDF generation failed:', errorText);
+      newWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Error</title></head>
+          <body style="font-family: system-ui; padding: 20px;">
+            <h1>Error</h1>
+            <p>Failed to generate PDF. Please try again.</p>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+      errorHandler('Failed to generate PDF. Please try again.');
       return;
     }
 
-    // Get quotation details
-    const customerName = quotation.account?.name || 
-                        quotation.distributor?.businessName || 
-                        (quotation.lead ? `${quotation.lead.firstName} ${quotation.lead.lastName}`.trim() : '') ||
-                        'No customer';
-    const customerEmail = quotation.account?.email || quotation.distributor?.email || quotation.lead?.email || '';
-    const customerPhone = quotation.account?.phone || quotation.distributor?.phone || quotation.lead?.phone || '';
+    const htmlContent = await response.text();
     
-    // Calculate if discount column should be shown
-    const hasDiscounts = quotation.lines?.some((line: any) => line.discount > 0) || false;
+    // Write the PDF content to the already-opened window
+    newWindow.document.open();
+    newWindow.document.write(htmlContent);
+    newWindow.document.close();
     
-    // Create the HTML content matching the preview layout exactly
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Quotation ${quotation.number}</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            color: #333;
-            line-height: 1.6;
-          }
-          .company-header {
-            text-align: center;
-            margin-bottom: 32px;
-          }
-          .logo {
-            height: 64px;
-            width: auto;
-            margin: 0 auto 16px;
-            display: block;
-          }
-          .company-name {
-            font-size: 24px;
-            font-weight: bold;
-            color: #111;
-            margin-bottom: 4px;
-          }
-          .document-subtitle {
-            font-size: 14px;
-            color: #6b7280;
-          }
-          .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 24px;
-            margin-bottom: 32px;
-          }
-          .info-label {
-            font-size: 12px;
-            font-weight: 500;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.025em;
-            margin-bottom: 4px;
-          }
-          .info-value {
-            font-weight: 600;
-            color: #111;
-          }
-          .info-sub {
-            font-size: 14px;
-            color: #6b7280;
-            margin-top: 8px;
-          }
-          .info-sub-label {
-            font-size: 12px;
-            font-weight: 500;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.025em;
-            margin-bottom: 4px;
-          }
-          .status-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 2px 10px;
-            border-radius: 9999px;
-            font-size: 12px;
-            font-weight: 500;
-          }
-          .status-draft { background-color: #f3f4f6; color: #374151; }
-          .status-sent { background-color: #dbeafe; color: #1e40af; }
-          .status-accepted { background-color: #d1fae5; color: #065f46; }
-          .status-rejected { background-color: #fee2e2; color: #991b1b; }
-          .status-expired { background-color: #fed7aa; color: #9a3412; }
-          
-          .items-section {
-            margin-bottom: 32px;
-          }
-          .items-label {
-            font-size: 12px;
-            font-weight: 500;
-            color: #6b7280;
-            text-transform: uppercase;
-            margin-bottom: 12px;
-          }
-          .table-container {
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            overflow: hidden;
-          }
-          .table-header {
-            background-color: #f9fafb;
-            display: grid;
-            grid-template-columns: ${hasDiscounts ? '1fr 4fr 1fr 2fr 2fr 2fr' : '1fr 4fr 1fr 2fr 2fr'};
-            gap: 8px;
-            padding: 8px 12px;
-          }
-          .table-header-cell {
-            font-size: 12px;
-            font-weight: 500;
-            color: #374151;
-            text-transform: uppercase;
-          }
-          .table-body {
-            max-height: none;
-            overflow: visible;
-          }
-          .table-row {
-            display: grid;
-            grid-template-columns: ${hasDiscounts ? '1fr 4fr 1fr 2fr 2fr 2fr' : '1fr 4fr 1fr 2fr 2fr'};
-            gap: 8px;
-            padding: 8px 12px;
-            border-bottom: 1px solid #f3f4f6;
-            font-size: 12px;
-          }
-          .table-row:last-child {
-            border-bottom: none;
-          }
-          .table-row:nth-child(even) {
-            background-color: #f9fafb;
-          }
-          .table-row:nth-child(odd) {
-            background-color: white;
-          }
-          .row-number { color: #6b7280; }
-          .row-description {
-            font-weight: 500;
-            color: #111;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-          }
-          .product-image {
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            object-fit: cover;
-            background-color: #e5e7eb;
-            flex-shrink: 0;
-          }
-          .product-details {
-            flex: 1;
-          }
-          .row-sku {
-            font-size: 12px;
-            color: #6b7280;
-            margin-top: 2px;
-          }
-          .row-amount {
-            font-weight: 500;
-            color: #111;
-          }
-          .row-discount {
-            font-weight: 500;
-            color: #059669;
-          }
-          .row-discount-dash {
-            color: #9ca3af;
-          }
-          .row-other { color: #6b7280; }
-          
-          .totals-section {
-            border-top: 1px solid #e5e7eb;
-            padding-top: 16px;
-          }
-          .total-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-          }
-          .total-final {
-            font-weight: bold;
-            font-size: 18px;
-            border-top: 1px solid #e5e7eb;
-            margin-top: 8px;
-            padding-top: 16px;
-          }
-          .total-label { color: #6b7280; }
-          .total-value { font-weight: 500; }
-          .total-discount { color: #059669; }
-          .total-black { color: #111; }
-          
-          .notes-section {
-            margin-top: 32px;
-            padding-top: 24px;
-            border-top: 1px solid #e5e7eb;
-          }
-          .notes-title {
-            font-weight: 500;
-            color: #111;
-            margin-bottom: 8px;
-          }
-          .notes-content {
-            font-size: 14px;
-            color: #6b7280;
-            white-space: pre-wrap;
-          }
-          
-          @media print {
-            body { margin: 0; padding: 15px; }
-            .company-header { page-break-after: avoid; }
-            .table-container { page-break-inside: avoid; }
-          }
-        </style>
-      </head>
-      <body>
-        <!-- Company Header -->
-        <div class="company-header">
-          ${customLogo ? `<img src="${customLogo}" alt="Company Logo" class="logo" />` : ''}
-          <div class="company-name">${quotation.subject || 'Untitled Quotation'}</div>
-          <div class="document-subtitle">${quotation.number}</div>
-        </div>
-
-        <!-- Document Info Grid -->
-        <div class="info-grid">
-          <div>
-            <div class="info-label">QUOTATION</div>
-            <div class="info-value">${quotation.number}</div>
-            <div class="info-sub">
-              <div class="info-sub-label">Valid Until</div>
-              <div>${quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString() : 'No expiry'}</div>
-            </div>
-          </div>
-          <div>
-            <div class="info-label">DATE</div>
-            <div class="info-value">${new Date(quotation.createdAt).toLocaleDateString()}</div>
-            <div class="info-sub">
-              <div class="info-sub-label">Status</div>
-              <div>
-                <span class="status-badge status-${quotation.status.toLowerCase()}">
-                  ${quotation.status.toLowerCase()}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div>
-            <div class="info-label">Bill To</div>
-            <div class="info-value">${customerName}</div>
-            <div class="info-sub">
-              <div>${customerEmail}</div>
-              <div>${customerPhone}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Items Section -->
-        <div class="items-section">
-          <div class="items-label">Items</div>
-          ${quotation.lines && quotation.lines.length > 0 ? `
-            <div class="table-container">
-              <div class="table-header">
-                <div class="table-header-cell">#</div>
-                <div class="table-header-cell">Description</div>
-                <div class="table-header-cell">Qty</div>
-                <div class="table-header-cell">Unit Price</div>
-                ${hasDiscounts ? '<div class="table-header-cell">Discount</div>' : ''}
-                <div class="table-header-cell">Amount</div>
-              </div>
-              <div class="table-body">
-                ${quotation.lines.map((line: any, index: number) => `
-                  <div class="table-row">
-                    <div class="row-number">${index + 1}</div>
-                    <div class="row-description">
-                      ${(() => {
-                        const images = parseProductImages(line.product?.images || line.images);
-                        const imageUrl = images.length > 0 ? images[0] : '';
-                        return imageUrl 
-                          ? `<img src="${imageUrl}" alt="Product" class="product-image" onerror="this.style.display='none'" />` 
-                          : '';
-                      })()}
-                      <div class="product-details">
-                        ${line.product?.name || line.productName || `Item ${index + 1}`}
-                        ${line.product?.sku || line.sku ? `<div class="row-sku">SKU: ${line.product?.sku || line.sku}</div>` : ''}
-                        ${line.description ? `<div class="row-sku">${line.description}</div>` : ''}
-                      </div>
-                    </div>
-                    <div class="row-other">${line.quantity}</div>
-                    <div class="row-other">GHS ${line.unitPrice.toFixed(2)}</div>
-                    ${hasDiscounts ? `
-                      <div class="${line.discount > 0 ? 'row-discount' : 'row-discount-dash'}">
-                        ${line.discount > 0 ? `${line.discount}%` : '-'}
-                      </div>
-                    ` : ''}
-                    <div class="row-amount">GHS ${line.lineTotal.toFixed(2)}</div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          ` : `
-            <div style="text-align: center; padding: 16px; color: #9ca3af; font-style: italic;">
-              No items added
-            </div>
-          `}
-        </div>
-
-        <!-- Totals Section -->
-        <div class="totals-section">
-          ${!quotation.taxInclusive ? `
-            <div class="total-row">
-              <span class="total-label">Subtotal:</span>
-              <span class="total-value">GHS ${quotation.subtotal.toFixed(2)}</span>
-            </div>
-            ${(() => {
-              const totalDiscount = quotation.lines.reduce((sum: number, line: any) => {
-                const discountAmount = (line.unitPrice * line.quantity * line.discount) / 100;
-                return sum + discountAmount;
-              }, 0);
-              return totalDiscount > 0 ? `
-                <div class="total-row">
-                  <span class="total-label">Discount:</span>
-                  <span class="total-value total-discount">-GHS ${totalDiscount.toFixed(2)}</span>
-                </div>
-              ` : '';
-            })()}
-            <div class="total-row">
-              <span class="total-label">Tax:</span>
-              <span class="total-value">GHS ${quotation.tax.toFixed(2)}</span>
-            </div>
-          ` : ''}
-          <div class="total-row total-final">
-            <span>${quotation.taxInclusive ? 'Total (Tax Inclusive):' : 'Total:'}</span>
-            <span class="total-black">GHS ${quotation.total.toFixed(2)}</span>
-          </div>
-        </div>
-
-        ${quotation.notes ? `
-          <div class="notes-section">
-            <div class="notes-title">Notes</div>
-            <div class="notes-content">${quotation.notes}</div>
-          </div>
-        ` : ''}
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    console.log(`[Quotation PDF Download] PDF opened successfully`);
+    successHandler("Quotation PDF opened in new tab. You can print it from there.");
     
-    // Wait for content to load, then trigger print dialog
-    printWindow.onload = () => {
-      // Small delay to ensure content is fully rendered
-      setTimeout(() => {
-        try {
-          if (printWindow && !printWindow.closed) {
-            printWindow.print();
-            // Don't close immediately - let user interact with print dialog
-            setTimeout(() => {
-              if (printWindow && !printWindow.closed) {
-                printWindow.close();
-              }
-            }, 1000);
-          }
-        } catch (error) {
-          console.error('Error printing:', error);
-          if (printWindow && !printWindow.closed) {
-            printWindow.close();
-          }
-        }
-      }, 100);
-    };
-    
-    successHandler("Quotation ready for download/printing");
   } catch (error) {
-    console.error('Error downloading quotation:', error);
-    errorHandler("Failed to download quotation");
+    console.error('[Quotation PDF Download] Error:', error);
+    errorHandler('Failed to download quotation. Please try again.');
   }
 };

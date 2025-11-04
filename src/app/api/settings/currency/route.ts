@@ -86,6 +86,27 @@ export async function POST(request: NextRequest) {
     // Update exchange rates if provided
     if (exchangeRates && Array.isArray(exchangeRates)) {
       for (const rate of exchangeRates) {
+        try {
+          // Ensure currencies exist before creating exchange rate
+          if (!rate.id) {
+            // Check if fromCurrency exists
+            const fromCurrency = await prisma.currency.findUnique({
+              where: { code: rate.fromCurrency }
+            });
+            
+            if (!fromCurrency) {
+              // Create currency if it doesn't exist
+              await prisma.currency.create({
+                data: {
+                  code: rate.fromCurrency,
+                  name: rate.fromCurrency,
+                  symbol: rate.fromCurrency === 'USD' ? '$' : rate.fromCurrency === 'GHS' ? '₵' : rate.fromCurrency === 'EUR' ? '€' : rate.fromCurrency,
+                  isActive: true
+                }
+              });
+            }
+          }
+
         if (rate.id) {
           // Update existing rate
           await prisma.exchangeRate.update({
@@ -95,6 +116,37 @@ export async function POST(request: NextRequest) {
               effectiveFrom: new Date(rate.effectiveFrom),
               effectiveTo: rate.effectiveTo ? new Date(rate.effectiveTo) : null,
               isActive: rate.isActive,
+                updatedAt: new Date()
+              }
+            });
+          } else {
+            // Create new rate
+            // First check if a rate with same fromCurrency, toCurrency, and effectiveFrom exists
+            const effectiveFromDate = new Date(rate.effectiveFrom);
+            const startOfDay = new Date(effectiveFromDate);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(effectiveFromDate);
+            endOfDay.setHours(23, 59, 59, 999);
+            
+            const existingRate = await prisma.exchangeRate.findFirst({
+              where: {
+                fromCurrency: rate.fromCurrency,
+                toCurrency: rate.toCurrency,
+                effectiveFrom: {
+                  gte: startOfDay,
+                  lte: endOfDay
+                }
+              }
+            });
+
+            if (existingRate) {
+              // Update existing rate instead of creating duplicate
+              await prisma.exchangeRate.update({
+                where: { id: existingRate.id },
+                data: {
+                  rate: rate.rate,
+                  effectiveTo: rate.effectiveTo ? new Date(rate.effectiveTo) : null,
+                  isActive: rate.isActive !== false,
               updatedAt: new Date()
             }
           });
@@ -111,6 +163,11 @@ export async function POST(request: NextRequest) {
               isActive: rate.isActive !== false
             }
           });
+            }
+          }
+        } catch (rateError) {
+          console.error(`Error processing exchange rate ${rate.fromCurrency} to ${rate.toCurrency}:`, rateError);
+          // Continue with other rates instead of failing completely
         }
       }
     }
@@ -118,8 +175,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating currency settings:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to update currency settings' },
+      { error: `Failed to update currency settings: ${errorMessage}` },
       { status: 500 }
     );
   }

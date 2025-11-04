@@ -64,23 +64,8 @@ export default function StocktakeDetailPage({ params }: { params: Promise<{ id: 
   const [sessionId, setSessionId] = useState<string>('');
   const { success, error: showError } = useToast();
   const router = useRouter();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
-
-  // Helper function to get proper button background classes
-  const getButtonBackgroundClasses = () => {
-    const colorMap: { [key: string]: string } = {
-      'purple-600': 'bg-purple-600 hover:bg-purple-700',
-      'blue-600': 'bg-blue-600 hover:bg-blue-700',
-      'green-600': 'bg-green-600 hover:bg-green-700',
-      'orange-600': 'bg-orange-600 hover:bg-orange-700',
-      'red-600': 'bg-red-600 hover:bg-red-700',
-      'indigo-600': 'bg-indigo-600 hover:bg-indigo-700',
-      'pink-600': 'bg-pink-600 hover:bg-pink-700',
-      'teal-600': 'bg-teal-600 hover:bg-teal-700',
-    };
-    return colorMap[theme.primary] || 'bg-blue-600 hover:bg-blue-700';
-  };
   
   useEffect(() => {
     const loadParams = async () => {
@@ -247,7 +232,8 @@ export default function StocktakeDetailPage({ params }: { params: Promise<{ id: 
           {session.status === 'IN_PROGRESS' && (
             <Button 
               onClick={completeStocktake} 
-              className={`gap-2 text-white ${getButtonBackgroundClasses()}`}
+              className="gap-2 text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: getThemeColor() }}
             >
               <CheckCircle className="h-4 w-4" />
               Complete Stocktake

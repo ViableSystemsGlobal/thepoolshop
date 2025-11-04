@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/toast-context";
 import { useTheme } from "@/contexts/theme-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +31,9 @@ import {
   CreditCard,
   Banknote,
   Smartphone,
-  ReceiptText
+  ReceiptText,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import Link from "next/link";
 import { AddOrderModal } from "@/components/modals/add-order-modal";
@@ -91,6 +94,7 @@ interface Order {
 
 export default function OrdersPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const { success, error } = useToast();
   const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
@@ -109,6 +113,8 @@ export default function OrdersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [isAllSelected, setIsAllSelected] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -173,6 +179,54 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // Filter orders based on search term
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = !searchTerm || 
+      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getCustomerName(order).toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = !filterStatus || order.status === filterStatus;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  // Sync isAllSelected with filteredOrders
+  useEffect(() => {
+    if (filteredOrders.length === 0) {
+      setIsAllSelected(false);
+    } else {
+      const allSelected = selectedOrders.size === filteredOrders.length && filteredOrders.length > 0;
+      setIsAllSelected(allSelected);
+    }
+  }, [selectedOrders, filteredOrders]);
+
+  const handleSelectOrder = (orderId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setSelectedOrders(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(orderId)) {
+        newSelected.delete(orderId);
+      } else {
+        newSelected.add(orderId);
+      }
+      return newSelected;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedOrders(new Set());
+      setIsAllSelected(false);
+    } else {
+      const allIds = new Set(filteredOrders.map(order => order.id));
+      setSelectedOrders(allIds);
+      setIsAllSelected(true);
+    }
+  };
 
   const handleDeleteOrder = async () => {
     if (!selectedOrder) return;
@@ -280,29 +334,8 @@ export default function OrdersPage() {
           <AIRecommendationCard
             title="Order Management AI"
             subtitle="Your intelligent assistant for order fulfillment"
-            recommendations={[
-              {
-                id: '1',
-                title: "Process pending orders",
-                description: `${pendingOrders} order${pendingOrders !== 1 ? 's' : ''} awaiting confirmation`,
-                priority: pendingOrders > 0 ? 'high' : 'low',
-                completed: false
-              },
-              {
-                id: '2',
-                title: "Monitor order fulfillment",
-                description: "Track orders in processing and shipping status",
-                priority: 'medium',
-                completed: false
-              },
-              {
-                id: '3',
-                title: "Monthly performance",
-                description: `${formatCurrency(thisMonthOrders)} in orders this month`,
-                priority: 'low',
-                completed: false
-              }
-            ]}
+            page="orders"
+            enableAI={true}
             onRecommendationComplete={(id) => {
               console.log('Recommendation completed:', id);
             }}
@@ -325,7 +358,7 @@ export default function OrdersPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Value</p>
-                <p className={`text-2xl font-bold text-${theme.primary}`}>{formatCurrency(totalValue)}</p>
+                <p className={`text-2xl font-bold text-${theme.primary}`}>{formatCurrency(totalValue, 'GHS')}</p>
               </div>
               <DollarSign className={`h-8 w-8 text-${theme.primary}`} />
             </div>
@@ -345,7 +378,7 @@ export default function OrdersPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">This Month</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(thisMonthOrders)}</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(thisMonthOrders, 'GHS')}</p>
               </div>
               <Calendar className="h-8 w-8 text-green-400" />
             </div>
@@ -407,6 +440,22 @@ export default function OrdersPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className={`bg-${theme.primary} text-white`}>
                     <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider w-12" style={{ backgroundColor: theme.primary, color: 'white' }}>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleSelectAll();
+                          }}
+                          className="flex items-center justify-center w-4 h-4 hover:opacity-75 transition-opacity"
+                        >
+                          {isAllSelected ? (
+                            <CheckSquare className="h-4 w-4 text-white" />
+                          ) : (
+                            <Square className="h-4 w-4 text-white" />
+                          )}
+                        </button>
+                      </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: theme.primary, color: 'white' }}>
                         Order #
                       </th>
@@ -434,8 +483,28 @@ export default function OrdersPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {orders.map((order) => (
-                      <tr key={order.id} className="hover:bg-gray-50 cursor-pointer">
+                    {filteredOrders.map((order) => (
+                      <tr 
+                        key={order.id} 
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => router.push(`/orders/${order.id}`)}
+                      >
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={(e) => handleSelectOrder(order.id, e)}
+                            className="flex items-center justify-center w-4 h-4 hover:opacity-75 transition-opacity"
+                            type="button"
+                          >
+                            {selectedOrders.has(order.id) ? (
+                              <CheckSquare className="h-4 w-4 text-blue-600" />
+                            ) : (
+                              <Square className="h-4 w-4 text-gray-400" />
+                            )}
+                          </button>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {order.orderNumber}
                         </td>
@@ -452,7 +521,7 @@ export default function OrdersPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatCurrency(order.totalAmount)}
+                          {formatCurrency(order.totalAmount, 'GHS')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center">
                           {getPaymentMethodIcon(order.paymentMethod)}
@@ -542,7 +611,7 @@ export default function OrdersPage() {
             setShowEditModal(false);
             setSelectedOrder(null);
           }}
-          order={selectedOrder}
+          order={selectedOrder as any}
         />
       )}
 

@@ -20,7 +20,7 @@ interface Product {
 }
 
 export default function ProductLabelsPage() {
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
@@ -213,7 +213,8 @@ export default function ProductLabelsPage() {
             <Button
               onClick={printSelected}
               disabled={selectedProducts.size === 0}
-              className={`gap-2 text-white ${getButtonBackgroundClasses()}`}
+              className="gap-2 text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: getThemeColor() }}
             >
               <Printer className="h-4 w-4" />
               Print {selectedProducts.size > 0 ? `(${selectedProducts.size})` : 'Selected'}

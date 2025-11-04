@@ -29,8 +29,15 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
+          // Check if user is active
+          if (!(user as any).isActive) {
+            console.log('User account is inactive:', credentials.email)
+            return null
+          }
+
           // Verify password using bcrypt
           if (!user.password) {
+            console.log('User has no password set:', credentials.email)
             return null
           }
           

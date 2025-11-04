@@ -16,7 +16,9 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = (session.user as any).id;
+    const userRole = (session.user as any).role;
     console.log('🔍 Opportunities API: User ID:', userId);
+    console.log('🔍 Opportunities API: User Role:', userRole);
     
     if (!userId) {
       console.log('❌ Opportunities API: No user ID');
@@ -29,10 +31,16 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
+    // Super Admins and Admins can see all opportunities, others see only their own
+    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+    
     // Build where clause for Opportunity table
-    const where: any = {
-      ownerId: userId,
-    };
+    const where: any = {};
+    
+    // Only filter by owner if user is not Super Admin or Admin
+    if (!isSuperAdmin) {
+      where.ownerId = userId;
+    }
 
     // Add status filter if provided
     if (status) {
@@ -143,12 +151,116 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // NOTE: Opportunities should be created automatically when a quote is created from a lead
-    // Direct opportunity creation is not supported in the new workflow
-    return NextResponse.json(
-      { error: 'Opportunities are created automatically from leads via quote creation' },
-      { status: 400 }
-    );
+    const body = await request.json();
+    const { name, accountId, stage, value, probability, closeDate, lostReason } = body;
+
+    // Validate required fields
+    if (!name || !accountId) {
+      return NextResponse.json(
+        { error: 'Name and account are required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify account exists
+    const account = await prisma.account.findUnique({
+      where: { id: accountId }
+    });
+
+    if (!account) {
+      return NextResponse.json(
+        { error: 'Account not found' },
+        { status: 404 }
+      );
+    }
+
+    // Validate stage
+    const validStages = ['QUOTE_SENT', 'QUOTE_REVIEWED', 'NEGOTIATION', 'WON', 'LOST'];
+    const opportunityStage = stage || 'QUOTE_SENT';
+    if (!validStages.includes(opportunityStage)) {
+      return NextResponse.json(
+        { error: 'Invalid stage' },
+        { status: 400 }
+      );
+    }
+
+    // Validate probability
+    let oppProbability = probability !== undefined ? parseInt(probability) : 25;
+    if (oppProbability < 0 || oppProbability > 100) {
+      return NextResponse.json(
+        { error: 'Probability must be between 0 and 100' },
+        { status: 400 }
+      );
+    }
+
+    // If stage is WON, automatically set probability to 100%
+    if (opportunityStage === 'WON') {
+      oppProbability = 100;
+    }
+
+    // Determine the deal value
+    let dealValue = value !== undefined && value !== null ? parseFloat(value) : null;
+    
+    // If stage is WON but no value provided, try to get from account's invoices/quotations
+    if (opportunityStage === 'WON' && (!dealValue || dealValue === 0)) {
+      // Get the account's latest invoice or quotation
+      const latestInvoice = await prisma.invoice.findFirst({
+        where: { accountId },
+        orderBy: { createdAt: 'desc' }
+      });
+      
+      if (latestInvoice) {
+        dealValue = latestInvoice.total;
+        console.log(`✅ Setting deal value from latest invoice: ${dealValue}`);
+      } else {
+        const latestQuotation = await prisma.quotation.findFirst({
+          where: { accountId },
+          orderBy: { createdAt: 'desc' }
+        });
+        
+        if (latestQuotation) {
+          dealValue = latestQuotation.total;
+          console.log(`✅ Setting deal value from latest quotation: ${dealValue}`);
+        }
+      }
+    }
+
+    // Create the opportunity
+    const opportunity = await prisma.opportunity.create({
+      data: {
+        name,
+        accountId,
+        stage: opportunityStage,
+        value: dealValue,
+        probability: oppProbability,
+        closeDate: closeDate ? new Date(closeDate) : null,
+        lostReason: lostReason || null,
+        ownerId: userId,
+        ...(opportunityStage === 'WON' && { wonDate: new Date() })
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        account: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            type: true
+          }
+        }
+      }
+    });
+
+    console.log('✅ Created opportunity from account:', opportunity.id);
+
+    return NextResponse.json(opportunity, { status: 201 });
   } catch (error) {
     console.error('Error creating opportunity:', error);
     return NextResponse.json(

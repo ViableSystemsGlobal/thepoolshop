@@ -35,8 +35,9 @@ export const SendQuoteModal: React.FC<SendQuoteModalProps> = ({
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { success, error: showError } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
+  const themeColorValue = getThemeColor();
 
   // Get customer info
   const customerName = quotation.account?.name || 
@@ -203,20 +204,30 @@ export const SendQuoteModal: React.FC<SendQuoteModalProps> = ({
           </div>
         </div>
         <DialogFooter>
-          <Button 
+          <button 
             onClick={handleSendEmail} 
             disabled={isLoading}
-            className={`flex items-center gap-2 bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 text-white hover:opacity-90 transition-opacity border-0 shadow-sm hover:shadow-md gap-2"
+            style={{ 
+              backgroundColor: themeColorValue || '#dc2626', 
+              color: '#ffffff',
+              borderColor: themeColorValue || '#dc2626'
+            }}
           >
             {isLoading ? 'Sending...' : <><Mail className="h-4 w-4" /> Send Email</>}
-          </Button>
-          <Button 
+          </button>
+          <button 
             onClick={handleSendSMS} 
             disabled={isLoading}
-            className={`flex items-center gap-2 bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 text-white hover:opacity-90 transition-opacity border-0 shadow-sm hover:shadow-md gap-2"
+            style={{ 
+              backgroundColor: themeColorValue || '#dc2626', 
+              color: '#ffffff',
+              borderColor: themeColorValue || '#dc2626'
+            }}
           >
             {isLoading ? 'Sending...' : <><MessageSquare className="h-4 w-4" /> Send SMS</>}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

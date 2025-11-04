@@ -63,7 +63,7 @@ export async function POST(
           invoiceId: existingInvoice.id,
           invoiceNumber: existingInvoice.number
         },
-        { status: 400 }
+        { status: 409 } // 409 Conflict is more appropriate for duplicate resources
       );
     }
 

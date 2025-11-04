@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, Sparkles, TrendingUp, AlertCircle, Target, Loader2, RefreshCw } from 'lucide-react';
+import { Check, Sparkles, TrendingUp, AlertCircle, Target, Loader2, RefreshCw, Database, X } from 'lucide-react';
 import { useTheme } from '@/contexts/theme-context';
+import { AIRecommendationDetailSlideout } from './ai-recommendation-detail-slideout';
 
 interface Recommendation {
   id: string;
@@ -46,18 +47,56 @@ export function AIRecommendationCard({
   const [isLoading, setIsLoading] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dataAnalyzed, setDataAnalyzed] = useState<any>(null);
+  const [showDataView, setShowDataView] = useState(false);
+  const [selectedRecommendation, setSelectedRecommendation] = useState<Recommendation | null>(null);
+  const [showDetailSlideout, setShowDetailSlideout] = useState(false);
 
   // Fetch AI recommendations when component mounts or page changes
   useEffect(() => {
-    if (enableAI && page && !initialRecommendations) {
+    if (enableAI && page) {
+      // Always fetch AI recommendations when enableAI is true and page is provided
+      // Only use initialRecommendations as fallback when AI is disabled
       fetchAIRecommendations();
-    } else if (initialRecommendations) {
+    } else if (initialRecommendations && !enableAI) {
+      // Only use initialRecommendations when AI is explicitly disabled
       setRecommendations(initialRecommendations);
     }
-  }, [page, enableAI, initialRecommendations]);
+  }, [page, enableAI]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchAIRecommendations = async () => {
+  const fetchAIRecommendations = async (forceRefresh = false) => {
     if (!page) return;
+    
+    // Check client-side cache first (1 hour TTL)
+    // Include context ID in cache key for context-specific requests
+    const contextId = context?.leadId || context?.opportunityId || context?.accountId || '';
+    const cacheKey = contextId 
+      ? `ai_recommendations_${page}_${contextId}`
+      : `ai_recommendations_${page}`;
+    const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+    
+    if (!forceRefresh) {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const cachedData = JSON.parse(cached);
+          const cacheAge = Date.now() - cachedData.timestamp;
+          
+          if (cacheAge < CACHE_DURATION) {
+            console.log(`✅ Using client-side cache for ${page} (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`);
+            setRecommendations(cachedData.recommendations);
+            if (cachedData.dataAnalyzed) {
+              setDataAnalyzed(cachedData.dataAnalyzed);
+            }
+            setAiEnabled(true);
+            return;
+          }
+        }
+      } catch (e) {
+        // Cache read failed, continue to fetch
+        console.log('⚠️ Failed to read cache:', e);
+      }
+    }
     
     setIsLoading(true);
     setError(null);
@@ -77,9 +116,36 @@ export function AIRecommendationCard({
 
       const data = await response.json();
       
+      // Log the data analyzed for debugging
+      if (data.dataAnalyzed) {
+        console.log(`📊 Data analyzed by AI for ${page}:`, {
+          contextId: contextId || 'none',
+          dataKeys: Object.keys(data.dataAnalyzed || {}),
+          accountName: (data.dataAnalyzed as any)?.name,
+          opportunities: (data.dataAnalyzed as any)?.opportunitiesCount,
+          error: (data.dataAnalyzed as any)?.error
+        });
+        setDataAnalyzed(data.dataAnalyzed);
+      }
+      
       if (data.success && data.recommendations) {
         setRecommendations(data.recommendations);
         setAiEnabled(true);
+        
+        // Cache in localStorage
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            recommendations: data.recommendations,
+            dataAnalyzed: data.dataAnalyzed,
+            timestamp: Date.now()
+          }));
+        } catch (e) {
+          console.log('⚠️ Failed to cache in localStorage:', e);
+        }
+        
+        if (data.cached) {
+          console.log(`💾 Received cached recommendations from server (age: ${data.cacheAge} minutes)`);
+        }
       } else {
         // Use fallback recommendations if AI is not available
         setRecommendations(getFallbackRecommendations());
@@ -119,7 +185,7 @@ export function AIRecommendationCard({
 
   const handleRefresh = () => {
     if (enableAI && page) {
-      fetchAIRecommendations();
+      fetchAIRecommendations(true); // Force refresh, bypass cache
     }
   };
 
@@ -200,15 +266,28 @@ export function AIRecommendationCard({
             {isLoading ? 'Loading...' : aiEnabled ? 'AI' : 'Static'}
           </span>
           {enableAI && page && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isLoading}
-              className="p-0.5 h-4 w-4 ml-1"
-            >
-              <RefreshCw className={`w-2 h-2 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
+            <>
+              {dataAnalyzed && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDataView(!showDataView)}
+                  className="p-0.5 h-4 w-4 ml-1"
+                  title="View data analyzed"
+                >
+                  <Database className="w-2 h-2 text-gray-500" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="p-0.5 h-4 w-4 ml-1"
+              >
+                <RefreshCw className={`w-2 h-2 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -221,10 +300,10 @@ export function AIRecommendationCard({
           <h4 className="text-xs font-semibold text-gray-800">Recommendations</h4>
         </div>
 
-        <div className="grid grid-cols-3 gap-1">
+        <div className={`grid ${recommendations.length > 3 ? 'grid-cols-1' : 'grid-cols-3'} gap-1`}>
           {isLoading ? (
             // Loading state
-            Array.from({ length: 3 }).map((_, index) => (
+            Array.from({ length: recommendations.length || 5 }).map((_, index) => (
               <div key={index} className="p-1 rounded-lg border border-gray-200 bg-gray-50 animate-pulse">
                 <div className="h-4 bg-gray-300 rounded mb-1"></div>
                 <div className="h-3 bg-gray-200 rounded"></div>
@@ -240,10 +319,14 @@ export function AIRecommendationCard({
             recommendations.map((rec, index) => (
             <div 
               key={rec.id}
-              className={`p-1 rounded-lg border transition-all duration-200 ${
+              onClick={() => {
+                setSelectedRecommendation(rec);
+                setShowDetailSlideout(true);
+              }}
+              className={`p-1 rounded-lg border transition-all duration-200 cursor-pointer ${
                 completedItems.includes(rec.id) 
                   ? 'bg-green-50 border-green-200' 
-                  : 'bg-white border-gray-200 hover:border-gray-300'
+                  : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
               }`}
             >
               <div className="flex items-start justify-between mb-1">
@@ -254,7 +337,10 @@ export function AIRecommendationCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleComplete(rec.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleComplete(rec.id);
+                  }}
                   disabled={completedItems.includes(rec.id)}
                   className={`p-0.5 h-3 w-3 flex-shrink-0 ${
                     completedItems.includes(rec.id) 
@@ -266,12 +352,51 @@ export function AIRecommendationCard({
                 </Button>
               </div>
               <h5 className="text-xs font-medium text-gray-900 mb-1">{rec.title}</h5>
-              <p className="text-xs text-gray-600 leading-tight line-clamp-1">{rec.description}</p>
+              <p className={`text-xs text-gray-600 leading-tight ${recommendations.length > 3 ? 'line-clamp-2' : 'line-clamp-1'}`}>{rec.description}</p>
             </div>
             ))
           )}
         </div>
       </div>
+
+      {/* Data View Modal */}
+      {showDataView && dataAnalyzed && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowDataView(false)}>
+          <Card className="w-full max-w-2xl max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b flex items-center justify-between bg-white">
+              <div className="flex items-center space-x-2">
+                <Database className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold">Data Analyzed by AI</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDataView(false)}
+                className="p-1 h-6 w-6"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[60vh] bg-white">
+              <pre className="text-xs bg-gray-50 p-3 rounded-lg border overflow-x-auto">
+                {JSON.stringify(dataAnalyzed, null, 2)}
+              </pre>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Recommendation Detail Slideout */}
+      <AIRecommendationDetailSlideout
+        isOpen={showDetailSlideout}
+        onClose={() => {
+          setShowDetailSlideout(false);
+          setSelectedRecommendation(null);
+        }}
+        recommendation={selectedRecommendation}
+        page={page}
+        dataAnalyzed={dataAnalyzed}
+      />
 
       <div className="mt-1 pt-1 border-t border-gray-200">
         <div className="flex items-center justify-between text-xs">

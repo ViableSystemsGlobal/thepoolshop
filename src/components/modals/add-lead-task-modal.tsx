@@ -17,9 +17,14 @@ interface AddLeadTaskModalProps {
   onSave: (taskData: any) => void;
   leadId: string;
   leadName: string;
+  initialData?: {
+    title?: string;
+    description?: string;
+    dueDate?: string;
+  };
 }
 
-export function AddLeadTaskModal({ isOpen, onClose, onSave, leadId, leadName }: AddLeadTaskModalProps) {
+export function AddLeadTaskModal({ isOpen, onClose, onSave, leadId, leadName, initialData }: AddLeadTaskModalProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -34,8 +39,27 @@ export function AddLeadTaskModal({ isOpen, onClose, onSave, leadId, leadName }: 
   useEffect(() => {
     if (isOpen) {
       fetchUsers();
+      // Populate form with initialData if provided
+      if (initialData) {
+        setFormData(prev => ({
+          ...prev,
+          title: initialData.title || prev.title,
+          description: initialData.description || prev.description,
+          dueDate: initialData.dueDate || prev.dueDate,
+        }));
+      }
+    } else {
+      // Reset form when modal closes
+      setFormData({
+        title: '',
+        description: '',
+        priority: 'MEDIUM',
+        dueDate: '',
+        assignedTo: '',
+        status: 'PENDING'
+      });
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   const fetchUsers = async () => {
     try {

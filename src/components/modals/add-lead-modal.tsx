@@ -43,8 +43,9 @@ interface AddLeadModalProps {
 }
 
 export function AddLeadModal({ onClose, onSave }: AddLeadModalProps) {
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
+  const themeColor = getThemeColor();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -505,7 +506,8 @@ export function AddLeadModal({ onClose, onSave }: AddLeadModalProps) {
             <Button 
               type="submit" 
               disabled={loading}
-              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+              className="text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: themeColor || '#dc2626' }}
             >
               {loading ? 'Saving...' : 'Save Lead'}
             </Button>

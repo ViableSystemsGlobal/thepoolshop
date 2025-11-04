@@ -9,6 +9,7 @@ interface BrandingSettings {
   primaryColor: string;
   secondaryColor: string;
   description: string;
+  chatButtonImage?: string;
 }
 
 interface BrandingContextType {
@@ -36,7 +37,8 @@ const defaultBranding: BrandingSettings = {
   favicon: '/uploads/branding/favicon_1760896671527.jpg',
   primaryColor: '#dc2626', // Red as default
   secondaryColor: '#b91c1c', // Dark red as default
-  description: 'A practical, single-tenant system for sales and distribution management'
+  description: 'A practical, single-tenant system for sales and distribution management',
+  chatButtonImage: ''
 };
 
 // Convert hex color to Tailwind classes
@@ -61,23 +63,58 @@ function hexToTailwindClasses(hexColor: string) {
     '#0f766e': 'teal-700',
   };
 
-  const primaryClass = colorMap[hexColor] || 'red-600';
-  const primaryLight = primaryClass.replace('-600', '-500');
-  const primaryDark = primaryClass.replace('-600', '-700');
-  const primaryBg = primaryClass.replace('-600', '-50');
-  const primaryHover = primaryClass.replace('-600', '-100');
-  const primaryText = primaryClass.replace('-600', '-700');
-  const primaryBorder = primaryClass;
+  // If it's a mapped color, use Tailwind classes
+  if (colorMap[hexColor]) {
+    const primaryClass = colorMap[hexColor];
+    const primaryLight = primaryClass.replace('-600', '-500').replace('-700', '-600');
+    const primaryDark = primaryClass.replace('-600', '-700').replace('-500', '-700');
+    const primaryBg = primaryClass.replace('-600', '-50').replace('-700', '-50');
+    const primaryHover = primaryClass.replace('-600', '-100').replace('-700', '-100');
+    const primaryText = primaryClass.replace('-600', '-700').replace('-500', '-700');
+    const primaryBorder = primaryClass.replace('-700', '-600').replace('-500', '-600');
 
+    return {
+      primary: primaryClass,
+      primaryLight,
+      primaryDark,
+      primaryBg,
+      primaryHover,
+      primaryText,
+      primaryBorder,
+    };
+  }
+
+  // For custom colors, return hex values that will be used with inline styles
+  // We'll generate approximate Tailwind-like variants
+  const primaryClass = hexColor;
   return {
     primary: primaryClass,
-    primaryLight,
-    primaryDark,
-    primaryBg,
-    primaryHover,
-    primaryText,
-    primaryBorder,
+    primaryLight: adjustHexBrightness(hexColor, 10),
+    primaryDark: adjustHexBrightness(hexColor, -10),
+    primaryBg: hexToRgba(hexColor, 0.1),
+    primaryHover: hexToRgba(hexColor, 0.2),
+    primaryText: hexColor,
+    primaryBorder: hexColor,
   };
+}
+
+// Helper to adjust hex brightness
+function adjustHexBrightness(hex: string, percent: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = Math.min(255, Math.max(0, (num >> 16) + amt));
+  const G = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amt));
+  const B = Math.min(255, Math.max(0, (num & 0x0000FF) + amt));
+  return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+}
+
+// Helper to convert hex to rgba
+function hexToRgba(hex: string, alpha: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const R = (num >> 16);
+  const G = ((num >> 8) & 0x00FF);
+  const B = (num & 0x0000FF);
+  return `rgba(${R}, ${G}, ${B}, ${alpha})`;
 }
 
 export function BrandingProvider({ children }: { children: React.ReactNode }) {

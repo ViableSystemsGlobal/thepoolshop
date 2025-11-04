@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,9 +30,11 @@ interface GRNGenerationModalProps {
 
 export function GRNGenerationModal({ isOpen, onClose, products }: GRNGenerationModalProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [suppliers, setSuppliers] = useState<Array<{id: string, name: string}>>([]);
   const [formData, setFormData] = useState({
     grnNumber: `GRN-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
     date: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD format
+    supplierId: '',
     supplierName: '',
     supplierAddress: '',
     poNumber: '',
@@ -46,6 +48,17 @@ export function GRNGenerationModal({ isOpen, onClose, products }: GRNGenerationM
   const { success, error } = useToast();
   const { customLogo, getThemeClasses } = useTheme();
   const theme = getThemeClasses();
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/suppliers').then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          setSuppliers(data || []);
+        }
+      }).catch(() => {});
+    }
+  }, [isOpen]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -192,15 +205,15 @@ export function GRNGenerationModal({ isOpen, onClose, products }: GRNGenerationM
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(10);
       
-      // First line: RECEIVED BY and SIGNATURE on same line
-      pdf.text('RECEIVED BY :', 20, yPosition);
+      // First line: DELIVERED BY and SIGNATURE on same line
+      pdf.text('DELIVERED BY :', 20, yPosition);
       pdf.text(formData.receivedBy || '_________________', 50, yPosition);
       pdf.text('SIGNATURE :', 120, yPosition);
       pdf.line(150, yPosition - 2, 190, yPosition - 2);
       yPosition += 12;
       
-      // Second line: SENT BY and SIGNATURE on same line
-      pdf.text('SENT BY :', 20, yPosition);
+      // Second line: RECEIVED BY and SIGNATURE on same line
+      pdf.text('RECEIVED BY :', 20, yPosition);
       pdf.text(formData.checkedBy || '_________________', 50, yPosition);
       pdf.text('SIGNATURE :', 120, yPosition);
       pdf.line(150, yPosition - 2, 190, yPosition - 2);
@@ -275,14 +288,33 @@ export function GRNGenerationModal({ isOpen, onClose, products }: GRNGenerationM
           </div>
 
           {/* Supplier Information */}
-          <div>
-            <Label htmlFor="supplierName">Supplier Name</Label>
-            <Input
-              id="supplierName"
-              value={formData.supplierName}
-              onChange={(e) => handleInputChange('supplierName', e.target.value)}
-              placeholder="Enter supplier name"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Supplier</Label>
+              <select
+                value={formData.supplierId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const name = suppliers.find(s => s.id === id)?.name || '';
+                  setFormData(prev => ({ ...prev, supplierId: id, supplierName: name }));
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select supplier</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="supplierName">Supplier Name (override)</Label>
+              <Input
+                id="supplierName"
+                value={formData.supplierName}
+                onChange={(e) => handleInputChange('supplierName', e.target.value)}
+                placeholder="Enter supplier name"
+              />
+            </div>
           </div>
 
           <div>
@@ -321,7 +353,7 @@ export function GRNGenerationModal({ isOpen, onClose, products }: GRNGenerationM
           {/* Personnel Information */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="receivedBy">Received By</Label>
+              <Label htmlFor="receivedBy">Delivered By</Label>
               <Input
                 id="receivedBy"
                 value={formData.receivedBy}
@@ -330,7 +362,7 @@ export function GRNGenerationModal({ isOpen, onClose, products }: GRNGenerationM
               />
             </div>
             <div>
-              <Label htmlFor="checkedBy">Checked By</Label>
+              <Label htmlFor="checkedBy">Received By</Label>
               <Input
                 id="checkedBy"
                 value={formData.checkedBy}

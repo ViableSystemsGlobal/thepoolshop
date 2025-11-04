@@ -104,6 +104,7 @@ const navigation = [
       { name: "Stock Movements", href: "/inventory/stock-movements", icon: BarChart3, module: "inventory" },
       { name: "Physical Count", href: "/inventory/stocktake", icon: CheckSquare, module: "inventory" },
       { name: "Warehouses", href: "/warehouses", icon: Building, module: "warehouses" },
+      { name: "Suppliers", href: "/inventory/suppliers", icon: Users, module: "inventory" },
       { name: "Backorders", href: "/backorders", icon: Package, module: "backorders" },
     ]
   },
@@ -184,7 +185,7 @@ const navigation = [
 ];
 
 const shortcuts = [
-  { name: "Overdue Tasks", href: "/tasks?status=OVERDUE", icon: CheckSquare, badge: "0" },
+  { name: "Pending Tasks", href: "/tasks?status=PENDING", icon: CheckSquare, badge: "0" },
   { name: "Overdue Invoices", href: "/invoices?status=OVERDUE&paymentStatus=UNPAID", icon: FileText, badge: "0" },
   { name: "Low/No Stock", href: "/inventory/stock?stockStatus=low-stock", icon: Package, badge: "0" },
 ];
@@ -199,7 +200,7 @@ export default function Sidebar() {
   const { canAccess, loading: abilitiesLoading } = useAbilities();
   const { data: session, status: sessionStatus } = useSession();
   const [shortcutCounts, setShortcutCounts] = useState({
-    overdueTasks: 0,
+    pendingTasks: 0,
     overdueInvoices: 0,
     lowStock: 0
   });
@@ -284,8 +285,18 @@ export default function Sidebar() {
     return <SkeletonSidebar />;
   }
 
-  // Helper function to get proper background classes
+  // Get theme color (hex value) from branding context
+  const themeColorHex = getThemeColor();
+
+  // Check if color is a custom hex color or preset Tailwind class
+  const isCustomColor = theme.primary?.startsWith('#');
+
+  // Helper function to get proper background classes or styles
   const getBackgroundClasses = (isActive: boolean, isHover: boolean = false) => {
+    if (isCustomColor) {
+      // For custom colors, return empty string and use inline styles
+      return '';
+    }
     const prefix = isHover ? 'hover:' : '';
     const colorMap: { [key: string]: string } = {
       'purple-600': `${prefix}bg-purple-600`,
@@ -300,8 +311,19 @@ export default function Sidebar() {
     return colorMap[theme.primary] || `${prefix}bg-blue-600`;
   };
 
+  // Helper function to get background style for custom colors
+  const getBackgroundStyle = (isActive: boolean, isHover: boolean = false) => {
+    if (!isCustomColor || !isActive) return {};
+    return {
+      backgroundColor: themeColorHex,
+    };
+  };
+
   // Helper function to get hover background classes with safelist
   const getHoverBackgroundClasses = () => {
+    if (isCustomColor) {
+      return '';
+    }
     const colorMap: { [key: string]: string } = {
       'purple-600': 'hover:bg-purple-600',
       'blue-600': 'hover:bg-blue-600', 
@@ -315,8 +337,19 @@ export default function Sidebar() {
     return colorMap[theme.primary] || 'hover:bg-blue-600';
   };
 
-  // Helper function to get proper text color classes
+  // Helper function to get hover background style for custom colors
+  const getHoverBackgroundStyle = () => {
+    if (!isCustomColor) return {};
+    return {
+      '--hover-bg': themeColorHex,
+    } as React.CSSProperties;
+  };
+
+  // Helper function to get proper text color classes or styles
   const getTextColorClasses = (isHover: boolean = false) => {
+    if (isCustomColor) {
+      return '';
+    }
     const prefix = isHover ? 'hover:' : '';
     const colorMap: { [key: string]: string } = {
       'purple-600': `${prefix}text-purple-600`,
@@ -329,6 +362,14 @@ export default function Sidebar() {
       'teal-600': `${prefix}text-teal-600`,
     };
     return colorMap[theme.primary] || `${prefix}text-blue-600`;
+  };
+
+  // Helper function to get text color style for custom colors
+  const getTextColorStyle = (isHover: boolean = false) => {
+    if (!isCustomColor) return {};
+    return {
+      color: themeColorHex,
+    };
   };
 
   // Helper function to get proper focus ring classes
@@ -406,19 +447,76 @@ export default function Sidebar() {
                   onClick={() => toggleSection(item.name)}
                   className={cn(
                     "group flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActiveItem
+                    isActiveItem && !isCustomColor
                       ? `${getBackgroundClasses(true)} text-white`
-                      : `text-gray-700 ${getHoverBackgroundClasses()} hover:text-white`
+                      : !isActiveItem && !isCustomColor
+                      ? `text-gray-700 ${getHoverBackgroundClasses()} hover:text-white`
+                      : isCustomColor && !isActiveItem
+                      ? 'text-gray-700'
+                      : ''
                   )}
+                  style={isActiveItem ? getBackgroundStyle(true) : isCustomColor && !isActiveItem ? { color: '#374151' } : {}}
+                  onMouseEnter={(e) => {
+                    if (isCustomColor && !isActiveItem) {
+                      e.currentTarget.style.backgroundColor = themeColorHex;
+                      e.currentTarget.style.color = 'white';
+                      // Set icon to white
+                      const icon = e.currentTarget.querySelector('svg');
+                      if (icon) icon.style.color = 'white';
+                      // Set text span to white
+                      const textSpan = e.currentTarget.querySelector('span:not(.ml-auto)');
+                      if (textSpan) (textSpan as HTMLElement).style.color = 'white';
+                      // Set chevron to white
+                      const chevron = e.currentTarget.querySelector('.ml-auto svg');
+                      if (chevron) chevron.style.color = 'white';
+                      const chevronSpan = e.currentTarget.querySelector('.ml-auto');
+                      if (chevronSpan) (chevronSpan as HTMLElement).style.color = 'white';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isCustomColor && !isActiveItem) {
+                      e.currentTarget.style.backgroundColor = '';
+                      e.currentTarget.style.color = '#374151'; // Restore gray text color
+                      // Restore icon color
+                      const icon = e.currentTarget.querySelector('svg');
+                      if (icon) icon.style.color = '#374151';
+                      // Restore text span color
+                      const textSpan = e.currentTarget.querySelector('span:not(.ml-auto)');
+                      if (textSpan) (textSpan as HTMLElement).style.color = '#374151';
+                      // Restore chevron color
+                      const chevron = e.currentTarget.querySelector('.ml-auto svg');
+                      if (chevron) chevron.style.color = '#6B7280';
+                      const chevronSpan = e.currentTarget.querySelector('.ml-auto');
+                      if (chevronSpan) (chevronSpan as HTMLElement).style.color = '#6B7280';
+                    }
+                  }}
                 >
-                  <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                  <item.icon className={cn(
+                    "mr-3 h-5 w-5 flex-shrink-0",
+                    !isCustomColor && !isActiveItem ? "group-hover:text-white" : ""
+                  )} style={isActiveItem && isCustomColor ? { color: 'white' } : isCustomColor && !isActiveItem ? { color: '#374151' } : {}} />
                   {!collapsed && (
                     <>
-                      {item.name}
+                      <span 
+                        className={cn(
+                          !isCustomColor && !isActiveItem ? "group-hover:!text-white" : ""
+                        )} 
+                        style={
+                          isActiveItem && isCustomColor 
+                            ? { color: 'white' } 
+                            : isCustomColor && !isActiveItem 
+                            ? { color: '#374151' } 
+                            : {} // No inline style for preset colors - let classes handle it
+                        }
+                      >
+                        {item.name}
+                      </span>
                       <span className={cn(
                         "ml-auto transition-colors",
-                        isActiveItem ? "text-white" : "text-gray-400 group-hover:text-white"
-                      )}>
+                        isActiveItem && isCustomColor ? "text-white" : isActiveItem ? "text-white" : "text-gray-400 group-hover:text-white"
+                      )}
+                      style={isActiveItem && isCustomColor ? { color: 'white' } : isCustomColor && !isActiveItem ? { color: '#6B7280' } : {}}
+                      >
                         {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </span>
                     </>
@@ -429,13 +527,60 @@ export default function Sidebar() {
                   href={item.href || '#'}
                   className={cn(
                     "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full text-left",
-                    isActiveItem
+                    isActiveItem && !isCustomColor
                       ? `${getBackgroundClasses(true)} text-white`
-                      : `text-gray-700 ${getHoverBackgroundClasses()} hover:text-white`
+                      : !isActiveItem && !isCustomColor
+                      ? `text-gray-700 ${getHoverBackgroundClasses()} hover:text-white`
+                      : isCustomColor && !isActiveItem
+                      ? 'text-gray-700'
+                      : ''
                   )}
+                  style={isActiveItem ? getBackgroundStyle(true) : isCustomColor && !isActiveItem ? { color: '#374151' } : {}}
+                  onMouseEnter={(e) => {
+                    if (isCustomColor && !isActiveItem) {
+                      e.currentTarget.style.backgroundColor = themeColorHex;
+                      e.currentTarget.style.color = 'white';
+                      // Set icon to white
+                      const icon = e.currentTarget.querySelector('svg');
+                      if (icon) icon.style.color = 'white';
+                      // Set text span to white
+                      const textSpan = e.currentTarget.querySelector('span');
+                      if (textSpan) (textSpan as HTMLElement).style.color = 'white';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isCustomColor && !isActiveItem) {
+                      e.currentTarget.style.backgroundColor = '';
+                      e.currentTarget.style.color = '#374151'; // Restore gray text color
+                      // Restore icon color
+                      const icon = e.currentTarget.querySelector('svg');
+                      if (icon) icon.style.color = '#374151';
+                      // Restore text span color
+                      const textSpan = e.currentTarget.querySelector('span');
+                      if (textSpan) (textSpan as HTMLElement).style.color = '#374151';
+                    }
+                  }}
                 >
-                  <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  {!collapsed && item.name}
+                  <item.icon className={cn(
+                    "mr-3 h-5 w-5 flex-shrink-0",
+                    !isCustomColor && !isActiveItem ? "group-hover:text-white" : ""
+                  )} style={isActiveItem && isCustomColor ? { color: 'white' } : isCustomColor && !isActiveItem ? { color: '#374151' } : {}} />
+                  {!collapsed && (
+                    <span 
+                      className={cn(
+                        !isCustomColor && !isActiveItem ? "group-hover:!text-white" : ""
+                      )} 
+                      style={
+                        isActiveItem && isCustomColor 
+                          ? { color: 'white' } 
+                          : isCustomColor && !isActiveItem 
+                          ? { color: '#374151' } 
+                          : {} // No inline style for preset colors - let classes handle it
+                      }
+                    >
+                      {item.name}
+                    </span>
+                  )}
                 </Link>
               )}
 
@@ -465,10 +610,25 @@ export default function Sidebar() {
                       href={child.href}
                       className={cn(
                         "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full text-left",
-                        isActive(child.href)
+                        isActive(child.href) && !isCustomColor
                           ? getTextColorClasses()
-                          : `text-gray-600 ${getTextColorClasses(true)}`
+                          : !isActive(child.href) && !isCustomColor
+                          ? `text-gray-600 ${getTextColorClasses(true)}`
+                          : isCustomColor && !isActive(child.href)
+                          ? 'text-gray-600'
+                          : ''
                       )}
+                      style={isActive(child.href) ? getTextColorStyle() : isCustomColor && !isActive(child.href) ? { color: '#4B5563' } : {}}
+                      onMouseEnter={(e) => {
+                        if (isCustomColor && !isActive(child.href)) {
+                          e.currentTarget.style.color = themeColorHex;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (isCustomColor && !isActive(child.href)) {
+                          e.currentTarget.style.color = '#4B5563';
+                        }
+                      }}
                     >
                       <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
                       {child.name}
@@ -493,7 +653,7 @@ export default function Sidebar() {
               const themeColor = getThemeColor();
               // Map badge count based on shortcut name
               let badgeCount = 0;
-              if (shortcut.name === 'Overdue Tasks') badgeCount = shortcutCounts.overdueTasks;
+              if (shortcut.name === 'Pending Tasks') badgeCount = shortcutCounts.pendingTasks;
               else if (shortcut.name === 'Overdue Invoices') badgeCount = shortcutCounts.overdueInvoices;
               else if (shortcut.name === 'Low/No Stock') badgeCount = shortcutCounts.lowStock;
               

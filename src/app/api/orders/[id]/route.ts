@@ -3,20 +3,27 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { OrderStatus } from '@prisma/client';
+import { sendOrderStatusChangeNotifications, sendOrderCreatedNotifications } from '@/lib/payment-order-notifications';
 
 // Get a single order
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('🔍 GET /api/orders/[id] - Starting request');
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
+      console.error('❌ Unauthorized access to order API');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
-    const order = await prisma.order.findUnique({
+    const { id } = await params;
+    console.log('📦 Fetching order with ID:', id);
+    
+    // Try to find as Order first
+    console.log('🔍 Searching for Order...');
+    let order = await prisma.order.findUnique({
       where: { id },
       include: {
         distributor: {
@@ -30,6 +37,23 @@ export async function GET(
             creditStatus: true
           }
         },
+        account: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        },
+        contact: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true
+          }
+        },
         items: {
           include: {
             product: {
@@ -37,8 +61,7 @@ export async function GET(
                 id: true,
                 name: true,
                 sku: true,
-                sellingPrice: true,
-                stockQuantity: true
+                price: true
               }
             }
           }
@@ -53,30 +76,180 @@ export async function GET(
       }
     });
 
-    if (!order) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    console.log('Order found?', !!order);
+    if (order) {
+      console.log('✅ Order found:', order.orderNumber);
     }
 
+    // If not found as Order, try SalesOrder
+    if (!order) {
+      console.log('⚠️ Order not found, searching for SalesOrder...');
+      const salesOrder = await prisma.salesOrder.findUnique({
+        where: { id },
+        include: {
+          account: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true
+            }
+          },
+          invoice: {
+            select: {
+              id: true,
+              paymentStatus: true
+            }
+          },
+          lines: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true
+                }
+              }
+            }
+          },
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      if (!salesOrder) {
+        console.error('❌ SalesOrder also not found for ID:', id);
+        return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+      }
+
+      console.log('✅ SalesOrder found:', salesOrder.number);
+
+      // Get payment method from invoice if available
+      let paymentMethod = 'credit'; // Default
+      if (salesOrder.invoice?.id) {
+        try {
+          // Query PaymentAllocation to get the latest payment method
+          const latestAllocation = await prisma.paymentAllocation.findFirst({
+            where: { invoiceId: salesOrder.invoice.id },
+            include: {
+              payment: {
+                select: {
+                  method: true
+                }
+              }
+            },
+            orderBy: {
+              createdAt: 'desc'
+            }
+          });
+
+          if (latestAllocation?.payment?.method) {
+            paymentMethod = latestAllocation.payment.method;
+          }
+        } catch (error) {
+          console.error('Error fetching payment method:', error);
+          // Keep default 'credit' if there's an error
+        }
+      }
+
+      // Transform SalesOrder to Order-like format
+      order = {
+        id: salesOrder.id,
+        orderNumber: salesOrder.number,
+        totalAmount: Number(salesOrder.total),
+        status: salesOrder.status,
+        paymentMethod: paymentMethod,
+        customerType: 'account',
+        notes: salesOrder.notes,
+        deliveryAddress: salesOrder.deliveryAddress,
+        deliveryDate: salesOrder.deliveryDate?.toISOString(),
+        createdAt: salesOrder.createdAt.toISOString(),
+        updatedAt: salesOrder.updatedAt.toISOString(),
+        distributor: null,
+        account: salesOrder.account,
+        contact: null,
+        items: salesOrder.lines.map(line => ({
+          id: line.id,
+          quantity: Number(line.quantity),
+          unitPrice: Number(line.unitPrice),
+          totalPrice: Number(line.lineTotal),
+          notes: line.description,
+          product: {
+            id: line.product.id,
+            name: line.product.name,
+            sku: line.product.sku,
+            sellingPrice: 0,
+            stockQuantity: 0
+          }
+        })),
+        createdByUser: {
+          id: salesOrder.owner.id,
+          name: salesOrder.owner.name,
+          email: salesOrder.owner.email || ''
+        }
+      } as any;
+    }
+
+    console.log('✅ Order fetched successfully:', order?.orderNumber || order?.id);
     return NextResponse.json({
       success: true,
       data: order
     });
   } catch (error) {
-    console.error('Error fetching order:', error);
-    return NextResponse.json(
-      { 
-        error: 'Failed to fetch order',
-        details: error instanceof Error ? error.message : 'Unknown error occurred'
-      },
-      { status: 500 }
-    );
+    console.error('❌ Error fetching order:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('Error details:', { 
+      errorMessage, 
+      errorStack,
+      errorType: error?.constructor?.name,
+      errorString: String(error)
+    });
+    
+    // Ensure we always return valid JSON
+    try {
+      return NextResponse.json(
+        { 
+          error: 'Failed to fetch order',
+          details: errorMessage,
+          success: false
+        },
+        { 
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    } catch (jsonError) {
+      console.error('❌ Failed to create error response:', jsonError);
+      // Fallback: create a simple text response
+      return new NextResponse(
+        JSON.stringify({ 
+          error: 'Failed to fetch order',
+          details: errorMessage,
+          success: false
+        }),
+        { 
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
   }
 }
 
 // Update an order
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -84,7 +257,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { 
       status, 
@@ -95,69 +268,244 @@ export async function PUT(
     } = body;
 
     // Validate required fields
-    if (!status || !paymentMethod) {
+    if (!status) {
       return NextResponse.json({ 
-        error: 'Status and payment method are required' 
-      }, { status: 400 });
-    }
-
-    // Validate status
-    if (!Object.values(OrderStatus).includes(status)) {
-      return NextResponse.json({ 
-        error: 'Invalid order status' 
+        error: 'Status is required' 
       }, { status: 400 });
     }
 
     console.log('🔄 Updating order:', id);
     console.log('📝 Update data:', { status, paymentMethod, notes, deliveryAddress, deliveryDate });
 
-    // Update the order
-    const updatedOrder = await prisma.order.update({
+    // Try to find as Order first
+    let existingOrder = await prisma.order.findUnique({
       where: { id },
-      data: {
-        status,
-        paymentMethod,
-        notes: notes || null,
-        deliveryAddress: deliveryAddress || null,
-        deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-        updatedAt: new Date()
-      },
-      include: {
-        distributor: {
-          select: {
-            id: true,
-            businessName: true,
-            email: true,
-            phone: true
-          }
+      select: { id: true, status: true }
+    });
+
+    if (existingOrder) {
+      // Get old status for notifications
+      const oldStatus = existingOrder.status;
+
+      // Validate status for Order
+      if (!Object.values(OrderStatus).includes(status as OrderStatus)) {
+        return NextResponse.json({ 
+          error: 'Invalid order status' 
+        }, { status: 400 });
+      }
+
+      // Only send notification if status actually changed
+      const statusChanged = oldStatus !== status;
+
+      // Update the order
+      const updatedOrder = await prisma.order.update({
+        where: { id },
+        data: {
+          status: status as OrderStatus,
+          paymentMethod: paymentMethod || undefined,
+          notes: notes !== undefined ? notes : undefined,
+          deliveryAddress: deliveryAddress !== undefined ? deliveryAddress : undefined,
+          deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
+          updatedAt: new Date()
         },
-        items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                sku: true
+        include: {
+          distributor: {
+            select: {
+              id: true,
+              businessName: true,
+              email: true,
+              phone: true
+            }
+          },
+          account: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true
+            }
+          },
+          contact: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true
+            }
+          },
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true
+                }
               }
             }
-          }
-        },
-        createdByUser: {
-          select: {
-            id: true,
-            name: true
+          },
+          createdByUser: {
+            select: {
+              id: true,
+              name: true
+            }
           }
         }
+      });
+
+      console.log('✅ Order updated successfully:', updatedOrder.orderNumber);
+
+      // Send status change notifications if status changed
+      if (statusChanged) {
+        try {
+          const customer = updatedOrder.account || updatedOrder.distributor || updatedOrder.contact;
+          if (customer) {
+            await sendOrderStatusChangeNotifications(
+              updatedOrder,
+              oldStatus,
+              status,
+              customer
+            );
+          }
+        } catch (notificationError) {
+          console.error('❌ Error sending order status change notifications:', notificationError);
+          // Don't fail the order update if notifications fail
+        }
       }
-    });
 
-    console.log('✅ Order updated successfully:', updatedOrder.orderNumber);
+      return NextResponse.json({
+        success: true,
+        message: 'Order updated successfully',
+        data: updatedOrder
+      });
+    } else {
+      // Try to update as SalesOrder
+      const existingSalesOrder = await prisma.salesOrder.findUnique({
+        where: { id },
+        select: { id: true, status: true }
+      });
 
-    return NextResponse.json({
-      success: true,
-      message: 'Order updated successfully',
-      data: updatedOrder
-    });
+      if (!existingSalesOrder) {
+        return NextResponse.json({ 
+          error: 'Order not found' 
+        }, { status: 404 });
+      }
+
+      // Get old status for notifications
+      const oldStatus = existingSalesOrder.status;
+
+      // Validate status for SalesOrder
+      const validSalesOrderStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
+      if (!validSalesOrderStatuses.includes(status)) {
+        return NextResponse.json({ 
+          error: 'Invalid sales order status' 
+        }, { status: 400 });
+      }
+
+      // Only send notification if status actually changed
+      const statusChanged = oldStatus !== status;
+
+      // Update the sales order
+      const updatedSalesOrder = await prisma.salesOrder.update({
+        where: { id },
+        data: {
+          status: status as any,
+          notes: notes !== undefined ? notes : undefined,
+          deliveryAddress: deliveryAddress !== undefined ? deliveryAddress : undefined,
+          deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
+          updatedAt: new Date()
+        },
+        include: {
+          account: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true
+            }
+          },
+          lines: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true
+                }
+              }
+            }
+          },
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      console.log('✅ SalesOrder updated successfully:', updatedSalesOrder.number);
+
+      // Send status change notifications if status changed
+      if (statusChanged && updatedSalesOrder.account) {
+        try {
+          await sendOrderStatusChangeNotifications(
+            updatedSalesOrder,
+            oldStatus,
+            status,
+            updatedSalesOrder.account
+          );
+        } catch (notificationError) {
+          console.error('❌ Error sending order status change notifications:', notificationError);
+          // Don't fail the order update if notifications fail
+        }
+      }
+
+      // Transform to Order-like format for response
+      const transformedOrder = {
+        id: updatedSalesOrder.id,
+        orderNumber: updatedSalesOrder.number,
+        totalAmount: Number(updatedSalesOrder.total),
+        status: updatedSalesOrder.status,
+        paymentMethod: paymentMethod || 'credit',
+        customerType: 'account',
+        notes: updatedSalesOrder.notes,
+        deliveryAddress: updatedSalesOrder.deliveryAddress,
+        deliveryDate: updatedSalesOrder.deliveryDate?.toISOString(),
+        createdAt: updatedSalesOrder.createdAt.toISOString(),
+        updatedAt: updatedSalesOrder.updatedAt.toISOString(),
+        distributor: null,
+        account: updatedSalesOrder.account,
+        contact: null,
+        items: updatedSalesOrder.lines.map(line => ({
+          id: line.id,
+          quantity: Number(line.quantity),
+          unitPrice: Number(line.unitPrice),
+          totalPrice: Number(line.lineTotal),
+          notes: line.description,
+          product: {
+            id: line.product.id,
+            name: line.product.name,
+            sku: line.product.sku,
+            price: 0,
+            stockQuantity: 0
+          }
+        })),
+        createdByUser: {
+          id: updatedSalesOrder.owner.id,
+          name: updatedSalesOrder.owner.name,
+          email: updatedSalesOrder.owner.email || ''
+        }
+      };
+
+      return NextResponse.json({
+        success: true,
+        message: 'Order updated successfully',
+        data: transformedOrder
+      });
+    }
 
   } catch (error) {
     console.error('Error updating order:', error);
@@ -174,7 +522,7 @@ export async function PUT(
 // Delete an order
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -182,7 +530,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     console.log('🗑️ Deleting order:', id);
 
@@ -226,7 +574,9 @@ export async function DELETE(
       });
 
       if (distributor) {
-        const newCreditUsed = Math.max(0, (distributor.currentCreditUsed || 0) - orderToDelete.totalAmount);
+        const currentUsed = Number(distributor.currentCreditUsed || 0);
+        const orderAmount = Number(orderToDelete.totalAmount);
+        const newCreditUsed = Math.max(0, currentUsed - orderAmount);
         
         await prisma.distributor.update({
           where: { id: orderToDelete.distributorId },

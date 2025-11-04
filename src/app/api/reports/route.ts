@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getExchangeRate } from '@/lib/currency';
 
 export async function GET(request: NextRequest) {
   try {
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user?.id) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
 
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || '30d';
@@ -661,6 +663,9 @@ export async function GET(request: NextRequest) {
       revenue: Number(item.revenue) || 0
     }));
 
+    // Get current exchange rate from settings (USD to GHS) for inventory valuation
+    const usdToGhsRate = await getExchangeRate('USD', 'GHS') || 11.0; // Fallback to 11.0 if not found
+
     const reportData = {
       sales: {
         totalRevenue: totalRevenue._sum.total || 0,
@@ -687,11 +692,12 @@ export async function GET(request: NextRequest) {
       inventory: {
         totalProducts,
         lowStockItems,
-        totalValue: inventoryValue ? inventoryValue.reduce((sum: number, item: any) => {
-          // Convert USD to GHS (assuming cost is in USD)
+        totalValue: inventoryValue ? inventoryValue
+          .filter((item: any) => item.warehouseId !== null) // Only count stockItems with warehouseId assigned
+          .reduce((sum: number, item: any) => {
+            // Convert USD to GHS using actual exchange rate from settings
           const costInUSD = item.averageCost || 0;
           const quantity = item.quantity || 0;
-          const usdToGhsRate = 12.5; // USD to GHS conversion rate
           const valueInGHS = (costInUSD * quantity) * usdToGhsRate;
           return sum + valueInGHS;
         }, 0) : 0,

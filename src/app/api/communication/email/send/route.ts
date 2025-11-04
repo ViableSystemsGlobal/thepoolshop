@@ -74,13 +74,25 @@ async function sendEmailViaSMTP(
       }
     }
 
+    // Convert message to HTML if it's plain text
+    const messageHtml = message.includes('<') && message.includes('>') 
+      ? message 
+      : message.replace(/\n/g, '<br>');
+    
+    // Generate email template with theme colors
+    const { generateEmailTemplate, generatePlainText } = await import('@/lib/email-template');
+    const htmlContent = await generateEmailTemplate(messageHtml);
+    
+    // Generate plain text version
+    const plainText = generatePlainText(message);
+
     // Send email
     const result = await transporter.sendMail({
       from: `"${smtpFromName}" <${smtpFromAddress}>`,
       to: recipient,
       subject: subject,
-      text: message,
-      html: message.replace(/\n/g, '<br>'),
+      text: plainText,
+      html: htmlContent,
       attachments: emailAttachments,
     });
 

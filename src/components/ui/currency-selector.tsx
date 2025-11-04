@@ -76,15 +76,49 @@ export function CurrencySelector({
     try {
       setIsLoadingCurrencies(true);
       setCurrenciesError(null);
+      
+      // Default currencies that should always be available
+      const defaultCurrencies: Currency[] = [
+        { id: 'ghs-default', code: 'GHS', name: 'Ghana Cedi', symbol: 'GH₵', isActive: true },
+        { id: 'usd-default', code: 'USD', name: 'US Dollar', symbol: '$', isActive: true }
+      ];
+      
       const response = await fetch('/api/currencies');
       if (response.ok) {
         const data = await response.json();
-        setCurrencies(data);
+        
+        // Merge database currencies with defaults, ensuring GHS and USD are always included
+        const currencyMap = new Map<string, Currency>();
+        
+        // Add default currencies first
+        defaultCurrencies.forEach(currency => {
+          currencyMap.set(currency.code, currency);
+        });
+        
+        // Add/override with database currencies (they might have better data)
+        data.forEach((currency: Currency) => {
+          currencyMap.set(currency.code, currency);
+        });
+        
+        // Convert map to array and sort by code
+        const mergedCurrencies = Array.from(currencyMap.values()).sort((a, b) => 
+          a.code.localeCompare(b.code)
+        );
+        
+        setCurrencies(mergedCurrencies);
       } else {
+        // If API fails, use defaults
+        setCurrencies(defaultCurrencies);
         setCurrenciesError('Failed to load currencies');
       }
     } catch (error) {
       console.error('Error fetching currencies:', error);
+      // On error, use defaults so GHS and USD are always available
+      const defaultCurrencies: Currency[] = [
+        { id: 'ghs-default', code: 'GHS', name: 'Ghana Cedi', symbol: 'GH₵', isActive: true },
+        { id: 'usd-default', code: 'USD', name: 'US Dollar', symbol: '$', isActive: true }
+      ];
+      setCurrencies(defaultCurrencies);
       setCurrenciesError('Failed to load currencies');
     } finally {
       setIsLoadingCurrencies(false);

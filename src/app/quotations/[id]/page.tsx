@@ -21,7 +21,8 @@ import {
   DollarSign,
   Clock,
   Receipt,
-  QrCode
+  QrCode,
+  Bell
 } from 'lucide-react';
 
 // Helper function to parse product images
@@ -97,6 +98,7 @@ interface Quotation {
   subject: string;
   validUntil: string;
   notes: string;
+  currency?: string;
   subtotal: number;
   tax: number;
   total: number;
@@ -119,6 +121,14 @@ interface Quotation {
     email: string;
     phone: string;
   };
+  lead?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    company?: string;
+  };
   owner: {
     id: string;
     name: string;
@@ -136,7 +146,7 @@ interface Quotation {
 export default function ViewQuotationPage() {
   const router = useRouter();
   const params = useParams();
-  const { getThemeClasses, customLogo } = useTheme();
+  const { getThemeClasses, getThemeColor, customLogo } = useTheme();
   const { error: showError, success } = useToast();
   const theme = getThemeClasses();
   
@@ -144,6 +154,21 @@ export default function ViewQuotationPage() {
   const [loading, setLoading] = useState(true);
   const [showSendModal, setShowSendModal] = useState(false);
   const [convertingToInvoice, setConvertingToInvoice] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
+
+  // Currency helper function
+  const getCurrencySymbol = (code: string = 'GHS'): string => {
+    const symbols: { [key: string]: string } = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'NGN': '₦',
+      'KES': 'KSh',
+      'ZAR': 'R',
+      'GHS': 'GH₵'
+    };
+    return symbols[code] || code + ' ';
+  };
 
   useEffect(() => {
     if (params.id) {
@@ -246,6 +271,56 @@ export default function ViewQuotationPage() {
     }
   };
 
+  const handleQuotationReminder = async () => {
+    if (!quotation) return;
+
+    // Get customer contact info
+    const customerEmail = quotation.account?.email || quotation.distributor?.email || quotation.lead?.email;
+    const customerPhone = quotation.account?.phone || quotation.distributor?.phone || quotation.lead?.phone;
+    const customerName = quotation.account?.name || 
+                         quotation.distributor?.businessName || 
+                         (quotation.lead ? `${quotation.lead.firstName} ${quotation.lead.lastName}`.trim() : '') ||
+                         'Valued Customer';
+
+    if (!customerEmail && !customerPhone) {
+      showError('No email or phone number found for customer');
+      return;
+    }
+
+    try {
+      setSendingReminder(true);
+
+      const response = await fetch('/api/quotations/quotation-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quotationId: quotation.id,
+          customerEmail,
+          customerPhone,
+          customerName,
+          quotationNumber: quotation.number,
+          quotationSubject: quotation.subject,
+          quotationTotal: quotation.total,
+          validUntil: quotation.validUntil,
+          currency: quotation.currency || 'GHS'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        success(data.message || 'Quotation reminder sent successfully');
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to send quotation reminder');
+      }
+    } catch (error) {
+      console.error('Error sending quotation reminder:', error);
+      showError('Failed to send quotation reminder');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const statusColors = {
       DRAFT: 'bg-gray-100 text-gray-800',
@@ -326,7 +401,12 @@ export default function ViewQuotationPage() {
             </Button>
             <Button 
               variant="outline"
-              onClick={() => downloadQuotationAsPDF(quotation as any, customLogo || undefined, error, success)}
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                await new Promise(resolve => setTimeout(resolve, 100));
+                await downloadQuotationAsPDF(quotation as any, customLogo || undefined, showError, success);
+              }}
             >
               <Download className="h-4 w-4 mr-2" />
               Download PDF
@@ -338,16 +418,21 @@ export default function ViewQuotationPage() {
               <Mail className="h-4 w-4 mr-2" />
               Send Email
             </Button>
+            <Button 
+              variant="outline"
+              onClick={handleQuotationReminder}
+              disabled={sendingReminder || !quotation}
+            >
+              <Bell className="h-4 w-4 mr-2" />
+              {sendingReminder ? 'Sending...' : 'Quotation Reminder'}
+            </Button>
             {quotation.status === 'ACCEPTED' && (
               <>
                 {quotation.invoices && quotation.invoices.length > 0 ? (
                   <Button 
                     onClick={() => router.push(`/invoices/${quotation.invoices![0].id}`)}
-                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-                    style={{
-                      backgroundColor: theme.primary,
-                      color: 'white'
-                    }}
+                    className="text-white hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: getThemeColor() }}
                   >
                     <Receipt className="h-4 w-4 mr-2" />
                     View Invoice {quotation.invoices[0].number}
@@ -356,11 +441,8 @@ export default function ViewQuotationPage() {
                   <Button 
                     onClick={handleConvertToInvoice}
                     disabled={convertingToInvoice}
-                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-                    style={{
-                      backgroundColor: theme.primary,
-                      color: 'white'
-                    }}
+                    className="text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: getThemeColor() }}
                   >
                     <Receipt className="h-4 w-4 mr-2" />
                     {convertingToInvoice ? 'Converting...' : 'Convert to Invoice'}
@@ -418,7 +500,7 @@ export default function ViewQuotationPage() {
                   </div>
                   <div>
                     <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Bill To</div>
-                    <div className="font-semibold">{customer?.name || customer?.businessName || 'No customer'}</div>
+                    <div className="font-semibold">{(customer as any)?.name || (customer as any)?.businessName || 'No customer'}</div>
                     <div className="text-sm text-gray-600 mt-2">
                       <div>{customer?.email || ''}</div>
                       <div>{customer?.phone || ''}</div>
@@ -456,9 +538,14 @@ export default function ViewQuotationPage() {
                             </div>
                           </td>
                           <td className="text-center py-3">{line.quantity}</td>
-                          <td className="text-right py-3">GH₵{line.unitPrice.toFixed(2)}</td>
+                          <td className="text-right py-3">{getCurrencySymbol(quotation.currency)}{line.unitPrice.toFixed(2)}</td>
                           <td className="text-right py-3">{line.discount}%</td>
-                          <td className="text-right py-3 font-medium">GH₵{line.lineTotal.toFixed(2)}</td>
+                          <td className="text-right py-3 font-medium">{getCurrencySymbol(quotation.currency)}{(() => {
+                            // AMOUNT column should always show base amount (quantity × unit price × (1 - discount))
+                            // Taxes are shown separately in the totals section below
+                            const baseAmount = line.quantity * line.unitPrice * (1 - line.discount / 100);
+                            return baseAmount.toFixed(2);
+                          })()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -469,7 +556,7 @@ export default function ViewQuotationPage() {
                 <div className="border-t pt-4">
                   <div className="flex justify-between items-center py-2">
                     <span className="text-gray-600">Subtotal:</span>
-                    <span className="font-medium">GH₵{quotation.subtotal.toFixed(2)}</span>
+                    <span className="font-medium">{getCurrencySymbol(quotation.currency)}{quotation.subtotal.toFixed(2)}</span>
                   </div>
                   {(() => {
                     const totalDiscount = quotation.lines.reduce((sum, line) => {
@@ -479,17 +566,17 @@ export default function ViewQuotationPage() {
                     return totalDiscount > 0 ? (
                       <div className="flex justify-between items-center py-2">
                         <span className="text-gray-600">Discount:</span>
-                        <span className="font-medium text-green-600">-GH₵{totalDiscount.toFixed(2)}</span>
+                        <span className="font-medium text-green-600">-{getCurrencySymbol(quotation.currency)}{totalDiscount.toFixed(2)}</span>
                       </div>
                     ) : null;
                   })()}
                   <div className="flex justify-between items-center py-2">
                     <span className="text-gray-600">Tax:</span>
-                    <span className="font-medium">GH₵{quotation.tax.toFixed(2)}</span>
+                    <span className="font-medium">{getCurrencySymbol(quotation.currency)}{quotation.tax.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 text-lg font-bold border-t">
                     <span>Total:</span>
-                    <span>GH₵{quotation.total.toFixed(2)}</span>
+                    <span>{getCurrencySymbol(quotation.currency)}{quotation.total.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -545,7 +632,8 @@ export default function ViewQuotationPage() {
                 
                 <div className="pt-4 border-t space-y-2">
                   <Button 
-                    className={`w-full bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
+                    className="w-full text-white border-0 hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: getThemeColor() }}
                     onClick={() => router.push(`/quotations/${quotation.id}/edit`)}
                   >
                     <Edit className="h-4 w-4 mr-2" />
@@ -554,7 +642,12 @@ export default function ViewQuotationPage() {
                   <Button 
                     variant="outline" 
                     className="w-full"
-                    onClick={() => downloadQuotationAsPDF(quotation as any, customLogo || undefined, showError, success)}
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      await downloadQuotationAsPDF(quotation as any, customLogo || undefined, showError, success);
+                    }}
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Download PDF
@@ -567,16 +660,22 @@ export default function ViewQuotationPage() {
                     <Mail className="h-4 w-4 mr-2" />
                     Send Email
                   </Button>
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={handleQuotationReminder}
+                    disabled={sendingReminder || !quotation}
+                  >
+                    <Bell className="h-4 w-4 mr-2" />
+                    {sendingReminder ? 'Sending...' : 'Quotation Reminder'}
+                  </Button>
                   {quotation.status === 'ACCEPTED' && (
                     <>
                       {quotation.invoices && quotation.invoices.length > 0 ? (
                         <Button 
                           onClick={() => router.push(`/invoices/${quotation.invoices![0].id}`)}
-                          className={`w-full bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
-                          style={{
-                            backgroundColor: theme.primary,
-                            color: 'white'
-                          }}
+                          className="w-full text-white border-0 hover:opacity-90 transition-opacity"
+                          style={{ backgroundColor: getThemeColor() }}
                         >
                           <Receipt className="h-4 w-4 mr-2" />
                           View Invoice {quotation.invoices[0].number}
@@ -585,11 +684,8 @@ export default function ViewQuotationPage() {
                         <Button 
                           onClick={handleConvertToInvoice}
                           disabled={convertingToInvoice}
-                          className={`w-full bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0`}
-                          style={{
-                            backgroundColor: theme.primary,
-                            color: 'white'
-                          }}
+                          className="w-full text-white border-0 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ backgroundColor: getThemeColor() }}
                         >
                           <Receipt className="h-4 w-4 mr-2" />
                           {convertingToInvoice ? 'Converting...' : 'Convert to Invoice'}
@@ -614,7 +710,7 @@ export default function ViewQuotationPage() {
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-700">Name</label>
-                      <div className="mt-1 text-sm text-gray-900">{customer.name || customer.businessName}</div>
+                      <div className="mt-1 text-sm text-gray-900">{(customer as any)?.name || (customer as any)?.businessName}</div>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-700">Email</label>

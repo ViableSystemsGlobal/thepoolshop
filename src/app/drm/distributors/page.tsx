@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from '@/contexts/theme-context';
 import { useAbilities } from '@/hooks/use-abilities';
 import { useToast } from '@/contexts/toast-context';
@@ -76,6 +76,7 @@ interface Distributor {
 export default function DistributorsPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
   const { hasAbility } = useAbilities();
@@ -90,6 +91,14 @@ export default function DistributorsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedDistributor, setSelectedDistributor] = useState<Distributor | null>(null);
+  // Auto-open Add Distributor modal when navigated with ?new=1
+  useEffect(() => {
+    const isNew = searchParams?.get('new');
+    if (isNew === '1') {
+      setShowAddModal(true);
+    }
+  }, [searchParams]);
+
   const [showExportModal, setShowExportModal] = useState(false);
   const [showBulkActionsModal, setShowBulkActionsModal] = useState(false);
   const [selectedDistributors, setSelectedDistributors] = useState<string[]>([]);
@@ -320,6 +329,8 @@ export default function DistributorsPage() {
               subtitle="Smart insights for distributor management"
               recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
+              page="distributors"
+              enableAI={true}
             />
           </div>
 

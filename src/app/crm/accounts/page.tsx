@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, Eye, Users, TrendingUp, FileText, Receipt, Building2, Clock, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,7 +52,8 @@ const typeColors = {
 export default function AccountsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { getThemeClasses } = useTheme();
+  const searchParams = useSearchParams();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const { success, error } = useToast();
   const theme = getThemeClasses();
 
@@ -72,6 +73,14 @@ export default function AccountsPage() {
     projects: 0,
   });
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  // Auto-open Add Account modal when navigated with ?new=1
+  useEffect(() => {
+    const isNew = searchParams?.get('new');
+    if (isNew === '1') {
+      setShowAddModal(true);
+    }
+  }, [searchParams]);
+
 
   const [aiRecommendations, setAiRecommendations] = useState([
     {
@@ -317,7 +326,8 @@ export default function AccountsPage() {
         </div>
         <Button 
           onClick={() => setShowAddModal(true)}
-          className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+          className="text-white hover:opacity-90 transition-opacity"
+          style={{ backgroundColor: getThemeColor() }}
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Account
@@ -331,8 +341,9 @@ export default function AccountsPage() {
           <AIRecommendationCard
             title="Account Management AI"
             subtitle="Your intelligent assistant for account optimization"
-            recommendations={aiRecommendations}
             onRecommendationComplete={handleRecommendationComplete}
+            page="accounts"
+            enableAI={true}
           />
         </div>
 

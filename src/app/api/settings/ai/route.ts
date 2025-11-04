@@ -23,7 +23,13 @@ export async function GET(request: NextRequest) {
       'ai_conversation_history',
       'ai_enable_charts',
       'ai_enable_insights',
-      'ai_enable_recommendations'
+      'ai_enable_recommendations',
+      'ai_business_report_enabled',
+      'ai_business_report_frequency',
+      'ai_business_report_recipients',
+      'ai_business_report_time',
+      'ai_business_report_day',
+      'ai_business_report_timezone'
     ];
 
     const settings = await prisma.systemSettings.findMany({
@@ -47,7 +53,13 @@ export async function GET(request: NextRequest) {
       conversationHistory: 5,
       enableCharts: true,
       enableInsights: true,
-      enableRecommendations: true
+      enableRecommendations: true,
+      businessReportEnabled: false,
+      businessReportFrequency: 'daily',
+      businessReportRecipients: '',
+      businessReportTime: '08:00',
+      businessReportDay: 'monday',
+      businessReportTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
     };
 
     settings.forEach(setting => {
@@ -88,6 +100,24 @@ export async function GET(request: NextRequest) {
         case 'ai_enable_recommendations':
           settingsObj.enableRecommendations = setting.value === 'true';
           break;
+        case 'ai_business_report_enabled':
+          settingsObj.businessReportEnabled = setting.value === 'true';
+          break;
+        case 'ai_business_report_frequency':
+          settingsObj.businessReportFrequency = setting.value || 'daily';
+          break;
+        case 'ai_business_report_recipients':
+          settingsObj.businessReportRecipients = setting.value || '';
+          break;
+        case 'ai_business_report_time':
+          settingsObj.businessReportTime = setting.value || '08:00';
+          break;
+        case 'ai_business_report_day':
+          settingsObj.businessReportDay = setting.value || 'monday';
+          break;
+        case 'ai_business_report_timezone':
+          settingsObj.businessReportTimezone = setting.value || Intl.DateTimeFormat().resolvedOptions().timeZone;
+          break;
       }
     });
 
@@ -124,7 +154,14 @@ export async function POST(request: NextRequest) {
       { key: 'ai_conversation_history', value: body.conversationHistory.toString() },
       { key: 'ai_enable_charts', value: body.enableCharts.toString() },
       { key: 'ai_enable_insights', value: body.enableInsights.toString() },
-      { key: 'ai_enable_recommendations', value: body.enableRecommendations.toString() }
+      { key: 'ai_enable_recommendations', value: body.enableRecommendations.toString() },
+      // Business Report settings
+      { key: 'ai_business_report_enabled', value: (body.businessReportEnabled || false).toString() },
+      { key: 'ai_business_report_frequency', value: body.businessReportFrequency || 'daily' },
+      { key: 'ai_business_report_recipients', value: body.businessReportRecipients || '' },
+      { key: 'ai_business_report_time', value: body.businessReportTime || '08:00' },
+      { key: 'ai_business_report_day', value: body.businessReportDay || 'monday' },
+      { key: 'ai_business_report_timezone', value: body.businessReportTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone }
     ];
 
     for (const setting of settingsToSave) {

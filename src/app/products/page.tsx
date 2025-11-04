@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
 import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol } from "@/components/ui/currency-toggle";
 import { AddProductModal } from "@/components/modals/add-product-modal";
+import { useSearchParams } from "next/navigation";
 import { BulkImportModal } from "@/components/modals/bulk-import-modal";
 import { AddCategoryModal } from "@/components/modals/add-category-modal";
 import { EditProductModal } from "@/components/modals/edit-product-modal";
@@ -135,6 +136,7 @@ const mockProducts = [
 
 export default function ProductsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currency, changeCurrency } = useCurrency();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -143,6 +145,14 @@ export default function ProductsPage() {
   const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  // Auto-open Add Product modal when navigated with ?new=1
+  React.useEffect(() => {
+    const isNew = searchParams?.get('new');
+    if (isNew === '1') {
+      setIsAddModalOpen(true);
+    }
+  }, [searchParams]);
+
   const [isLoading, setIsLoading] = useState(false);
   const { withLoading } = useApiLoading();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -225,34 +235,25 @@ export default function ProductsPage() {
     return classes;
   };
 
-  const [aiRecommendations, setAiRecommendations] = useState([
-    {
-      id: '1',
-      title: 'Review low stock items',
-      description: 'You have products running low on stock that need immediate restocking.',
-      priority: 'high' as const,
-      completed: false,
-    },
-    {
-      id: '2',
-      title: 'Update product pricing',
-      description: 'Analyze and update pricing for products with high demand.',
-      priority: 'medium' as const,
-      completed: false,
-    },
-    {
-      id: '3',
-      title: 'Optimize product categories',
-      description: 'Reorganize product categories for better customer navigation.',
-      priority: 'low' as const,
-      completed: false,
-    },
-  ]);
+
 
   // Fetch products and categories on component mount
   React.useEffect(() => {
     fetchProducts(1);
     fetchCategories();
+  }, []);
+
+  // Listen for category refresh events
+  React.useEffect(() => {
+    const handleCategoryRefresh = () => {
+      fetchCategories();
+    };
+
+    window.addEventListener('categoryAdded', handleCategoryRefresh);
+    
+    return () => {
+      window.removeEventListener('categoryAdded', handleCategoryRefresh);
+    };
   }, []);
 
   // Refetch products when search term or category changes
@@ -635,11 +636,8 @@ export default function ProductsPage() {
   };
 
   const handleRecommendationComplete = (id: string) => {
-    setAiRecommendations(prev => 
-      prev.map(rec => 
-        rec.id === id ? { ...rec, completed: true } : rec
-      )
-    );
+    // Handle recommendation completion (AI card will manage its own state)
+    console.log('Recommendation completed:', id);
     success("Recommendation completed! Great job!");
   };
 
@@ -719,7 +717,8 @@ export default function ProductsPage() {
             Bulk Import
           </Button>
           <Button 
-            className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+            className="text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: getThemeColor() }}
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -863,7 +862,8 @@ export default function ProductsPage() {
                   size="sm"
                   onClick={handleGenerateGRN}
                   disabled={selectedProducts.length === 0}
-                  className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                  className="text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: getThemeColor() }}
                 >
                   <FileText className="h-4 w-4 mr-1" />
                   Generate GRN
@@ -1295,7 +1295,8 @@ export default function ProductsPage() {
               </Button>
               <Button 
                 onClick={applyFilters}
-                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                className="text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: getThemeColor() }}
               >
                 Apply Filters
               </Button>

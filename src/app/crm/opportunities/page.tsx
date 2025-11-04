@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, TrendingUp, FileBarChart, CheckCircle, XCircle, DollarSign, Calendar, CheckSquare, Square, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
@@ -15,6 +15,8 @@ import { ConfirmationModal } from '@/components/modals/confirmation-modal';
 import { EditOpportunityModal } from '@/components/modals/edit-opportunity-modal';
 import { MiniLineChart } from '@/components/ui/mini-line-chart';
 import { SkeletonTable, SkeletonMetricCard } from '@/components/ui/skeleton';
+import { formatCurrency } from '@/lib/utils';
+import { CurrencyToggle, useCurrency } from '@/components/ui/currency-toggle';
 
 interface Opportunity {
   id: string;
@@ -78,7 +80,7 @@ export default function OpportunitiesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
+  // Removed showAddModal - opportunities are now auto-created from quotes
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
   
@@ -100,9 +102,9 @@ export default function OpportunitiesPage() {
     message: '',
     onConfirm: () => {}
   });
-  const [currency, setCurrency] = useState('GHS');
+  // Use the CurrencyToggle hook for consistent currency management
+  const { currency, changeCurrency } = useCurrency();
   const [baseCurrency, setBaseCurrency] = useState('GHS');
-  const [availableCurrencies, setAvailableCurrencies] = useState<any[]>([]);
   
   // Simple currency conversion rates (hardcoded for now)
   const exchangeRates: Record<string, Record<string, number>> = {
@@ -152,8 +154,8 @@ export default function OpportunitiesPage() {
 
   useEffect(() => {
     if (session?.user) {
-      fetchOpportunities();
       fetchCurrencySettings();
+      fetchOpportunities();
     }
   }, [session]);
 
@@ -163,6 +165,8 @@ export default function OpportunitiesPage() {
     setSelectedOpportunities(new Set());
     setIsAllSelected(false);
   }, [searchTerm, statusFilter]);
+
+
 
   const fetchOpportunities = async () => {
     try {
@@ -194,24 +198,28 @@ export default function OpportunitiesPage() {
     return stages.find(s => s.key === stage) || { key: stage, label: stage, color: 'bg-gray-100 text-gray-800' };
   };
 
+  // Format currency amount - react to currency changes
   const formatCurrencyAmount = (amount?: number) => {
-    if (!amount) return `GH₵ 0.00`;
+    // Use the current currency state directly - this will be fresh on every render
+    const currentCurrency = currency || baseCurrency || 'GHS';
+    const currentBaseCurrency = baseCurrency || 'GHS';
+    
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      return formatCurrency(0, currentCurrency);
+    }
     
     // Convert from base currency to selected currency
     let convertedAmount = amount;
-    if (baseCurrency !== currency) {
-      const rate = exchangeRates[baseCurrency]?.[currency];
-      if (rate) {
+    
+    if (currentBaseCurrency !== currentCurrency) {
+      const rate = exchangeRates[currentBaseCurrency]?.[currentCurrency];
+      if (rate && !isNaN(rate)) {
         convertedAmount = amount * rate;
       }
     }
     
-    const formatted = new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(convertedAmount);
-    
-    return `GH₵ ${formatted}`;
+    // Use the selected currency for formatting - this will show the correct symbol
+    return formatCurrency(convertedAmount, currentCurrency);
   };
 
   const calculatePipelineValue = () => {
@@ -428,13 +436,8 @@ export default function OpportunitiesPage() {
       const response = await fetch('/api/settings/currency');
       if (response.ok) {
         const data = await response.json();
-        setBaseCurrency(data.baseCurrency || 'GHS');
-        setAvailableCurrencies(data.currencies || []);
-        
-        // Set initial currency to base currency
-        if (!currency || currency === 'GHS') {
-          setCurrency(data.baseCurrency || 'GHS');
-        }
+        const fetchedBaseCurrency = data.baseCurrency || 'GHS';
+        setBaseCurrency(fetchedBaseCurrency);
       }
     } catch (err) {
       console.error('Error fetching currency settings:', err);
@@ -503,6 +506,8 @@ export default function OpportunitiesPage() {
     return null;
   }
 
+
+
   return (
     <>
       <div className="space-y-6">
@@ -513,28 +518,8 @@ export default function OpportunitiesPage() {
             <p className="text-gray-600">Manage your sales opportunities</p>
           </div>
           <div className="flex items-center gap-3">
-            {/* Currency Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Currency:</span>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              >
-                {availableCurrencies.length > 0 ? (
-                  availableCurrencies.map((curr) => (
-                    <option key={curr.id} value={curr.code}>
-                      {curr.code} - {curr.name}
-                    </option>
-                  ))
-                ) : (
-                  <>
-                    <option value="GHS">GHS - Ghana Cedi</option>
-                    <option value="USD">USD - US Dollar</option>
-                  </>
-                )}
-              </select>
-            </div>
+            {/* Currency Toggle - same as products page */}
+            <CurrencyToggle value={currency} onChange={changeCurrency} />
             <Button
               onClick={() => router.push('/crm/leads')}
               variant="outline"
@@ -544,11 +529,12 @@ export default function OpportunitiesPage() {
               View Leads
             </Button>
             <Button
-              onClick={() => setShowAddModal(true)}
-              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+              onClick={() => router.push('/quotations/create')}
+              className="text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: getThemeColor() }}
             >
               <Plus className="w-4 h-4 mr-2" />
-              Create Opportunity
+              Create Quote (Creates Opportunity)
             </Button>
           </div>
         </div>
@@ -598,7 +584,7 @@ export default function OpportunitiesPage() {
                 </div>
                 </div>
                 <div className="flex items-end justify-between">
-                  <p className="text-lg font-bold text-blue-600">{formatCurrencyAmount(calculatePipelineValue())}</p>
+                  <p className="text-lg font-bold text-blue-600" key={`pipeline-${currency}`}>{formatCurrencyAmount(calculatePipelineValue())}</p>
                   <MiniLineChart 
                     data={trends.pipelineTrend} 
                     color="#2563eb" 
@@ -617,7 +603,7 @@ export default function OpportunitiesPage() {
                   </div>
                 </div>
                 <div className="flex items-end justify-between">
-                  <p className="text-lg font-bold text-green-600">{formatCurrencyAmount(calculateClosedRevenue())}</p>
+                  <p className="text-lg font-bold text-green-600" key={`revenue-${currency}`}>{formatCurrencyAmount(calculateClosedRevenue())}</p>
                   <MiniLineChart 
                     data={trends.revenueTrend} 
                     color="#16a34a" 
@@ -723,14 +709,14 @@ export default function OpportunitiesPage() {
                   View Leads
                 </Button>
                 <Button 
-                  onClick={() => setShowAddModal(true)}
+                  onClick={() => router.push('/quotations/create')}
                   className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0 font-medium`}
                   style={{
                     backgroundColor: theme.primary,
                     color: 'white'
                   }}
                 >
-                  Create Opportunity
+                  Create Quote (Creates Opportunity)
                 </Button>
               </div>
             </Card>
@@ -980,40 +966,6 @@ export default function OpportunitiesPage() {
           )}
         </div>
       </div>
-
-      {/* Add Opportunity Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-4">Create New Opportunity</h3>
-            <p className="text-gray-600 mb-6">
-              To create a new opportunity, please go to the Leads page and use the "Create Quote" button to convert a lead into an opportunity.
-            </p>
-            <div className="flex justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={() => setShowAddModal(false)}
-                className="border-gray-300 hover:bg-gray-50"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={() => {
-                  setShowAddModal(false);
-                  router.push('/crm/leads');
-                }}
-                className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
-                style={{
-                  backgroundColor: theme.primary,
-                  color: 'white'
-                }}
-              >
-                Go to Leads
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
 
       {/* Confirmation Modal */}
       <ConfirmationModal

@@ -101,7 +101,7 @@ const mockPriceLists = [
 
 export default function PriceListsPage() {
   const router = useRouter();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const { success, error: showError } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("all");
@@ -282,7 +282,8 @@ export default function PriceListsPage() {
           <p className="text-gray-600">Manage pricing for different channels and customer segments</p>
         </div>
         <Button 
-          className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+          className="text-white hover:opacity-90 transition-opacity"
+          style={{ backgroundColor: getThemeColor() }}
           onClick={() => setIsAddModalOpen(true)}
         >
           <Plus className="mr-2 h-4 w-4" />

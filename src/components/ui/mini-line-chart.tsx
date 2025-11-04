@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+
 interface MiniLineChartProps {
   data: number[];
   color: string;
@@ -13,8 +15,14 @@ export function MiniLineChart({
   width = 80, 
   height = 24 
 }: MiniLineChartProps) {
-  // Don't render if no data
-  if (!data || data.length < 2) {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Don't render if no data or not on client
+  if (!isClient || !data || data.length < 2) {
     return null;
   }
 

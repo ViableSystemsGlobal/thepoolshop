@@ -66,6 +66,7 @@ interface Quotation {
   subject: string;
   validUntil: string;
   notes: string;
+  currency?: string;
   subtotal: number;
   tax: number;
   total: number;
@@ -96,7 +97,7 @@ const DEFAULT_TAXES: TaxItem[] = [
 export default function EditQuotationPage() {
   const router = useRouter();
   const params = useParams();
-  const { themeColor, customLogo, getThemeClasses } = useTheme();
+  const { themeColor, customLogo, getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { success, error } = useToast();
   
@@ -120,6 +121,57 @@ export default function EditQuotationPage() {
   const [lines, setLines] = useState<LineItem[]>([]);
   const [globalTaxes, setGlobalTaxes] = useState<TaxItem[]>(DEFAULT_TAXES);
   const [taxInclusive, setTaxInclusive] = useState(false);
+  const [quoteCurrency, setQuoteCurrency] = useState<string>('GHS');
+  const [originalCurrency, setOriginalCurrency] = useState<string>('GHS');
+
+  // Currency helper function
+  const currencySymbol = (code: string) => {
+    switch (code) {
+      case 'USD': return '$';
+      case 'GHS': return 'GH₵';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'NGN': return '₦';
+      case 'KES': return 'KSh';
+      case 'ZAR': return 'R';
+      default: return code + ' ';
+    }
+  };
+
+  // Currency conversion function
+  const convertAmount = async (amount: number, from: string, to: string): Promise<number> => {
+    if (!amount || from === to) return amount;
+    try {
+      const res = await fetch('/api/currency/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromCurrency: from, toCurrency: to, amount })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Number(data.convertedAmount ?? amount);
+      }
+      // Fallback: try pull exchange rates from settings
+      const settingsRes = await fetch('/api/settings/currency');
+      if (settingsRes.ok) {
+        const settings = await settingsRes.json();
+        const rateRow = (settings.exchangeRates || []).find((r: any) => r.fromCurrency === from && r.toCurrency === to);
+        if (rateRow && rateRow.rate) {
+          return Math.round((amount * Number(rateRow.rate)) * 100) / 100;
+        }
+      }
+    } catch {}
+    // Final static fallback for common pairs
+    const staticRates: Record<string, Record<string, number>> = {
+      USD: { GHS: 12.5, EUR: 0.85, GBP: 0.78 },
+      GHS: { USD: 0.08, EUR: 0.068, GBP: 0.062 },
+      EUR: { USD: 1.18, GHS: 14.7 },
+      GBP: { USD: 1.28, GHS: 16.0 },
+    };
+    const rate = staticRates[from]?.[to];
+    if (rate) return Math.round((amount * rate) * 100) / 100;
+    return amount;
+  };
 
   // Load quotation data
   useEffect(() => {
@@ -142,6 +194,37 @@ export default function EditQuotationPage() {
       }));
     }
   }, [taxInclusive]);
+
+  // Convert currency when quoteCurrency changes (but not on initial load)
+  useEffect(() => {
+    if (quoteCurrency && originalCurrency && quoteCurrency !== originalCurrency && lines.length > 0) {
+      const convertPrices = async () => {
+        const updated: LineItem[] = [];
+        for (const line of lines) {
+          const convertedUnitPrice = await convertAmount(line.unitPrice, originalCurrency, quoteCurrency);
+          
+          // Recalculate line with converted price
+          const baseAmount = line.quantity * convertedUnitPrice * (1 - line.discount / 100);
+          const recalculatedTaxes = line.taxes.map(tax => ({
+            ...tax,
+            amount: baseAmount * (tax.rate / 100)
+          }));
+          const totalTaxAmount = recalculatedTaxes.reduce((sum, tax) => sum + tax.amount, 0);
+          
+          updated.push({
+            ...line,
+            unitPrice: convertedUnitPrice,
+            taxes: recalculatedTaxes,
+            lineTotal: taxInclusive ? baseAmount + totalTaxAmount : baseAmount
+          });
+        }
+        setLines(updated);
+        // Update original currency to the new currency so we can convert from the new base
+        setOriginalCurrency(quoteCurrency);
+      };
+      convertPrices();
+    }
+  }, [quoteCurrency]);
 
   // Close product search when clicking outside
   useEffect(() => {
@@ -175,6 +258,9 @@ export default function EditQuotationPage() {
       setValidUntil(data.validUntil ? new Date(data.validUntil).toISOString().split('T')[0] : '');
       setNotes(data.notes || '');
       setTaxInclusive(data.taxInclusive || false);
+      const loadedCurrency = data.currency || 'GHS';
+      setQuoteCurrency(loadedCurrency);
+      setOriginalCurrency(loadedCurrency);
       
       // Set customer
       if (data.account) {
@@ -283,6 +369,7 @@ export default function EditQuotationPage() {
         subject,
         validUntil: validUntil || null,
         notes,
+        currency: quoteCurrency,
         taxInclusive,
         accountId: customerType === 'account' ? customerId : undefined,
         distributorId: customerType === 'distributor' ? customerId : undefined,
@@ -444,7 +531,8 @@ export default function EditQuotationPage() {
             <Button
               onClick={handleSave}
               disabled={saving}
-              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+              className="text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: getThemeColor() }}
             >
               {saving ? (
                 <>
@@ -511,7 +599,24 @@ export default function EditQuotationPage() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="currency">Currency</Label>
+                    <select
+                      id="currency"
+                      value={quoteCurrency}
+                      onChange={(e) => setQuoteCurrency(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="GHS">GHS - Ghana Cedi</option>
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="EUR">EUR - Euro</option>
+                      <option value="GBP">GBP - British Pound</option>
+                      <option value="NGN">NGN - Nigerian Naira</option>
+                      <option value="KES">KES - Kenyan Shilling</option>
+                      <option value="ZAR">ZAR - South African Rand</option>
+                    </select>
+                  </div>
                   <div>
                     <Label htmlFor="validUntil">Valid Until</Label>
                     <Input
@@ -524,7 +629,7 @@ export default function EditQuotationPage() {
                   <div>
                     <Label>Status</Label>
                     <div className="flex items-center h-10 px-3 py-2 border border-gray-200 rounded-md bg-gray-50">
-                      <span className="text-sm font-medium capitalize">{quotation.status.toLowerCase()}</span>
+                      <span className="text-sm font-medium capitalize">{quotation?.status?.toLowerCase()}</span>
                     </div>
                   </div>
                 </div>
@@ -698,7 +803,7 @@ export default function EditQuotationPage() {
                                       <div className="text-xs text-gray-500">SKU: {product.sku}</div>
                                     </div>
                                     <div className="text-sm font-medium text-gray-900">
-                                      GH₵{product.price.toFixed(2)}
+                                      {currencySymbol(quoteCurrency)}{product.price.toFixed(2)}
                                     </div>
                                   </div>
                                 </button>
@@ -793,14 +898,11 @@ export default function EditQuotationPage() {
                             <Label>Total</Label>
                             <div className="flex items-center h-10 px-3 py-2 border border-gray-200 rounded-md bg-gray-50">
                               <span className="text-sm font-medium">
-                                GH₵{(() => {
+                                {currencySymbol(quoteCurrency)}{(() => {
+                                  // AMOUNT column should always show base amount (quantity × unit price × (1 - discount))
+                                  // Taxes are shown separately in the totals section below
                                   const baseAmount = line.quantity * line.unitPrice * (1 - line.discount / 100);
-                                  if (taxInclusive) {
-                                    const totalTaxAmount = line.taxes.reduce((sum, tax) => sum + tax.amount, 0);
-                                    return (baseAmount + totalTaxAmount).toFixed(2);
-                                  } else {
-                                    return baseAmount.toFixed(2);
-                                  }
+                                  return baseAmount.toFixed(2);
                                 })()}
                               </span>
                             </div>
@@ -899,7 +1001,7 @@ export default function EditQuotationPage() {
                             )}
                           </div>
                           <div className="col-span-1 text-gray-600">{line.quantity}</div>
-                          <div className="col-span-2 text-gray-600">GH₵{line.unitPrice.toFixed(2)}</div>
+                          <div className="col-span-2 text-gray-600">{currencySymbol(quoteCurrency)}{line.unitPrice.toFixed(2)}</div>
                           {lines.some(l => l.discount > 0) && (
                             <div className="col-span-2">
                               {line.discount > 0 ? (
@@ -910,14 +1012,11 @@ export default function EditQuotationPage() {
                             </div>
                           )}
                           <div className="col-span-2 font-medium text-gray-900">
-                            GH₵{(() => {
+                            {currencySymbol(quoteCurrency)}{(() => {
+                              // AMOUNT column should always show base amount (quantity × unit price × (1 - discount))
+                              // Taxes are shown separately in the totals section below
                               const baseAmount = line.quantity * line.unitPrice * (1 - line.discount / 100);
-                              if (taxInclusive) {
-                                const totalTaxAmount = line.taxes.reduce((sum, tax) => sum + tax.amount, 0);
-                                return (baseAmount + totalTaxAmount).toFixed(2);
-                              } else {
-                                return baseAmount.toFixed(2);
-                              }
+                              return baseAmount.toFixed(2);
                             })()}
                           </div>
                         </div>
@@ -931,14 +1030,14 @@ export default function EditQuotationPage() {
                   {!taxInclusive && (
                     <div className="flex justify-between items-center py-1">
                       <span className="text-gray-600">Subtotal:</span>
-                      <span className="font-medium">GH₵{totals.subtotal.toFixed(2)}</span>
+                      <span className="font-medium">{currencySymbol(quoteCurrency)}{totals.subtotal.toFixed(2)}</span>
                     </div>
                   )}
                   
                   {totals.totalDiscount > 0 && (
                     <div className="flex justify-between items-center py-1">
                       <span className="text-gray-600">Discount:</span>
-                      <span className="font-medium text-green-600">-GH₵{totals.totalDiscount.toFixed(2)}</span>
+                      <span className="font-medium text-green-600">-{currencySymbol(quoteCurrency)}{totals.totalDiscount.toFixed(2)}</span>
                     </div>
                   )}
                   
@@ -948,14 +1047,14 @@ export default function EditQuotationPage() {
                     return (
                       <div key={taxId} className="flex justify-between items-center py-1">
                         <span className="text-gray-600">{tax?.name || 'Tax'} ({tax?.rate}%):</span>
-                        <span className="font-medium">GH₵{amount.toFixed(2)}</span>
+                        <span className="font-medium">{currencySymbol(quoteCurrency)}{amount.toFixed(2)}</span>
                       </div>
                     );
                   })}
                   
                   <div className="flex justify-between items-center py-1 text-base font-bold border-t">
                     <span>{taxInclusive ? 'Total (Tax Inclusive):' : 'Total:'}</span>
-                    <span className={`text-${theme.primary}`}>GH₵{totals.total.toFixed(2)}</span>
+                    <span className={`text-${theme.primary}`}>{currencySymbol(quoteCurrency)}{totals.total.toFixed(2)}</span>
                   </div>
                 </div>
 

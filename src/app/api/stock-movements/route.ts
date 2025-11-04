@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
             name: true,
             sku: true,
             uomBase: true,
+            images: true,
           }
         },
         stockItem: {
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
     const transferFromWarehouse = formData.get('transferFromWarehouse') as string | null;
     const transferToWarehouse = formData.get('transferToWarehouse') as string | null;
     const userId = formData.get('userId') as string | null;
+    const supplierId = formData.get('supplierId') as string | null;
 
     if (!productId || !type || quantity === undefined) {
       return NextResponse.json(
@@ -174,6 +176,7 @@ export async function POST(request: NextRequest) {
         warehouseId,
         fromWarehouseId: type === "TRANSFER" && transferDirection === "IN" ? transferFromWarehouse : null,
         toWarehouseId: type === "TRANSFER" && transferDirection === "OUT" ? transferToWarehouse : null,
+        supplierId: supplierId || null,
       },
     });
 
@@ -263,14 +266,9 @@ export async function POST(request: NextRequest) {
           newAverageCost = newQuantity > 0 ? combinedTotalCost / newQuantity : stockItem.averageCost;
         }
         
-        // Get product to fetch cost for totalValue calculation
-        const product = await prisma.product.findUnique({
-          where: { id: productId },
-          select: { cost: true }
-        });
-
-        // Calculate new total value using cost (for inventory valuation)
-        const newTotalValue = newQuantity * (product?.cost || 0);
+        // Calculate new total value using averageCost (for inventory valuation)
+        // This reflects the actual weighted average cost of inventory
+        const newTotalValue = newQuantity * newAverageCost;
 
         await prisma.stockItem.update({
           where: { id: stockItem.id },
@@ -342,14 +340,9 @@ export async function POST(request: NextRequest) {
         newAverageCost = newQuantity > 0 ? combinedTotalCost / newQuantity : stockItem.averageCost;
       }
       
-      // Get product to fetch cost for totalValue calculation
-      const product = await prisma.product.findUnique({
-        where: { id: productId },
-        select: { cost: true }
-      });
-
-      // Calculate new total value using cost (for inventory valuation)
-      const newTotalValue = newQuantity * (product?.cost || 0);
+      // Calculate new total value using averageCost (for inventory valuation)
+      // This reflects the actual weighted average cost of inventory, not the static product cost
+      const newTotalValue = newQuantity * newAverageCost;
 
       await prisma.stockItem.update({
         where: { id: stockItem.id },
@@ -428,6 +421,7 @@ export async function POST(request: NextRequest) {
             name: true,
             sku: true,
             uomBase: true,
+            images: true,
           }
         },
         stockItem: {

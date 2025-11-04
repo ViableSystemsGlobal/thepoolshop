@@ -9,6 +9,7 @@ import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
 import { DataTable } from "@/components/ui/data-table";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
+import { CurrencyToggle, useCurrency, formatCurrency as formatCurrencyWithSymbol } from "@/components/ui/currency-toggle";
 import { 
   Package, 
   AlertTriangle, 
@@ -103,9 +104,10 @@ interface BackorderSummary {
 
 export default function BackordersPage() {
   const router = useRouter();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const { success, error: showError } = useToast();
   const theme = getThemeClasses();
+  const { currency, changeCurrency } = useCurrency();
 
   const [backorders, setBackorders] = useState<Backorder[]>([]);
   const [summary, setSummary] = useState<BackorderSummary>({
@@ -128,30 +130,7 @@ export default function BackordersPage() {
   const [bulkAction, setBulkAction] = useState("");
   const [accounts, setAccounts] = useState<Array<{id: string, name: string}>>([]);
 
-  // AI Recommendations for backorders
-  const aiRecommendations = [
-    {
-      id: 'urgent-backorders',
-      title: 'Urgent Backorders',
-      description: `${summary.urgent} urgent backorders need immediate fulfillment`,
-      priority: 'high' as const,
-      completed: false
-    },
-    {
-      id: 'high-priority-orders',
-      title: 'High Priority Orders',
-      description: `${summary.high} high priority backorders require attention`,
-      priority: 'medium' as const,
-      completed: false
-    },
-    {
-      id: 'stock-replenishment',
-      title: 'Stock Replenishment',
-      description: 'Review stock levels to prevent future backorders',
-      priority: 'medium' as const,
-      completed: false
-    }
-  ];
+
 
   const handleViewProduct = (backorder: Backorder) => {
     router.push(`/products/${backorder.productId}`);
@@ -323,6 +302,7 @@ export default function BackordersPage() {
             <p className="text-gray-600">Customer orders that cannot be fulfilled due to insufficient stock</p>
           </div>
           <div className="flex items-center space-x-2">
+            <CurrencyToggle value={currency} onChange={changeCurrency} />
             <Button 
               variant="outline" 
               onClick={handleExport}
@@ -357,8 +337,9 @@ export default function BackordersPage() {
             <AIRecommendationCard
               title="Backorder Management AI"
               subtitle="Your intelligent assistant for order fulfillment optimization"
-              recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
+              page="backorders"
+              enableAI={true}
             />
           </div>
 
@@ -405,10 +386,7 @@ export default function BackordersPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Value</p>
                   <p className="text-xl font-bold text-orange-600">
-                    {new Intl.NumberFormat('en-US', {
-                      style: 'currency',
-                      currency: 'USD'
-                    }).format(summary.totalValue)}
+                    {formatCurrencyWithSymbol(summary.totalValue, currency, 'USD')}
                   </p>
                 </div>
                 <div className="p-2 rounded-full bg-orange-100">
@@ -545,10 +523,7 @@ export default function BackordersPage() {
                   label: 'Value',
                   render: (backorder) => (
                     <div className="text-sm font-medium text-gray-900">
-                      {new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: 'USD'
-                      }).format(backorder.lineTotal)}
+                      {formatCurrencyWithSymbol(backorder.lineTotal, currency, 'USD')}
                     </div>
                   )
                 },

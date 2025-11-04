@@ -22,7 +22,9 @@ import {
   DollarSign,
   FileText,
   RefreshCw,
-  Ban
+  Ban,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import Link from "next/link";
 import { AddReturnModal } from "@/components/modals/add-return-modal";
@@ -100,6 +102,10 @@ export default function ReturnsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState<Return | null>(null);
+  
+  // Bulk selection state
+  const [selectedReturns, setSelectedReturns] = useState<Set<string>>(new Set());
+  const [isAllSelected, setIsAllSelected] = useState(false);
 
   const fetchReturns = useCallback(async () => {
     setLoading(true);
@@ -115,7 +121,8 @@ export default function ReturnsPage() {
         credentials: 'include',
       });
       if (!response.ok) {
-        throw new Error('Failed to fetch returns');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch returns: ${response.status} ${response.statusText}`);
       }
       const data = await response.json();
       setReturns(data.returns);
@@ -220,6 +227,38 @@ export default function ReturnsPage() {
     }
   };
 
+  // Sync isAllSelected with returns
+  useEffect(() => {
+    if (returns.length === 0) {
+      setIsAllSelected(false);
+    } else {
+      const allSelected = selectedReturns.size === returns.length && returns.length > 0;
+      setIsAllSelected(allSelected);
+    }
+  }, [selectedReturns, returns]);
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedReturns(new Set());
+    } else {
+      setSelectedReturns(new Set(returns.map(ret => ret.id)));
+    }
+  };
+
+  const handleSelectReturn = (returnId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedReturns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(returnId)) {
+        newSet.delete(returnId);
+      } else {
+        newSet.add(returnId);
+      }
+      return newSet;
+    });
+  };
+
   const totalPages = Math.ceil(totalReturns / itemsPerPage);
   const availableStatuses = Object.values(ReturnStatus);
   const availableReasons = Object.values(ReturnReason);
@@ -245,29 +284,8 @@ export default function ReturnsPage() {
           <AIRecommendationCard
             title="Returns Management AI"
             subtitle="Your intelligent assistant for return processing"
-            recommendations={[
-              {
-                id: '1',
-                title: "Process pending returns",
-                description: `${pendingReturns} return${pendingReturns !== 1 ? 's' : ''} awaiting approval`,
-                priority: pendingReturns > 0 ? 'high' : 'low',
-                completed: false
-              },
-              {
-                id: '2',
-                title: "Return analysis",
-                description: "Analyze return patterns to identify quality issues",
-                priority: 'medium',
-                completed: false
-              },
-              {
-                id: '3',
-                title: "Monthly returns",
-                description: `${formatCurrency(thisMonthReturns)} in returns this month`,
-                priority: 'low',
-                completed: false
-              }
-            ]}
+            page="returns"
+            enableAI={true}
             onRecommendationComplete={(id) => {
               console.log('Recommendation completed:', id);
             }}
@@ -290,7 +308,7 @@ export default function ReturnsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Value</p>
-                <p className="text-2xl font-bold" style={{ color: getThemeColor() }}>{formatCurrency(totalValue)}</p>
+                <p className="text-2xl font-bold" style={{ color: getThemeColor() }}>{formatCurrency(totalValue, 'GHS')}</p>
               </div>
               <DollarSign className="h-8 w-8" style={{ color: getThemeColor() }} />
             </div>
@@ -310,7 +328,7 @@ export default function ReturnsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">This Month</p>
-                <p className="text-2xl font-bold text-red-600">{formatCurrency(thisMonthReturns)}</p>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(thisMonthReturns, 'GHS')}</p>
               </div>
               <Calendar className="h-8 w-8 text-red-400" />
             </div>
@@ -387,6 +405,18 @@ export default function ReturnsPage() {
                   <thead className="text-white" style={{ backgroundColor: getThemeColor() }}>
                     <tr>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
+                        <button
+                          onClick={handleSelectAll}
+                          className="flex items-center focus:outline-none"
+                        >
+                          {isAllSelected ? (
+                            <CheckSquare className="h-4 w-4 text-white" />
+                          ) : (
+                            <Square className="h-4 w-4 text-white" />
+                          )}
+                        </button>
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
                         Return #
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ backgroundColor: getThemeColor(), color: 'white' }}>
@@ -418,6 +448,18 @@ export default function ReturnsPage() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {returns.map((returnItem) => (
                       <tr key={returnItem.id} className="hover:bg-gray-50 cursor-pointer">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={(e) => handleSelectReturn(returnItem.id, e)}
+                            className="flex items-center focus:outline-none"
+                          >
+                            {selectedReturns.has(returnItem.id) ? (
+                              <CheckSquare className="h-4 w-4 text-blue-600" />
+                            ) : (
+                              <Square className="h-4 w-4 text-gray-400" />
+                            )}
+                          </button>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {returnItem.number}
                         </td>
@@ -443,7 +485,7 @@ export default function ReturnsPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatCurrency(returnItem.total)}
+                          {formatCurrency(returnItem.total, 'GHS')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {returnItem.lines.length} item{returnItem.lines.length !== 1 ? 's' : ''}

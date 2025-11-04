@@ -41,8 +41,9 @@ interface PreviewData {
 
 export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalProps) {
   const { success, error: showError, warning } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
+  const themeColor = getThemeColor();
   const [isUploading, setIsUploading] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,11 +52,43 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Helper function to parse CSV line handling quoted fields
+  const parseCSVLine = (line: string): string[] => {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        // Handle escaped quotes ("")
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++; // Skip next quote
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim().replace(/^["']|["']$/g, ''));
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    // Add the last value
+    values.push(current.trim().replace(/^["']|["']$/g, ''));
+    
+    return values;
+  };
+
   const parseCSV = (csvText: string) => {
     const lines = csvText.split('\n').filter(line => line.trim());
     if (lines.length === 0) return { data: [], errors: ['File is empty'] };
 
-    const headers = lines[0].split(',').map(h => h.trim());
+    // Parse header row with proper CSV handling
+    const headerValues = parseCSVLine(lines[0]);
+    const headers = headerValues.map(h => h.trim().replace(/['"]/g, ''));
     const data = [];
     const errors = [];
 
@@ -82,24 +115,28 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
       errors.push(`Missing required fields: ${missingRequiredFields.join(', ')}`);
     }
 
-    // Parse data rows
+    // Parse data rows with proper CSV handling
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
+      const line = lines[i].trim();
+      if (!line) continue; // Skip empty lines
+      
+      const values = parseCSVLine(line);
+      
       if (values.length !== headers.length) {
-        errors.push(`Row ${i + 1}: Column count mismatch`);
+        errors.push(`Row ${i + 1}: Column count mismatch (expected ${headers.length} columns, found ${values.length}). This usually happens when a cell contains commas. Make sure cells with commas are wrapped in quotes.`);
         continue;
       }
 
       const row: any = {};
       headers.forEach((header, index) => {
-        row[header] = values[index];
+        row[header] = values[index] || '';
       });
 
       // Validate required fields using normalized column names
       const normalizedRow: { [key: string]: string } = {};
       headers.forEach((header, index) => {
         const normalizedKey = headerMap[header] || header.toLowerCase();
-        normalizedRow[normalizedKey] = values[index];
+        normalizedRow[normalizedKey] = values[index] || '';
       });
 
       // Validate required fields
@@ -523,7 +560,18 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                   <Button 
                     onClick={handleImport}
                     disabled={!!(previewData?.invalidRows && previewData.invalidRows > 0)}
-                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                    className="text-white border-0"
+                    style={{ backgroundColor: themeColor || '#2563eb' }}
+                    onMouseEnter={(e) => {
+                      if (!isUploading && !(previewData?.invalidRows && previewData.invalidRows > 0)) {
+                        e.currentTarget.style.opacity = '0.9';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isUploading) {
+                        e.currentTarget.style.opacity = '1';
+                      }
+                    }}
                   >
                     {isUploading ? (
                       <>
@@ -550,7 +598,14 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                       onSuccess();
                       onClose();
                     }}
-                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                    className="text-white border-0"
+                    style={{ backgroundColor: themeColor || '#2563eb' }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.opacity = '0.9';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = '1';
+                    }}
                   >
                     Close
                   </Button>

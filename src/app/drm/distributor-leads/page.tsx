@@ -401,6 +401,8 @@ export default function DistributorLeadsPage() {
               subtitle="Smart insights for application management"
               recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
+              page="distributor-leads"
+              enableAI={true}
             />
           </div>
 

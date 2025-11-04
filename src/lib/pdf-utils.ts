@@ -171,8 +171,8 @@ function addProductsTable(
 ): number {
   // Table header
   const tableTop = yPosition;
-  const rowHeight = 8;
-  const colWidths = [80, 35, 25, 45]; // Product, SKU, UOM, Price (removed Base Price)
+  const baseRowHeight = 8;
+  const colWidths = [90, 35, 25, 40]; // Product (wider), SKU, UOM, Price
   const tableWidth = colWidths.reduce((sum, width) => sum + width, 0);
 
   // Table headers - Fixed styling
@@ -185,7 +185,7 @@ function addProductsTable(
   headers.forEach((header, index) => {
     // Draw light gray background
     doc.setFillColor(200, 200, 200);
-    doc.rect(xPos, tableTop, colWidths[index], rowHeight, 'F');
+    doc.rect(xPos, tableTop, colWidths[index], baseRowHeight, 'F');
     
     // Set black text and draw
     doc.setTextColor(0, 0, 0);
@@ -193,7 +193,7 @@ function addProductsTable(
     xPos += colWidths[index];
   });
 
-  yPosition = tableTop + rowHeight;
+  yPosition = tableTop + baseRowHeight;
 
   // Table rows
   doc.setFont('helvetica', 'normal');
@@ -201,17 +201,31 @@ function addProductsTable(
   doc.setTextColor(0, 0, 0); // Ensure black text for data
 
   priceList.items.forEach((item, index) => {
-    // Check if we need a new page
+    xPos = margin;
+    const productName = item.product?.name || 'Unknown Product';
+    const productSku = item.product?.sku || 'N/A';
+    const productUom = item.product?.uomSell || 'pcs';
+    const unitPrice = item.unitPrice ?? 0;
+    
+    // Use jsPDF's splitTextToSize to wrap long product names
+    const productNameWidth = colWidths[0] - 4; // Subtract padding
+    const wrappedProductName = doc.splitTextToSize(productName, productNameWidth);
+    
+    // Calculate actual row height based on wrapped text
+    const nameLines = wrappedProductName.length;
+    const rowHeight = baseRowHeight * Math.max(1, nameLines);
+    
+    // Check if we need a new page before rendering this row
     if (yPosition + rowHeight > pageHeight - 30) {
       doc.addPage();
-      yPosition = margin + rowHeight;
+      yPosition = margin + baseRowHeight;
       // Redraw headers on new page
       doc.setFont('helvetica', 'bold');
       xPos = margin;
       headers.forEach((header, headerIndex) => {
         // Draw light gray background
         doc.setFillColor(200, 200, 200);
-        doc.rect(xPos, margin, colWidths[headerIndex], rowHeight, 'F');
+        doc.rect(xPos, margin, colWidths[headerIndex], baseRowHeight, 'F');
         
         // Set black text and draw
         doc.setTextColor(0, 0, 0);
@@ -219,22 +233,33 @@ function addProductsTable(
         xPos += colWidths[headerIndex];
       });
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0); // Ensure black text
-      yPosition = margin + rowHeight;
+      doc.setTextColor(0, 0, 0);
+      yPosition = margin + baseRowHeight;
     }
-
-    xPos = margin;
-    const rowData = [
-      item.product.name.length > 25 ? item.product.name.substring(0, 22) + '...' : item.product.name,
-      item.product.sku,
-      item.product.uomSell || 'pcs',
-      formatCurrency(item.unitPrice, currency) // Only show channel price
-    ];
-
-    rowData.forEach((data, colIndex) => {
-      doc.text(data, xPos + 2, yPosition + 5);
-      xPos += colWidths[colIndex];
+    
+    // Draw product name (wrapped, multiple lines)
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    const nameYStart = yPosition + 5;
+    wrappedProductName.forEach((line: string, lineIndex: number) => {
+      doc.text(line, xPos + 2, nameYStart + (lineIndex * baseRowHeight));
     });
+    xPos += colWidths[0];
+    
+    // Draw SKU (centered vertically if product name is wrapped)
+    const skuYPos = nameLines > 1 ? yPosition + 5 + ((nameLines - 1) * baseRowHeight / 2) : yPosition + 5;
+    doc.text(String(productSku ?? 'N/A'), xPos + 2, skuYPos);
+    xPos += colWidths[1];
+    
+    // Draw UOM (centered vertically if product name is wrapped)
+    const uomYPos = nameLines > 1 ? yPosition + 5 + ((nameLines - 1) * baseRowHeight / 2) : yPosition + 5;
+    doc.text(String(productUom ?? 'pcs'), xPos + 2, uomYPos);
+    xPos += colWidths[2];
+    
+    // Draw Price (centered vertically if product name is wrapped)
+    const priceYPos = nameLines > 1 ? yPosition + 5 + ((nameLines - 1) * baseRowHeight / 2) : yPosition + 5;
+    doc.text(formatCurrency(unitPrice, currency), xPos + 2, priceYPos);
+    xPos += colWidths[3];
 
     yPosition += rowHeight;
   });
@@ -256,7 +281,7 @@ function addFooter(doc: jsPDF, pageWidth: number, pageHeight: number, margin: nu
   doc.text(`Page ${doc.getNumberOfPages()}`, pageWidth - margin - 20, footerY);
 }
 
-function formatCurrency(amount: number, currency: string): string {
+function formatCurrency(amount: number | null | undefined, currency: string): string {
   const currencySymbols: { [key: string]: string } = {
     'GHS': 'GHS',
     'USD': '$',
@@ -265,7 +290,8 @@ function formatCurrency(amount: number, currency: string): string {
   };
   
   const symbol = currencySymbols[currency] || currency;
-  return `${symbol} ${amount.toFixed(2)}`;
+  const safeAmount = amount ?? 0;
+  return `${symbol} ${safeAmount.toFixed(2)}`;
 }
 
 export function downloadPDF(doc: jsPDF, filename: string) {

@@ -5,17 +5,19 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user?.id) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
 
     // Get current date for calculations
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    const startOfYear = new Date(now.getFullYear(), 0, 1); // January 1st of current year
     
     // Calculate dates for last 7 days trend data
     const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -39,6 +41,7 @@ export async function GET(request: NextRequest) {
       pendingQuotations,
       monthlyRevenue,
       lastMonthRevenue,
+      revenueYTD,
       recentActivity,
       lowStockItems,
       overdueInvoices,
@@ -79,6 +82,19 @@ export async function GET(request: NextRequest) {
           createdAt: {
             gte: startOfLastMonth,
             lte: endOfLastMonth
+          }
+        },
+        _sum: {
+          total: true
+        }
+      }),
+
+      // Revenue YTD (Year-to-Date: from January 1st to now)
+      prisma.invoice.aggregate({
+        where: {
+          paymentStatus: 'PAID' as any,
+          createdAt: {
+            gte: startOfYear
           }
         },
         _sum: {
@@ -169,6 +185,9 @@ export async function GET(request: NextRequest) {
     const revenueChange = lastMonthRevenue._sum.total 
       ? ((monthlyRevenue._sum.total || 0) - lastMonthRevenue._sum.total) / lastMonthRevenue._sum.total * 100
       : 0;
+    
+    // Extract revenue YTD value
+    const revenueYTDValue = revenueYTD._sum.total || 0;
 
     // Format recent activity from multiple sources
     const [recentQuotations, recentInvoices, recentCustomers, recentLeads, recentProducts, recentPayments] = recentActivity;
@@ -325,7 +344,8 @@ export async function GET(request: NextRequest) {
         totalCustomers,
         pendingQuotations,
         monthlyRevenue: monthlyRevenue._sum.total || 0,
-        revenueChange: Math.round(revenueChange * 100) / 100
+        revenueChange: Math.round(revenueChange * 100) / 100,
+        revenueYTD: revenueYTDValue
       },
       trends: {
         productsTrend,

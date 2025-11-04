@@ -161,8 +161,11 @@ export async function PUT(
     let imagePath = existingWarehouse.image;
     if (image && image.size > 0) {
       try {
-        // Create uploads directory if it doesn't exist
-        const uploadsDir = join(process.cwd(), 'uploads', 'warehouses');
+        // Save to public/uploads/warehouses for development, or /app/uploads/warehouses for production
+        const isProduction = process.env.NODE_ENV === 'production';
+        const uploadsDir = isProduction 
+          ? join('/app', 'uploads', 'warehouses')
+          : join(process.cwd(), 'public', 'uploads', 'warehouses');
         await mkdir(uploadsDir, { recursive: true });
 
         // Generate unique filename
@@ -176,7 +179,7 @@ export async function PUT(
         const buffer = Buffer.from(bytes);
         await writeFile(filepath, buffer);
 
-        // Update image path
+        // Update image path (relative to uploads root)
         imagePath = `uploads/warehouses/${filename}`;
       } catch (error) {
         console.error('Error uploading image:', error);

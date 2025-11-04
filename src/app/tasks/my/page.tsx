@@ -99,7 +99,7 @@ interface TaskStats {
 
 export default function MyTasksPage() {
   const { data: session } = useSession();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const themeClasses = getThemeClasses();
   const { success: showSuccess, error: showError } = useToast();
 
@@ -604,15 +604,26 @@ export default function MyTasksPage() {
           <div className="flex items-center gap-2">
             <Button
               onClick={() => setViewMode(viewMode === 'kanban' ? 'list' : 'kanban')}
-              variant="outline"
-              className="flex items-center gap-2"
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+              className={`flex items-center gap-2 ${viewMode === 'list' ? 'text-white hover:opacity-90 transition-opacity' : ''}`}
+              style={viewMode === 'list' ? { backgroundColor: getThemeColor() || '#dc2626' } : undefined}
             >
-              {viewMode === 'kanban' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
-              {viewMode === 'kanban' ? 'List View' : 'Kanban View'}
+              <List className="w-4 h-4" />
+              List View
+            </Button>
+            <Button
+              onClick={() => setViewMode(viewMode === 'kanban' ? 'list' : 'kanban')}
+              variant={viewMode === 'kanban' ? 'default' : 'outline'}
+              className={`flex items-center gap-2 ${viewMode === 'kanban' ? 'text-white hover:opacity-90 transition-opacity' : ''}`}
+              style={viewMode === 'kanban' ? { backgroundColor: getThemeColor() || '#dc2626' } : undefined}
+            >
+              <Grid3X3 className="w-4 h-4" />
+              Kanban View
             </Button>
             <Button
               onClick={() => setIsCreateTaskModalOpen(true)}
-              className={`bg-${themeClasses.primary} text-white hover:bg-${themeClasses.primaryDark} flex items-center gap-2`}
+              className="text-white hover:opacity-90 transition-opacity flex items-center gap-2"
+              style={{ backgroundColor: getThemeColor() || '#dc2626' }}
             >
               <Plus className="w-4 h-4" />
               Create Task

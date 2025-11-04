@@ -165,7 +165,7 @@ export default function WarehouseDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const { success, error: showError } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -173,7 +173,7 @@ export default function WarehouseDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<'products' | 'movements'>('products');
-  const [selectedCurrency, setSelectedCurrency] = useState('USD');
+  const [selectedCurrency, setSelectedCurrency] = useState('GHS');
   const [convertedTotalValue, setConvertedTotalValue] = useState(0);
   const [isConverting, setIsConverting] = useState(false);
   const [convertedProductValues, setConvertedProductValues] = useState<Record<string, { averageCost: number; totalValue: number }>>({});
@@ -275,11 +275,21 @@ export default function WarehouseDetailsPage() {
 
   // Calculate totals
   const totalProducts = products.length;
+  // Use averageCost from stockItems (consistent with reports) instead of product.cost
+  // The API already filters products for this warehouse, so stockItems should be for this warehouse
   const totalValue = products.reduce((sum, product) => {
-    const quantity = product.stockItems?.[0]?.quantity || 0;
-    return sum + (quantity * (product.cost || 0));
+    // Sum all stock items for this product (should all be for this warehouse)
+    const productValue = product.stockItems?.reduce((itemSum, stockItem) => {
+      // Use averageCost from stockItem (weighted average) instead of product.cost
+      // This matches the calculation method used in reports
+      const costPerUnit = stockItem.averageCost || product.cost || 0;
+      return itemSum + (stockItem.quantity * costPerUnit);
+    }, 0) || 0;
+    return sum + productValue;
   }, 0);
-  const totalQuantity = products.reduce((sum, product) => sum + (product.stockItems?.[0]?.quantity || 0), 0);
+  const totalQuantity = products.reduce((sum, product) => {
+    return sum + (product.stockItems?.reduce((itemSum, stockItem) => itemSum + stockItem.quantity, 0) || 0);
+  }, 0);
 
   // Convert currency when totalValue changes
   useEffect(() => {
@@ -544,6 +554,8 @@ export default function WarehouseDetailsPage() {
               <Button 
                 onClick={() => setIsEditModalOpen(true)}
                 variant="outline"
+                className="text-white hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: getThemeColor() || '#dc2626' }}
               >
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Warehouse

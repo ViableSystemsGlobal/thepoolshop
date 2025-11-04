@@ -57,6 +57,30 @@ export async function GET(
             },
           },
         },
+        invoices: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            lines: {
+              include: {
+                product: {
+                  select: { id: true, name: true, sku: true },
+                },
+              },
+            },
+          },
+        },
+        payments: {
+          orderBy: { receivedAt: 'desc' },
+          select: {
+            id: true,
+            number: true,
+            amount: true,
+            method: true,
+            reference: true,
+            receivedAt: true,
+            createdAt: true,
+          },
+        },
       },
     });
 

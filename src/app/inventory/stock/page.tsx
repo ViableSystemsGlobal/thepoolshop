@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/components/ui/dropdown-menu-custom";
 import { AIRecommendationCard } from "@/components/ai-recommendation-card";
 import { DataTable } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -83,7 +83,7 @@ function StockPageContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedStockItems, setSelectedStockItems] = useState<string[]>([]);
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { success } = useToast();
 
@@ -102,29 +102,7 @@ function StockPageContent() {
     }
   }, [searchParams]);
 
-  const [aiRecommendations, setAiRecommendations] = useState([
-    {
-      id: '1',
-      title: 'Restock critical items',
-      description: 'Several products are below reorder point and need immediate restocking.',
-      priority: 'high' as const,
-      completed: false,
-    },
-    {
-      id: '2',
-      title: 'Review slow-moving inventory',
-      description: 'Identify products with low turnover rates for optimization.',
-      priority: 'medium' as const,
-      completed: false,
-    },
-    {
-      id: '3',
-      title: 'Optimize warehouse layout',
-      description: 'Reorganize stock placement based on product movement patterns.',
-      priority: 'low' as const,
-      completed: false,
-    },
-  ]);
+
 
   const handleViewProduct = (product: Product) => {
     router.push(`/products/${product.id}`);
@@ -172,12 +150,44 @@ function StockPageContent() {
     const totalAvailable = p.stockItems?.reduce((sum, item) => sum + item.available, 0) || 0;
     return totalAvailable === 0;
   }).length;
+  // Fetch exchange rate for conversion
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      try {
+        const response = await fetch('/api/currency/convert', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fromCurrency: 'USD',
+            toCurrency: 'GHS',
+            amount: 1
+          }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setExchangeRate(data.exchangeRate || 11.0); // Fallback to 11.0 if not found
+        } else {
+          setExchangeRate(11.0); // Fallback if API fails
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rate:', error);
+        setExchangeRate(11.0); // Fallback on error
+      }
+    };
+    fetchExchangeRate();
+  }, []);
+  
   const totalInventoryCost = products.reduce((sum, p) => {
-    const stockValue = p.stockItems?.reduce((sum, item) => {
-      // Convert USD to GHS if needed (assuming cost is in USD when importCurrency is null)
+    // Only count stockItems that have a warehouseId assigned (exclude null warehouseId items)
+    const stockValue = p.stockItems?.filter(item => item.warehouseId !== null).reduce((sum, item) => {
+      // Convert USD to GHS using actual exchange rate from settings
       const costInUSD = item.averageCost || 0;
       const quantity = item.quantity || 0;
-      const usdToGhsRate = 12.5; // USD to GHS conversion rate
+      const usdToGhsRate = exchangeRate || 11.0; // Use actual exchange rate or fallback
       const valueInGHS = (costInUSD * quantity) * usdToGhsRate;
       return sum + valueInGHS;
     }, 0) || 0;
@@ -216,11 +226,7 @@ function StockPageContent() {
   });
 
   const handleRecommendationComplete = (id: string) => {
-    setAiRecommendations(prev => 
-      prev.map(rec => 
-        rec.id === id ? { ...rec, completed: true } : rec
-      )
-    );
+    // AIRecommendationCard manages its own state internally
     success("Recommendation completed! Great job!");
   };
 
@@ -297,8 +303,9 @@ function StockPageContent() {
             <AIRecommendationCard
               title="Inventory Management AI"
               subtitle="Your intelligent assistant for stock optimization"
-              recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
+              page="stock"
+              enableAI={true}
             />
           </div>
 
@@ -459,7 +466,8 @@ function StockPageContent() {
                         </Button>
                         <Button 
                           onClick={() => setIsMoreFiltersOpen(false)}
-                          className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+                          className="text-white hover:opacity-90 transition-opacity"
+                          style={{ backgroundColor: getThemeColor() }}
                         >
                           Apply Filters
                         </Button>
@@ -524,7 +532,8 @@ function StockPageContent() {
                     size="sm"
                     onClick={() => success('Adjust stock functionality coming soon!')}
                     disabled={selectedStockItems.length === 0}
-                    className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className="text-white disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: getThemeColor() }}
                   >
                     Adjust Stock
                   </Button>
@@ -628,11 +637,12 @@ function StockPageContent() {
                   key: 'costValue',
                   label: 'Cost Value',
                   render: (product) => {
-                    const stockValue = product.stockItems?.reduce((sum, item) => {
-                      // Convert USD to GHS (consistent with metric calculation)
+                    // Only count stockItems that have a warehouseId assigned (exclude null warehouseId items)
+                    const stockValue = product.stockItems?.filter(item => item.warehouseId !== null).reduce((sum, item) => {
+                      // Convert USD to GHS using actual exchange rate (consistent with metric calculation)
                       const costInUSD = item.averageCost || 0;
                       const quantity = item.quantity || 0;
-                      const usdToGhsRate = 12.5; // USD to GHS conversion rate
+                      const usdToGhsRate = exchangeRate || 11.0; // Use actual exchange rate or fallback
                       const valueInGHS = (costInUSD * quantity) * usdToGhsRate;
                       return sum + valueInGHS;
                     }, 0) || 0;

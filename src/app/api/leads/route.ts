@@ -7,19 +7,19 @@ import { NotificationService, SystemNotificationTriggers } from '@/lib/notificat
 export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Leads API: GET request received');
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // console.log('🔍 Leads API: Session exists:', !!session);
-    // console.log('🔍 Leads API: User exists:', !!session?.user);
+    const session = await getServerSession(authOptions);
+    console.log('🔍 Leads API: Session exists:', !!session);
+    console.log('🔍 Leads API: User exists:', !!session?.user);
     
-    // if (!session?.user) {
-    //   console.log('❌ Leads API: No session or user');
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    if (!session?.user) {
+      console.log('❌ Leads API: No session or user');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // const userId = (session.user as any).id;
-    const userId = 'cmgxgoy9w00008z2z4ajxyw47'; // Hardcoded for testing - System Administrator
+    const userId = (session.user as any).id;
+    const userRole = (session.user as any).role;
     console.log('🔍 Leads API: User ID:', userId);
+    console.log('🔍 Leads API: User Role:', userRole);
     
     if (!userId) {
       console.log('❌ Leads API: No user ID');
@@ -30,9 +30,15 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const search = searchParams.get('search');
 
-    const where: any = {
-      ownerId: userId,
-    };
+    // Super Admins and Admins can see all leads, others see only their own
+    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+    
+    const where: any = {};
+    
+    // Only filter by owner if user is not Super Admin or Admin
+    if (!isSuperAdmin) {
+      where.ownerId = userId;
+    }
 
     if (status) {
       // If a specific status is requested, use it
@@ -102,23 +108,21 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     console.log('POST /api/leads - Starting request');
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // console.log('Session:', session);
+    const session = await getServerSession(authOptions);
+    console.log('Session:', session);
     
-    // if (!session?.user) {
-    //   console.log('No session or user found');
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    if (!session?.user) {
+      console.log('No session or user found');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // const userId = (session.user as any).id;
-    const userId = 'cmgxgoy9w00008z2z4ajxyw47'; // Hardcoded for testing - System Administrator
+    const userId = (session.user as any).id;
     console.log('User ID:', userId);
     
-    // if (!userId) {
-    //   console.log('No user ID found');
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    if (!userId) {
+      console.log('No user ID found');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const body = await request.json();
     console.log('Request body:', body);
@@ -236,6 +240,47 @@ export async function POST(request: NextRequest) {
         }
       })() : null,
     };
+
+    // Create a task automatically if follow-up date is provided
+    if (followUpDate) {
+      try {
+        const followUpDateObj = new Date(followUpDate);
+        const taskTitle = `Follow-up with ${firstName} ${lastName}`;
+        const taskDescription = `Follow-up task for ${company || 'lead'}. ${notes ? `Notes: ${notes}` : ''}`;
+        
+        // Determine assignee - use first assigned user or the lead owner
+        let taskAssignee = userId; // Default to lead owner
+        if (parsedLead.assignedTo && Array.isArray(parsedLead.assignedTo) && parsedLead.assignedTo.length > 0) {
+          const firstAssignedUser = parsedLead.assignedTo[0];
+          taskAssignee = typeof firstAssignedUser === 'string' ? firstAssignedUser : firstAssignedUser.id;
+        }
+
+        // Create the task
+        await (prisma as any).task.create({
+          data: {
+            title: taskTitle,
+            description: taskDescription,
+            priority: 'MEDIUM',
+            dueDate: followUpDateObj,
+            assignedTo: taskAssignee,
+            createdBy: userId,
+            leadId: lead.id,
+            status: 'PENDING',
+            assignmentType: 'INDIVIDUAL',
+            assignees: {
+              create: [{
+                userId: taskAssignee,
+                status: 'PENDING',
+              }],
+            },
+          },
+        });
+        console.log('✅ Follow-up task created automatically for lead:', lead.id);
+      } catch (taskError) {
+        console.error('Error creating follow-up task:', taskError);
+        // Don't fail the lead creation if task creation fails
+      }
+    }
 
     // Send notifications for lead creation
     try {

@@ -61,7 +61,17 @@ interface Product {
   name: string;
   sku: string;
   price: number;
+  originalPrice?: number | null;
+  originalPriceCurrency?: string | null;
+  baseCurrency?: string | null;
   images?: string | null; // JSON string in database, will be parsed to string[]
+}
+
+interface PriceList {
+  id: string;
+  name: string;
+  currency: string;
+  items?: Array<{ productId: string; unitPrice: number }>;
 }
 
 // Default tax types
@@ -124,12 +134,123 @@ const ProductImage = ({ product, size = 'sm' }: { product: Product; size?: 'xs' 
   );
 };
 
+// Product Price Display Component - converts and displays price in target currency
+const ProductPriceDisplay = ({ 
+  product, 
+  targetCurrency, 
+  currencySymbol 
+}: { 
+  product: Product; 
+  targetCurrency: string; 
+  currencySymbol: (code: string) => string;
+}) => {
+  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const convertPrice = async () => {
+      setIsLoading(true);
+      try {
+        const baseCurrency = product.baseCurrency || 'USD';
+        const originalCurrency = product.originalPriceCurrency || baseCurrency;
+        const hasOriginal = typeof product.originalPrice === 'number' && !Number.isNaN(product.originalPrice as number);
+
+        // Prefer originalPrice if available (it's the source of truth)
+        if (hasOriginal && originalCurrency) {
+          if (originalCurrency === targetCurrency) {
+            // Already in target currency, use directly
+            setDisplayPrice(Number(product.originalPrice));
+            setIsLoading(false);
+            return;
+          } else {
+            // Need to convert from original currency to target currency
+            try {
+              const res = await fetch('/api/currency/convert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  fromCurrency: originalCurrency, 
+                  toCurrency: targetCurrency, 
+                  amount: Number(product.originalPrice)
+                })
+              });
+              if (res.ok) {
+                const data = await res.json();
+                setDisplayPrice(Number(data.convertedAmount ?? product.originalPrice));
+                setIsLoading(false);
+                return;
+              }
+            } catch (error) {
+              console.error('Error converting price:', error);
+            }
+          }
+        }
+
+        // Fallback: if no originalPrice, use product.price
+        if (baseCurrency === targetCurrency && typeof product.price === 'number') {
+          setDisplayPrice(product.price);
+          setIsLoading(false);
+          return;
+        }
+
+        // Last resort: convert product.price from baseCurrency to target currency
+        if (product.price) {
+          try {
+            const res = await fetch('/api/currency/convert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                fromCurrency: baseCurrency, 
+                toCurrency: targetCurrency, 
+                amount: product.price
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              setDisplayPrice(Number(data.convertedAmount ?? product.price));
+            } else {
+              setDisplayPrice(product.price);
+            }
+          } catch (error) {
+            console.error('Error converting price:', error);
+            setDisplayPrice(product.price);
+          }
+        } else {
+          setDisplayPrice(0);
+        }
+      } catch (error) {
+        console.error('Error in price conversion:', error);
+        setDisplayPrice(product.price || 0);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    convertPrice();
+  }, [product, targetCurrency]);
+
+  if (isLoading) {
+    return (
+      <div className="text-sm font-medium text-gray-400">
+        {currencySymbol(targetCurrency)}...
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-sm font-medium text-gray-900">
+      {currencySymbol(targetCurrency)}{(displayPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </div>
+  );
+};
+
 export default function CreateQuotationPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const { success, error: showError } = useToast();
-  const { getThemeClasses, customLogo } = useTheme();
+  const { getThemeClasses, getThemeColor, customLogo } = useTheme();
   const theme = getThemeClasses();
+  const themeColor = getThemeColor();
   
   // Form state
   const [subject, setSubject] = useState("");
@@ -140,6 +261,11 @@ export default function CreateQuotationPage() {
   const [lines, setLines] = useState<LineItem[]>([]);
   const [globalTaxes, setGlobalTaxes] = useState<TaxItem[]>(DEFAULT_TAXES);
   const [taxInclusive, setTaxInclusive] = useState(false);
+  const [quoteCurrency, setQuoteCurrency] = useState<string>('GHS');
+  const [priceLists, setPriceLists] = useState<PriceList[]>([]);
+  const [selectedPriceListId, setSelectedPriceListId] = useState<string>('');
+  const userSelectedBasePriceRef = useRef<boolean>(false);
+  const selectedPriceListIdRef = useRef<string>('');
   
   // Data loading
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -169,6 +295,7 @@ export default function CreateQuotationPage() {
   const [selectedBillingAddressId, setSelectedBillingAddressId] = useState("");
   const [selectedShippingAddressId, setSelectedShippingAddressId] = useState("");
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  const [leadBillingAddress, setLeadBillingAddress] = useState<any>(null);
 
   // Read lead data from URL params and pre-fill form
   useEffect(() => {
@@ -200,6 +327,22 @@ export default function CreateQuotationPage() {
         type: 'lead'
       });
       
+      // Fetch lead's billing address
+      const fetchLeadAddress = async () => {
+        try {
+          const response = await fetch(`/api/leads/${leadIdParam}`, {
+            credentials: 'include',
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setLeadBillingAddress(data.billingAddress || null);
+          }
+        } catch (error) {
+          console.error('Error fetching lead address:', error);
+        }
+      };
+      fetchLeadAddress();
+      
       // Fetch lead's interested products and add them to the quote
       fetchLeadProducts(leadIdParam);
     }
@@ -226,43 +369,40 @@ export default function CreateQuotationPage() {
         const leadProducts = data.products || [];
         console.log('🚀 PROCESSED PRODUCTS:', leadProducts.length, leadProducts);
         
-        // Add interested products to quote lines
+        // Add interested products to quote lines using proper pricing logic
         if (leadProducts.length > 0) {
-          const newLines: LineItem[] = leadProducts.map((lp: any) => {
+          for (const lp of leadProducts) {
             const product = lp.product;
-            if (!product) return null;
-            
-            const quantity = lp.quantity || 1;
-            const unitPrice = product.price || 0;
-            const discount = 0;
-            const subtotal = quantity * unitPrice * (1 - discount / 100);
-            
-            // Calculate taxes
-            const taxesForLine = globalTaxes.map(tax => ({
-              ...tax,
-              amount: (subtotal * tax.rate) / 100
-            }));
-            
-            const lineTotal = taxInclusive 
-              ? subtotal 
-              : subtotal + taxesForLine.reduce((sum, tax) => sum + tax.amount, 0);
-            
-            return {
-              id: Math.random().toString(),
-              productId: product.id,
-              productName: product.name,
-              sku: product.sku || '',
-              quantity,
-              unitPrice,
-              discount,
-              taxes: taxesForLine,
-              lineTotal
-            };
-          }).filter(Boolean);
-          
-          setLines(newLines as LineItem[]);
+            if (product) {
+              await addLineItem(product);
+              // Update quantity if specified
+              const defaultQuantity = lp.quantity || 1;
+              if (defaultQuantity > 1) {
+                // We'll update the last added line's quantity
+                setLines(prevLines => {
+                  const newLines = [...prevLines];
+                  if (newLines.length > 0) {
+                    const lastLine = newLines[newLines.length - 1];
+                    lastLine.quantity = defaultQuantity;
+                    // Recalculate line total
+                    const subtotal = lastLine.quantity * lastLine.unitPrice;
+                    const discountAmount = subtotal * (lastLine.discount / 100);
+                    const afterDiscount = subtotal - discountAmount;
+                    let totalTaxAmount = 0;
+                    lastLine.taxes = lastLine.taxes.map(tax => {
+                      const taxAmount = afterDiscount * (tax.rate / 100);
+                      totalTaxAmount += taxAmount;
+                      return { ...tax, amount: taxAmount };
+                    });
+                    lastLine.lineTotal = taxInclusive ? afterDiscount : afterDiscount + totalTaxAmount;
+                  }
+                  return newLines;
+                });
+              }
+            }
+          }
           setLeadProductsLoaded(true); // Mark as loaded
-          success(`Added ${newLines.length} interested products to quote`);
+          success(`Added ${leadProducts.length} interested products to quote`);
         }
       }
     } catch (error) {
@@ -276,6 +416,7 @@ export default function CreateQuotationPage() {
   useEffect(() => {
     loadCustomers();
     loadProducts();
+    loadPriceLists();
     
     // Set default valid until (30 days from now)
     const defaultDate = new Date();
@@ -349,6 +490,119 @@ export default function CreateQuotationPage() {
     }
   };
 
+  const loadPriceLists = async () => {
+    try {
+      const res = await fetch('/api/price-lists');
+      if (res.ok) {
+        const data = await res.json();
+        console.log('🔍 Loaded price lists:', data.map((pl: any) => ({
+          id: pl.id,
+          name: pl.name,
+          currency: pl.currency,
+          itemsCount: pl.items?.length || 0,
+          hasItems: !!(pl.items && pl.items.length > 0)
+        })));
+        setPriceLists(data || []);
+        // Default to "Base Price" (empty string) - don't auto-select first price list
+        // Only set currency if quote currency hasn't been set yet
+        if ((data || []).length > 0 && !quoteCurrency) {
+          if (data[0].currency) setQuoteCurrency(data[0].currency);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading price lists:', e);
+    }
+  };
+
+  // Update ref when selectedPriceListId changes
+  useEffect(() => {
+    selectedPriceListIdRef.current = selectedPriceListId;
+  }, [selectedPriceListId]);
+
+  // Auto-select a price list that matches the chosen quote currency
+  // Only auto-select if user hasn't explicitly chosen "Base Price" (empty string)
+  useEffect(() => {
+    if (!priceLists || priceLists.length === 0) return;
+    console.log('🔍 Price lists available:', priceLists);
+    
+    // If user has explicitly selected "Base Price", don't override it
+    if (userSelectedBasePriceRef.current) {
+      return;
+    }
+    
+    // If "Base Price" is currently selected (empty string), don't auto-select
+    // This preserves the default "Base Price" selection
+    const currentSelectedId = selectedPriceListIdRef.current;
+    if (!currentSelectedId || currentSelectedId === '') {
+      return;
+    }
+    
+    const matching = priceLists.find(p => p.currency === quoteCurrency);
+    if (matching && currentSelectedId !== matching.id) {
+      console.log('✅ Auto-selecting price list for currency', quoteCurrency, matching);
+      setSelectedPriceListId(matching.id);
+    }
+  }, [quoteCurrency, priceLists]);
+
+  const currencySymbol = (code: string) => {
+    switch (code) {
+      case 'USD': return '$';
+      case 'GHS': return 'GH₵'; // Using proper Ghana Cedi symbol (U+20B5)
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'NGN': return '₦';
+      case 'KES': return 'KSh';
+      case 'ZAR': return 'R';
+      default: return code + ' ';
+    }
+  };
+
+  const convertAmount = async (amount: number, from: string, to: string): Promise<number> => {
+    if (!amount || from === to) return amount;
+    try {
+      const res = await fetch('/api/currency/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromCurrency: from, toCurrency: to, amount })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const converted = Number(data.convertedAmount ?? amount);
+        console.log(`✅ Currency conversion via API: ${amount} ${from} = ${converted} ${to} (rate: ${data.exchangeRate})`);
+        return converted;
+      }
+      console.warn(`⚠️ Currency conversion API failed, trying settings fallback`);
+      // Fallback: try pull exchange rates from settings
+      const settingsRes = await fetch('/api/settings/currency');
+      if (settingsRes.ok) {
+        const settings = await settingsRes.json();
+        // Look for exact match first
+        let rateRow = (settings.exchangeRates || []).find((r: any) => 
+          r.fromCurrency === from && r.toCurrency === to && r.isActive
+        );
+        // If no exact match, try reverse rate
+        if (!rateRow) {
+          const reverseRow = (settings.exchangeRates || []).find((r: any) => 
+            r.fromCurrency === to && r.toCurrency === from && r.isActive
+          );
+          if (reverseRow && reverseRow.rate) {
+            rateRow = { ...reverseRow, rate: 1 / Number(reverseRow.rate) };
+          }
+        }
+        if (rateRow && rateRow.rate) {
+          const converted = Math.round((amount * Number(rateRow.rate)) * 100) / 100;
+          console.log(`✅ Currency conversion via settings: ${amount} ${from} = ${converted} ${to} (rate: ${rateRow.rate})`);
+          return converted;
+        }
+      }
+      console.error(`❌ No exchange rate found for ${from} to ${to}, using amount as-is`);
+    } catch (error) {
+      console.error('Error in currency conversion:', error);
+    }
+    // If all else fails, return original amount (don't use wrong static rates)
+    return amount;
+  };
+
   const loadAddresses = async (accountId: string) => {
     try {
       setIsLoadingAddresses(true);
@@ -382,7 +636,7 @@ export default function CreateQuotationPage() {
     }
   };
 
-  const handleCustomerChange = (custId: string) => {
+  const handleCustomerChange = async (custId: string) => {
     setCustomerId(custId);
     const customer = customers.find(c => c.id === custId);
     setSelectedCustomer(customer || null);
@@ -390,42 +644,193 @@ export default function CreateQuotationPage() {
     // Load addresses if customer is an account
     if (customer?.type === 'account') {
       loadAddresses(customer.id);
-    } else {
-      // Clear addresses for non-account customers
+      setLeadBillingAddress(null);
+    } else if (customer?.type === 'lead') {
+      // Fetch lead details to get billing address
+      try {
+        const response = await fetch(`/api/leads/${custId}`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setLeadBillingAddress(data.billingAddress || null);
+        }
+      } catch (error) {
+        console.error('Error fetching lead address:', error);
+        setLeadBillingAddress(null);
+      }
+      // Clear addresses for leads
       setAddresses([]);
       setSelectedBillingAddressId("");
       setSelectedShippingAddressId("");
+    } else {
+      // Clear addresses for distributors
+      setAddresses([]);
+      setSelectedBillingAddressId("");
+      setSelectedShippingAddressId("");
+      setLeadBillingAddress(null);
     }
     if (customer) {
       setCustomerType(customer.type);
     }
   };
 
-  const addLineItem = (product: Product) => {
-    const baseAmount = product.price || 0;
-    
-    // Calculate taxes immediately
-    const taxes = globalTaxes.map(tax => {
-      const taxAmount = baseAmount * (tax.rate / 100);
-      return { ...tax, amount: taxAmount };
+  const addLineItem = async (product: Product) => {
+    console.log('🔍 ADD LINE ITEM DEBUG:', {
+      productName: product.name,
+      quoteCurrency,
+      productPrice: product.price,
+      productBaseCurrency: product.baseCurrency,
+      productOriginalPrice: product.originalPrice,
+      productOriginalPriceCurrency: product.originalPriceCurrency,
     });
+
+    // Prefer stored prices without converting when we have a match
+    const baseCurrency = product.baseCurrency || 'USD';
+    const originalCurrency = product.originalPriceCurrency || baseCurrency;
+    const hasOriginal = typeof product.originalPrice === 'number' && !Number.isNaN(product.originalPrice as number);
+
+    // If "Base Price" is selected, use product's base price directly
+    if (!selectedPriceListId || selectedPriceListId === '') {
+      console.log('✅ Using base price (product price):', {
+        product: product.name,
+        quoteCurrency,
+        productPrice: product.price,
+        productBaseCurrency: product.baseCurrency,
+        productOriginalPrice: product.originalPrice,
+        productOriginalPriceCurrency: product.originalPriceCurrency
+      });
+      
+      // Always prefer originalPrice if available (it's the source of truth)
+      // Convert from originalPrice currency to quote currency
+      if (hasOriginal && originalCurrency) {
+        if (originalCurrency === quoteCurrency) {
+          // Already in target currency, use directly
+          console.log('✅ Using product.originalPrice (already in target currency):', product.originalPrice);
+          await addResolvedLine(product, Number(product.originalPrice));
+          return;
+        } else {
+          // Need to convert from original currency to quote currency
+          const converted = await convertAmount(Number(product.originalPrice), originalCurrency, quoteCurrency);
+          console.log('✅ Converting base price from original:', {
+            originalPrice: product.originalPrice,
+            originalCurrency,
+            quoteCurrency,
+            converted
+          });
+          await addResolvedLine(product, converted);
+          return;
+        }
+      }
+      
+      // Fallback: if no originalPrice, use product.price
+      // But check if baseCurrency matches quote currency
+      if (baseCurrency === quoteCurrency && typeof product.price === 'number') {
+        console.log('✅ Using product.price (baseCurrency matches):', product.price);
+        await addResolvedLine(product, product.price);
+        return;
+      }
+      
+      // Last resort: convert product.price from baseCurrency to quote currency
+      const sourceAmount = product.price || 0;
+      const converted = await convertAmount(sourceAmount, baseCurrency, quoteCurrency);
+      console.log('✅ Converting base price from product.price:', { sourceAmount, baseCurrency, quoteCurrency, converted });
+      await addResolvedLine(product, converted);
+      return;
+    }
+
+    // Price list in same currency overrides
+    const selectedList = priceLists.find(p => p.id === selectedPriceListId);
+    const listItem = selectedList?.items?.find(i => i.productId === product.id);
     
-    const totalTaxAmount = taxes.reduce((sum, tax) => sum + tax.amount, 0);
-    
-    const newLine: LineItem = {
-      id: Math.random().toString(36).substr(2, 9),
+    console.log('🔍 Price list check:', {
       productId: product.id,
       productName: product.name,
-      sku: product.sku,
-      quantity: 1,
-      unitPrice: product.price || 0,
-      discount: 0,
-      taxes: taxes,
-      lineTotal: taxInclusive ? baseAmount + totalTaxAmount : baseAmount,
-    };
-    setLines([...lines, newLine]);
-    setShowProductSearch(false);
-    setProductSearchTerm("");
+      selectedPriceListId,
+      selectedListName: selectedList?.name,
+      selectedListCurrency: selectedList?.currency,
+      quoteCurrency,
+      priceListHasItems: selectedList?.items ? selectedList.items.length : 0,
+      productInPriceList: !!listItem,
+      listItemPrice: listItem?.unitPrice
+    });
+    
+    if (selectedList && selectedList.currency === quoteCurrency && listItem) {
+      console.log('✅ Using price list price (NO CONVERSION):', {
+        product: product.name,
+        priceList: selectedList.name,
+        priceListCurrency: selectedList.currency,
+        quoteCurrency,
+        price: listItem.unitPrice,
+        source: 'price_list_same_currency'
+      });
+      await addResolvedLine(product, listItem.unitPrice);
+      return;
+    } else if (selectedList && !listItem) {
+      console.warn('⚠️ Product not found in selected price list:', {
+        product: product.name,
+        productId: product.id,
+        priceList: selectedList.name,
+        priceListId: selectedList.id,
+        priceListItemsCount: selectedList.items?.length || 0,
+        priceListItemProductIds: selectedList.items?.map(i => i.productId) || []
+      });
+    }
+
+    // If no selected list or mismatch, look for any list in the target currency with a price for this product
+    if (!listItem) {
+      const anyMatchList = priceLists.find(pl => pl.currency === quoteCurrency && pl.items?.some(i => i.productId === product.id));
+      const anyItem = anyMatchList?.items?.find(i => i.productId === product.id);
+      if (anyMatchList && anyItem) {
+        console.log('✅ Using matching currency price list price (NO CONVERSION):', {
+          product: product.name,
+          priceList: anyMatchList.name,
+          priceListCurrency: anyMatchList.currency,
+          quoteCurrency,
+          price: anyItem.unitPrice,
+          source: 'price_list_matching_currency'
+        });
+        await addResolvedLine(product, anyItem.unitPrice);
+        return;
+      }
+    }
+
+    if (baseCurrency === quoteCurrency && typeof product.price === 'number') {
+      console.log('✅ Using product.price (baseCurrency matches):', product.price);
+      await addResolvedLine(product, product.price);
+      return;
+    }
+    // If product stores both a local price and an original price in another currency,
+    // prefer the local stored price when the quote currency differs from the original
+    // Do NOT assume product.price is local unless its baseCurrency matches the quote currency
+    if (hasOriginal && originalCurrency === quoteCurrency) {
+      console.log('✅ Using product.originalPrice (originalCurrency matches):', product.originalPrice);
+      await addResolvedLine(product, Number(product.originalPrice));
+      return;
+    }
+
+    // If we got here, no exact match—fallbacks
+    if (selectedList && listItem) {
+      const converted = await convertAmount(listItem.unitPrice, selectedList.currency, quoteCurrency);
+      console.log('✅ Using converted price list price:', converted);
+      await addResolvedLine(product, converted);
+      return;
+    }
+
+    const sourceAmount = hasOriginal ? Number(product.originalPrice) : (product.price || 0);
+    const sourceCurrency = hasOriginal ? originalCurrency : baseCurrency;
+    const converted = await convertAmount(sourceAmount, sourceCurrency, quoteCurrency);
+    console.log('⚠️ CONVERTING PRICE:', {
+      product: product.name,
+      sourceAmount,
+      sourceCurrency,
+      targetCurrency: quoteCurrency,
+      convertedAmount: converted,
+      source: 'currency_conversion',
+      note: 'Price list price not available, converting from product price'
+    });
+    await addResolvedLine(product, converted);
+    return;
   };
 
   const handleBarcodeScan = (barcode: string, product: any) => {
@@ -598,6 +1003,107 @@ export default function CreateQuotationPage() {
 
   const totals = calculateTotals();
 
+  const addResolvedLine = async (product: Product, unitPrice: number) => {
+    const baseAmount = unitPrice;
+    const taxes = globalTaxes.map(tax => ({ ...tax, amount: baseAmount * (tax.rate / 100) }));
+    const totalTaxAmount = taxes.reduce((s, t) => s + t.amount, 0);
+    const newLine: LineItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      productId: product.id,
+      productName: product.name,
+      sku: product.sku,
+      quantity: 1,
+      unitPrice,
+      discount: 0,
+      taxes,
+      lineTotal: taxInclusive ? baseAmount + totalTaxAmount : baseAmount,
+    };
+    setLines(prev => [...prev, newLine]);
+    setShowProductSearch(false);
+    setProductSearchTerm("");
+  };
+
+  // Resolve unit price for a product given the current quote currency and selected/available price lists
+  const resolveUnitPriceForProduct = async (product: Product): Promise<number> => {
+    const baseCurrency = product.baseCurrency || 'USD';
+    const originalCurrency = product.originalPriceCurrency || baseCurrency;
+    const hasOriginal = typeof product.originalPrice === 'number' && !Number.isNaN(product.originalPrice as number);
+
+    // If "Base Price" is selected, use product's base price directly
+    if (!selectedPriceListId || selectedPriceListId === '') {
+      // Always prefer originalPrice if available (it's the source of truth)
+      if (hasOriginal && originalCurrency) {
+        if (originalCurrency === quoteCurrency) {
+          // Already in target currency, use directly
+          return Number(product.originalPrice);
+        } else {
+          // Need to convert from original currency to quote currency
+          return await convertAmount(Number(product.originalPrice), originalCurrency, quoteCurrency);
+        }
+      }
+      
+      // Fallback: if no originalPrice, use product.price
+      if (baseCurrency === quoteCurrency && typeof product.price === 'number') {
+        return product.price;
+      }
+      
+      // Last resort: convert product.price from baseCurrency to quote currency
+      return await convertAmount(product.price || 0, baseCurrency, quoteCurrency);
+    }
+
+    const selectedList = priceLists.find(p => p.id === selectedPriceListId);
+    const listItem = selectedList?.items?.find(i => i.productId === product.id);
+    if (selectedList && selectedList.currency === quoteCurrency && listItem) {
+      return listItem.unitPrice;
+    }
+    if (!listItem) {
+      const anyMatchList = priceLists.find(pl => pl.currency === quoteCurrency && pl.items?.some(i => i.productId === product.id));
+      const anyItem = anyMatchList?.items?.find(i => i.productId === product.id);
+      if (anyMatchList && anyItem) return anyItem.unitPrice;
+    }
+    if (baseCurrency === quoteCurrency && typeof product.price === 'number') {
+      return product.price;
+    }
+    if (hasOriginal && originalCurrency === quoteCurrency) {
+      return Number(product.originalPrice);
+    }
+    const sourceAmount = hasOriginal ? Number(product.originalPrice) : (product.price || 0);
+    const sourceCurrency = hasOriginal ? originalCurrency : baseCurrency;
+    return await convertAmount(sourceAmount, sourceCurrency, quoteCurrency);
+  };
+
+  // Reprice all existing lines when currency changes
+  useEffect(() => {
+    if (!lines || lines.length === 0) return;
+    const reprice = async () => {
+      const updated: LineItem[] = [];
+      for (const line of lines) {
+        const product = products.find(p => p.id === line.productId);
+        if (!product) { updated.push(line); continue; }
+        const unitPrice = await resolveUnitPriceForProduct(product as any);
+        const quantity = line.quantity;
+        const discount = line.discount;
+        const subtotal = quantity * unitPrice;
+        const discountAmount = subtotal * (discount / 100);
+        const afterDiscount = subtotal - discountAmount;
+        let totalTaxAmount = 0;
+        const recalculatedTaxes = line.taxes.map(tax => {
+          const taxAmount = afterDiscount * (tax.rate / 100);
+          totalTaxAmount += taxAmount;
+          return { ...tax, amount: taxAmount };
+        });
+        updated.push({
+          ...line,
+          unitPrice,
+          taxes: recalculatedTaxes,
+          lineTotal: taxInclusive ? afterDiscount : afterDiscount + totalTaxAmount,
+        });
+      }
+      setLines(updated);
+    };
+    reprice();
+  }, [quoteCurrency, selectedPriceListId, priceLists]);
+
   const sendQuotationToCustomer = async (quotation: any, customer: any) => {
     try {
       // Get customer details
@@ -734,6 +1240,12 @@ AdPools System`,
     try {
       setIsSaving(true);
       
+      // Prepare billing address snapshot for leads
+      let billingAddressSnapshot = null;
+      if (selectedCustomer?.type === 'lead' && leadBillingAddress) {
+        billingAddressSnapshot = leadBillingAddress;
+      }
+
       const response = await fetch('/api/quotations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -744,9 +1256,11 @@ AdPools System`,
           leadId: selectedCustomer?.type === 'lead' ? customerId : null,
           customerType: selectedCustomer?.customerType || 'STANDARD',
           billingAddressId: selectedBillingAddressId || null,
+          billingAddressSnapshot: billingAddressSnapshot,
           shippingAddressId: selectedShippingAddressId || null,
           validUntil,
           notes,
+          currency: quoteCurrency,
           taxInclusive,
           lines: lines.map(line => ({
             productId: line.productId,
@@ -777,8 +1291,13 @@ AdPools System`,
               throw new Error('Failed to fetch lead data');
             }
             
-            const fullLeadData = await leadResponse.json();
+            const leadResponseData = await leadResponse.json();
+            const fullLeadData = leadResponseData.lead || leadResponseData; // Handle both { lead: ... } and direct response
             console.log('🔍 Full lead data:', fullLeadData);
+            console.log('🔍 Billing address:', fullLeadData.billingAddress);
+            console.log('🔍 Shipping address:', fullLeadData.shippingAddress);
+            console.log('🔍 Has billing address:', fullLeadData.hasBillingAddress);
+            console.log('🔍 Has shipping address:', fullLeadData.hasShippingAddress);
             
             // Create Account and Contact for the lead
             const accountResponse = await fetch('/api/accounts', {
@@ -801,34 +1320,64 @@ AdPools System`,
               throw new Error(`Failed to create account: ${errorData.error || 'Unknown error'}`);
             }
 
-            const accountData = await accountResponse.json();
-            console.log('✅ Account created:', accountData.id);
-
+            const accountResponseData = await accountResponse.json();
+            const accountData = accountResponseData.account || accountResponseData.user || accountResponseData; // Handle different response formats
+            
             // Create addresses from lead data if they exist
+            // First, ensure we have the account ID
+            const accountId = accountData.id;
+            if (!accountId) {
+              console.error('❌ No account ID found in response:', accountResponseData);
+              throw new Error('Failed to get account ID from creation response');
+            }
+
+            console.log('🏠 Checking address data:');
+            console.log('  - hasBillingAddress:', fullLeadData.hasBillingAddress);
+            console.log('  - billingAddress:', fullLeadData.billingAddress);
+            console.log('  - hasShippingAddress:', fullLeadData.hasShippingAddress);
+            console.log('  - shippingAddress:', fullLeadData.shippingAddress);
+            console.log('  - sameAsBilling:', fullLeadData.sameAsBilling);
+
             if (fullLeadData.hasBillingAddress && fullLeadData.billingAddress) {
               try {
                 console.log('🏠 Creating billing address from lead data');
+                console.log('  - Billing address object:', fullLeadData.billingAddress);
+                
+                // Ensure we have required fields
+                const billingAddr = fullLeadData.billingAddress;
+                if (!billingAddr.street || !billingAddr.city || !billingAddr.region || !billingAddr.country) {
+                  console.warn('⚠️ Missing required billing address fields. Using defaults where possible.');
+                  console.warn('  - Street:', billingAddr.street || 'MISSING');
+                  console.warn('  - City:', billingAddr.city || 'MISSING');
+                  console.warn('  - Region:', billingAddr.region || 'MISSING');
+                  console.warn('  - Country:', billingAddr.country || 'MISSING');
+                }
+                
                 const billingAddressResponse = await fetch('/api/addresses', {
                   method: 'POST',
                   credentials: 'include',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    accountId: accountData.id,
-                    label: 'Billing Address',
+                    body: JSON.stringify({
+                      accountId: accountId,
+                      label: 'Billing Address',
                     type: 'BILLING',
-                    street: fullLeadData.billingAddress.street || '',
-                    city: fullLeadData.billingAddress.city || '',
-                    region: fullLeadData.billingAddress.region || '',
-                    country: fullLeadData.billingAddress.country || '',
-                    postalCode: fullLeadData.billingAddress.postalCode || '',
+                    street: billingAddr.street || 'Not specified',
+                    city: billingAddr.city || 'Not specified',
+                    region: billingAddr.region || 'Not specified',
+                    country: billingAddr.country || 'Not specified',
+                    postalCode: billingAddr.postalCode || '',
+                    contactPerson: billingAddr.contactPerson || '',
+                    phone: billingAddr.phone || '',
                     isDefault: true,
                   }),
                 });
 
                 if (billingAddressResponse.ok) {
-                  console.log('✅ Billing address created successfully');
+                  const billingAddressData = await billingAddressResponse.json();
+                  console.log('✅ Billing address created successfully:', billingAddressData.address?.id);
                 } else {
-                  console.error('❌ Failed to create billing address');
+                  const errorData = await billingAddressResponse.json().catch(() => ({}));
+                  console.error('❌ Failed to create billing address:', errorData);
                 }
               } catch (addressError) {
                 console.error('Error creating billing address:', addressError);
@@ -851,31 +1400,48 @@ AdPools System`,
                   addressData = fullLeadData.shippingAddress;
                   console.log('📦 Using dedicated shipping address data');
                 } else {
-                  console.log('⚠️ No shipping address data available');
-                  return;
+                  console.log('⚠️ No shipping address data available - skipping shipping address creation');
+                  // Don't return here - just skip creating shipping address
                 }
 
-                const shippingAddressResponse = await fetch('/api/addresses', {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    accountId: accountData.id,
-                    label: 'Shipping Address',
-                    type: 'SHIPPING',
-                    street: addressData.street || '',
-                    city: addressData.city || '',
-                    region: addressData.region || '',
-                    country: addressData.country || '',
-                    postalCode: addressData.postalCode || '',
-                    isDefault: !fullLeadData.hasBillingAddress, // Default if no billing address
-                  }),
-                });
+                // Only create shipping address if we have addressData
+                if (addressData) {
+                  console.log('  - Shipping address object:', addressData);
+                  
+                  // Ensure we have required fields
+                  if (!addressData.street || !addressData.city || !addressData.region || !addressData.country) {
+                    console.warn('⚠️ Missing required shipping address fields. Using defaults where possible.');
+                    console.warn('  - Street:', addressData.street || 'MISSING');
+                    console.warn('  - City:', addressData.city || 'MISSING');
+                    console.warn('  - Region:', addressData.region || 'MISSING');
+                    console.warn('  - Country:', addressData.country || 'MISSING');
+                  }
+                  
+                  const shippingAddressResponse = await fetch('/api/addresses', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        accountId: accountId,
+                        label: 'Shipping Address',
+                      type: 'SHIPPING',
+                      street: addressData.street || 'Not specified',
+                      city: addressData.city || 'Not specified',
+                      region: addressData.region || 'Not specified',
+                      country: addressData.country || 'Not specified',
+                      postalCode: addressData.postalCode || '',
+                      contactPerson: addressData.contactPerson || '',
+                      phone: addressData.phone || '',
+                      isDefault: !fullLeadData.hasBillingAddress, // Default if no billing address
+                    }),
+                  });
 
-                if (shippingAddressResponse.ok) {
-                  console.log('✅ Shipping address created successfully');
-                } else {
-                  console.error('❌ Failed to create shipping address');
+                  if (shippingAddressResponse.ok) {
+                    console.log('✅ Shipping address created successfully');
+                  } else {
+                    const errorData = await shippingAddressResponse.json().catch(() => ({}));
+                    console.error('❌ Failed to create shipping address:', errorData);
+                  }
                 }
               } catch (addressError) {
                 console.error('Error creating shipping address:', addressError);
@@ -888,7 +1454,7 @@ AdPools System`,
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                accountId: accountData.id,
+                accountId: accountId,
                 firstName: leadData?.name.split(' ')[0] || '',
                 lastName: leadData?.name.split(' ').slice(1).join(' ') || '',
                 email: leadData?.email || '',
@@ -906,13 +1472,13 @@ AdPools System`,
             const contactData = await contactResponse.json();
 
             // Update the quotation to reference the new account instead of the lead
-            console.log('🔍 Updating quotation with accountId:', accountData.id);
+            console.log('🔍 Updating quotation with accountId:', accountId);
             const updateResponse = await fetch(`/api/quotations/${data.id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 subject: subject, // Required field
-                accountId: accountData.id,
+                accountId: accountId,
                 leadId: null, // Remove lead reference
               }),
             });
@@ -1009,6 +1575,7 @@ AdPools System`,
               variant="outline"
               onClick={() => handleSave(false)}
               disabled={isSaving}
+              className="border-gray-300 hover:bg-gray-50"
             >
               <Save className="h-4 w-4 mr-2" />
               Save Draft
@@ -1016,7 +1583,8 @@ AdPools System`,
             <Button
               onClick={() => handleSave(true)}
               disabled={isSaving}
-              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+              className="text-white hover:opacity-90 transition-opacity border-0 !bg-transparent"
+              style={{ backgroundColor: themeColor || '#dc2626', color: '#ffffff' }}
             >
               {isSaving ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
@@ -1042,6 +1610,44 @@ AdPools System`,
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Currency and Price List selectors */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Currency</Label>
+                    <select
+                      value={quoteCurrency}
+                      onChange={(e) => setQuoteCurrency(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="GHS">GHS - Ghana Cedi</option>
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="EUR">EUR - Euro</option>
+                      <option value="GBP">GBP - British Pound</option>
+                      <option value="NGN">NGN - Nigerian Naira</option>
+                      <option value="KES">KES - Kenyan Shilling</option>
+                      <option value="ZAR">ZAR - South African Rand</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Price List</Label>
+                    <select
+                      value={selectedPriceListId}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setSelectedPriceListId(newValue);
+                        selectedPriceListIdRef.current = newValue;
+                        // Track if user explicitly selected "Base Price"
+                        userSelectedBasePriceRef.current = (newValue === '');
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Base Price (Product Price)</option>
+                      {priceLists.map((pl) => (
+                        <option key={pl.id} value={pl.id}>{pl.name} ({pl.currency})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <CustomerSearch
                   value={customerId}
                   onChange={(id, customer) => {
@@ -1377,9 +1983,11 @@ AdPools System`,
                                 <div className="text-xs text-gray-500">{product.sku}</div>
                                 </div>
                               </div>
-                              <div className="text-sm font-medium text-gray-900">
-                                GH₵{product.price?.toLocaleString() || '0'}
-                              </div>
+                              <ProductPriceDisplay 
+                                product={product}
+                                targetCurrency={quoteCurrency}
+                                currencySymbol={currencySymbol}
+                              />
                             </div>
                           </button>
                         ))
@@ -1454,14 +2062,11 @@ AdPools System`,
                           <div>
                             <Label className="text-xs">Total</Label>
                             <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm font-medium text-gray-900">
-                              GH₵{(() => {
+                              {currencySymbol(quoteCurrency)}{(() => {
+                                // AMOUNT column should always show base amount (quantity × unit price × (1 - discount))
+                                // Taxes are shown separately in the totals section below
                                 const baseAmount = line.quantity * line.unitPrice * (1 - line.discount / 100);
-                                if (taxInclusive) {
-                                  const totalTaxAmount = line.taxes.reduce((sum, tax) => sum + tax.amount, 0);
-                                  return (baseAmount + totalTaxAmount).toFixed(2);
-                                } else {
-                                  return baseAmount.toFixed(2);
-                                }
+                                return baseAmount.toFixed(2);
                               })()}
                             </div>
                           </div>
@@ -1530,6 +2135,46 @@ AdPools System`,
                     <div className="text-sm text-gray-600 mt-2">
                       <div>{selectedCustomer?.email || ''}</div>
                       <div>{selectedCustomer?.phone || ''}</div>
+                      {(() => {
+                        // Get billing address from selected address or customer address
+                        let billingAddress = null;
+                        
+                        // For accounts: use selected billing address
+                        if (selectedBillingAddressId) {
+                          const selectedAddr = addresses.find(a => a.id === selectedBillingAddressId);
+                          if (selectedAddr) {
+                            billingAddress = [
+                              selectedAddr.street,
+                              selectedAddr.city,
+                              selectedAddr.region,
+                              selectedAddr.country,
+                              selectedAddr.postalCode
+                            ].filter(Boolean).join(', ');
+                          }
+                        } 
+                        // For leads: use billing address from lead
+                        else if (leadBillingAddress) {
+                          if (typeof leadBillingAddress === 'string') {
+                            billingAddress = leadBillingAddress;
+                          } else if (typeof leadBillingAddress === 'object') {
+                            billingAddress = [
+                              leadBillingAddress.street,
+                              leadBillingAddress.city,
+                              leadBillingAddress.region,
+                              leadBillingAddress.country,
+                              leadBillingAddress.postalCode
+                            ].filter(Boolean).join(', ');
+                          }
+                        }
+                        // Fallback: use customer address if available
+                        else if (selectedCustomer?.address) {
+                          billingAddress = selectedCustomer.address;
+                        }
+                        
+                        return billingAddress ? (
+                          <div className="mt-1">{billingAddress}</div>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1580,7 +2225,7 @@ AdPools System`,
                               </div>
                             </div>
                             <div className="col-span-1 text-gray-600">{line.quantity}</div>
-                            <div className="col-span-2 text-gray-600">GH₵{line.unitPrice.toFixed(2)}</div>
+                            <div className="col-span-2 text-gray-600">{currencySymbol(quoteCurrency)}{line.unitPrice.toFixed(2)}</div>
                             {lines.some(l => l.discount > 0) && (
                               <div className="col-span-2">
                                 {line.discount > 0 ? (
@@ -1590,7 +2235,12 @@ AdPools System`,
                                 )}
                               </div>
                             )}
-                            <div className="col-span-2 font-medium text-gray-900">GH₵{line.lineTotal.toFixed(2)}</div>
+                            <div className="col-span-2 font-medium text-gray-900">{currencySymbol(quoteCurrency)}{(() => {
+                              // AMOUNT column should always show base amount (quantity × unit price × (1 - discount))
+                              // Taxes are shown separately in the totals section below
+                              const baseAmount = line.quantity * line.unitPrice * (1 - line.discount / 100);
+                              return baseAmount.toFixed(2);
+                            })()}</div>
                           </div>
                         ))}
                       </div>
@@ -1603,14 +2253,14 @@ AdPools System`,
                   {!taxInclusive && (
                     <div className="flex justify-between items-center py-1">
                       <span className="text-gray-600">Subtotal:</span>
-                      <span className="font-medium">GH₵{totals.subtotal.toFixed(2)}</span>
+                      <span className="font-medium">{currencySymbol(quoteCurrency)}{totals.subtotal.toFixed(2)}</span>
                     </div>
                   )}
                   
                   {totals.totalDiscount > 0 && (
                     <div className="flex justify-between items-center py-1">
                       <span className="text-gray-600">Discount:</span>
-                      <span className="font-medium text-green-600">-GH₵{totals.totalDiscount.toFixed(2)}</span>
+                      <span className="font-medium text-green-600">-{currencySymbol(quoteCurrency)}{totals.totalDiscount.toFixed(2)}</span>
                     </div>
                   )}
                   
@@ -1620,14 +2270,14 @@ AdPools System`,
                     return (
                       <div key={taxId} className="flex justify-between items-center py-1">
                         <span className="text-gray-600">{tax?.name || 'Tax'} ({tax?.rate}%):</span>
-                        <span className="font-medium">GH₵{amount.toFixed(2)}</span>
+                        <span className="font-medium">{currencySymbol(quoteCurrency)}{amount.toFixed(2)}</span>
                       </div>
                     );
                   })}
                   
                   <div className="flex justify-between items-center py-1 text-base font-bold border-t">
                     <span>{taxInclusive ? 'Total (Tax Inclusive):' : 'Total:'}</span>
-                    <span className={`text-${theme.primary}`}>GH₵{totals.total.toFixed(2)}</span>
+                    <span className={`text-${theme.primary}`}>{currencySymbol(quoteCurrency)}{totals.total.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -1646,4 +2296,5 @@ AdPools System`,
     </>
   );
 }
+
 

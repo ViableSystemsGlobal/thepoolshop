@@ -50,6 +50,7 @@ interface Quotation {
   total: number;
   subtotal: number;
   tax: number;
+  currency?: string;
   taxInclusive?: boolean;
   notes?: string;
   validUntil: string;
@@ -109,7 +110,7 @@ export default function QuotationsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { success, error: showError } = useToast();
-  const { getThemeClasses, customLogo } = useTheme();
+  const { getThemeClasses, getThemeColor, customLogo } = useTheme();
   const theme = getThemeClasses();
   
   const [quotations, setQuotations] = useState<Quotation[]>([]);
@@ -302,42 +303,41 @@ export default function QuotationsPage() {
 
   const handleConvertToInvoice = async (quotation: Quotation) => {
     try {
-      const response = await fetch('/api/invoices', {
+      const response = await fetch(`/api/quotations/${quotation.id}/convert-to-invoice`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          subject: quotation.subject,
-          quotationId: quotation.id,
-          accountId: quotation.account?.id || null,
-          distributorId: quotation.distributor?.id || null,
-          leadId: quotation.lead?.id || null,
-          customerType: quotation.customerType || 'STANDARD',
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-          paymentTerms: 'Net 30',
-          notes: quotation.notes,
-          taxInclusive: quotation.taxInclusive || false,
-          lines: quotation.lines?.map(line => ({
-            productId: line.productId,
-            productName: line.productName,
-            sku: line.sku,
-            quantity: line.quantity,
-            unitPrice: line.unitPrice,
-            discount: line.discount,
-            taxes: line.taxes || [],
-          })) || [],
-        }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        success(`Quotation ${quotation.number} converted to invoice ${data.invoice.number} successfully!`);
-        // Optionally redirect to the new invoice
-        router.push(`/invoices/${data.invoice.id}`);
-      } else {
+      if (!response.ok) {
         const errorData = await response.json();
+        
+        // If invoice already exists, show a confirmation modal to navigate to it
+        if (response.status === 409 && errorData.invoiceId) {
+          const invoiceId = errorData.invoiceId;
+          const invoiceNumber = errorData.invoiceNumber;
+          
+          if (window.confirm(
+            `This quotation has already been converted to Invoice ${invoiceNumber}.\n\n` +
+            `Would you like to view the invoice now?`
+          )) {
+            router.push(`/invoices/${invoiceId}`);
+          }
+          return;
+        }
+        
         showError(errorData.error || "Failed to convert quotation to invoice");
+        return;
+      }
+
+      const result = await response.json();
+      
+      success(`Quotation ${quotation.number} converted to invoice successfully!`);
+      
+      // Optionally redirect to the new invoice
+      if (result.invoice?.id) {
+        router.push(`/invoices/${result.invoice.id}`);
       }
     } catch (error) {
       console.error('Error converting to invoice:', error);
@@ -402,7 +402,14 @@ export default function QuotationsPage() {
     );
   };
 
-  const handleDownload = async (quotation: Quotation) => {
+  const handleDownload = async (e: React.MouseEvent, quotation: Quotation) => {
+    // Prevent any event propagation that might trigger other handlers
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Add a small delay to ensure any pending form submissions complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     await downloadQuotationAsPDF(quotation as any, customLogo || undefined, showError, success);
   };
 
@@ -523,6 +530,35 @@ export default function QuotationsPage() {
   // Since we're using backend pagination and filtering, we don't need client-side filtering
   const filteredQuotations = quotations;
 
+  // Simple helper to convert currency to GHS (using approximate rate)
+  const convertToGHS = (amount: number, currency: string = 'GHS'): number => {
+    if (currency === 'GHS') return amount;
+    // Simple conversion rates - keeping it simple as requested
+    const rates: { [key: string]: number } = {
+      'USD': 12.5,
+      'EUR': 13.8,
+      'GBP': 15.8,
+      'NGN': 0.015,
+      'KES': 0.09,
+      'ZAR': 0.67
+    };
+    return amount * (rates[currency] || 1);
+  };
+
+  // Simple helper to get currency symbol
+  const getCurrencySymbol = (code: string): string => {
+    const symbols: { [key: string]: string } = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'NGN': '₦',
+      'KES': 'KSh',
+      'ZAR': 'R',
+      'GHS': 'GH₵'
+    };
+    return symbols[code] || code + ' ';
+  };
+
   const stats = {
     total: allQuotations.length,
     draft: allQuotations.filter(q => q.status === 'DRAFT').length,
@@ -543,7 +579,10 @@ export default function QuotationsPage() {
             <p className="text-gray-600">Create and manage sales quotations</p>
           </div>
           <Link href="/quotations/create">
-            <Button className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}>
+            <Button 
+              className="text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: getThemeColor() }}
+            >
               <Plus className="h-4 w-4 mr-2" />
               New Quotation
             </Button>
@@ -557,30 +596,11 @@ export default function QuotationsPage() {
             <AIRecommendationCard
               title="Quotation Management AI"
               subtitle="Your intelligent assistant for sales optimization"
-              recommendations={[
-                {
-                  id: '1',
-                  title: 'Quick Response',
-                  description: `${stats.sent} quotes awaiting customer response - follow up within 48 hours`,
-                  priority: 'high',
-                  completed: false
-                },
-                {
-                  id: '2',
-                  title: 'Convert to Invoice',
-                  description: `${stats.accepted} accepted quotes ready to convert to invoices`,
-                  priority: 'high',
-                  completed: false
-                },
-                {
-                  id: '3',
-                  title: 'Pipeline Value',
-                  description: `Total pipeline value: GH₵${stats.totalValue.toLocaleString()} - maintain momentum`,
-                  priority: 'medium',
-                  completed: false
-                }
-              ]}
-              onRecommendationComplete={(id) => console.log('Completed:', id)}
+              onRecommendationComplete={(id) => {
+                console.log('Recommendation completed:', id);
+              }}
+              page="quotations"
+              enableAI={true}
             />
           </div>
 
@@ -630,6 +650,7 @@ export default function QuotationsPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Value</p>
                   <p className={`text-2xl font-bold text-${theme.primary}`}>GH₵{stats.totalValue.toLocaleString()}</p>
+                  {/* Note: Total value shows in GHS for aggregation - individual quotations show their own currency */}
                 </div>
                 <FileText className={`h-8 w-8 text-${theme.primary}`} />
               </div>
@@ -788,7 +809,11 @@ export default function QuotationsPage() {
                             : "No quotations yet"}
                         </p>
                         <Link href="/quotations/create">
-                          <Button size="sm" className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}>
+                          <Button 
+                            size="sm" 
+                            className="text-white hover:opacity-90 transition-opacity"
+                            style={{ backgroundColor: getThemeColor() }}
+                          >
                             <Plus className="h-4 w-4 mr-2" />
                             Create First Quotation
                           </Button>
@@ -837,14 +862,32 @@ export default function QuotationsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            GH₵{quotation.total.toLocaleString()}
+                          <div className="flex flex-col">
+                            <div className="text-sm font-medium text-gray-900">
+                              GH₵{convertToGHS(quotation.total, quotation.currency).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            {quotation.currency && quotation.currency !== 'GHS' && (
+                              <div className="text-xs text-gray-500">
+                                {getCurrencySymbol(quotation.currency)}{quotation.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center text-sm text-gray-500">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {new Date(quotation.validUntil).toLocaleDateString()}
+                            {quotation.validUntil ? (() => {
+                              try {
+                                const date = new Date(quotation.validUntil);
+                                // Check if date is valid
+                                if (isNaN(date.getTime())) {
+                                  return 'No expiry';
+                                }
+                                return date.toLocaleDateString();
+                              } catch (e) {
+                                return 'No expiry';
+                              }
+                            })() : 'No expiry'}
                           </div>
                         </td>
                         <td 
@@ -903,7 +946,7 @@ export default function QuotationsPage() {
                             <Button 
                               size="sm" 
                               variant="ghost"
-                              onClick={() => handleDownload(quotation)}
+                              onClick={(e) => handleDownload(e, quotation)}
                               title="Download as PDF"
                             >
                               <Download className="h-4 w-4" />
@@ -978,7 +1021,8 @@ export default function QuotationsPage() {
                         variant={currentPage === pageNum ? "default" : "outline"}
                         size="sm"
                         onClick={() => loadQuotations(pageNum)}
-                        className={currentPage === pageNum ? `bg-${theme.primary} hover:bg-${theme.primaryDark} text-white border-0` : ''}
+                        className={currentPage === pageNum ? 'text-white border-0 hover:opacity-90 transition-opacity' : ''}
+                        style={currentPage === pageNum ? { backgroundColor: getThemeColor() } : {}}
                       >
                         {pageNum}
                       </Button>

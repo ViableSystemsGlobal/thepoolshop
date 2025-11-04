@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
         subtotal: true,
         tax: true,
         taxInclusive: true,
+        currency: true,
         notes: true,
         validUntil: true,
         qrCodeData: true,
@@ -100,23 +101,21 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔍 Quotations API - Starting POST request');
     
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // console.log('🔍 Session:', session ? 'Found' : 'Not found');
+    const session = await getServerSession(authOptions);
+    console.log('🔍 Session:', session ? 'Found' : 'Not found');
     
-    // if (!session?.user) {
-    //   console.log('❌ No session or user found');
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    if (!session?.user) {
+      console.log('❌ No session or user found');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // const userId = (session.user as any).id;
-    const userId = 'cmgxgoy9w00008z2z4ajxyw47'; // Hardcoded for testing
+    const userId = (session.user as any).id;
     console.log('🔍 User ID:', userId);
     
-    // if (!userId) {
-    //   console.log('❌ No user ID found');
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    if (!userId) {
+      console.log('❌ No user ID found');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const body = await request.json();
     console.log('🔍 Request body:', JSON.stringify(body, null, 2));
@@ -130,12 +129,15 @@ export async function POST(request: NextRequest) {
       leadId,
       customerType,
       billingAddressId,
+      billingAddressSnapshot,
       shippingAddressId,
+      shippingAddressSnapshot,
       lines = [],
       taxInclusive = false,
+      currency,
     } = body;
 
-    console.log('🔍 Parsed data:', { subject, accountId, distributorId, customerType, linesCount: lines.length });
+    console.log('🔍 Parsed data:', { subject, accountId, distributorId, customerType, linesCount: lines.length, validUntil });
 
     if (!subject || (!accountId && !distributorId && !leadId)) {
       console.log('❌ Validation failed: Missing subject or customer');
@@ -252,8 +254,16 @@ export async function POST(request: NextRequest) {
       data: {
         number,
         subject,
-        validUntil: validUntil ? new Date(validUntil) : null,
+        validUntil: validUntil && validUntil.trim() ? (() => {
+          // Parse date string (YYYY-MM-DD) and create date at midnight in local timezone
+          const dateStr = validUntil.trim();
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const date = new Date(year, month - 1, day);
+          console.log('📅 Parsing validUntil:', { dateStr, parsedDate: date.toISOString() });
+          return date;
+        })() : null,
         notes,
+        currency: currency || 'GHS',
         subtotal,
         tax: totalTax,
         total: subtotal + totalTax,
@@ -263,7 +273,9 @@ export async function POST(request: NextRequest) {
         leadId: leadId || null,
         customerType: customerType || 'STANDARD',
         billingAddressId: billingAddressId || null,
+        billingAddressSnapshot: billingAddressSnapshot || null,
         shippingAddressId: shippingAddressId || null,
+        shippingAddressSnapshot: shippingAddressSnapshot || null,
         ownerId: userId,
         lines: {
           create: processedLines.map((line: any) => ({
@@ -295,47 +307,75 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update lead and create opportunity if this is for a lead with an account
-    if (leadId && accountId) {
-      // Update lead status to CONVERTED_TO_OPPORTUNITY
-      await prisma.lead.update({
-        where: { id: leadId },
-        data: {
-          status: 'CONVERTED_TO_OPPORTUNITY',
-          dealValue: subtotal + totalTax,
-          probability: 25, // Default probability when quote is sent
-        },
-      });
-
-      // Create an Opportunity
-      const lead = await prisma.lead.findUnique({
-        where: { id: leadId },
-        select: { firstName: true, lastName: true, company: true },
-      });
-
-      const opportunityName = lead?.company || `${lead?.firstName} ${lead?.lastName}` || 'Untitled Opportunity';
-
-      const opportunity = await prisma.opportunity.create({
-        data: {
-          name: opportunityName,
-          stage: 'QUOTE_SENT',
-          value: subtotal + totalTax,
-          probability: 25,
+    // Create opportunity if this is for an account (with or without lead)
+    if (accountId) {
+      // Check if opportunity already exists for this account and quotation
+      let opportunity = await prisma.opportunity.findFirst({
+        where: {
           accountId: accountId,
-          leadId: leadId,
-          ownerId: userId,
-        },
+          quotations: {
+            some: {
+              id: quotation.id
+            }
+          }
+        }
       });
 
-      console.log('✅ Created opportunity from lead:', opportunity.id);
+      // If no opportunity exists, create one
+      if (!opportunity) {
+        // Get account details for opportunity name
+        const account = await prisma.account.findUnique({
+          where: { id: accountId },
+          select: { name: true }
+        });
 
-      // Link the quotation to the opportunity
-      await prisma.quotation.update({
-        where: { id: quotation.id },
-        data: { opportunityId: opportunity.id },
-      });
+        let opportunityName = account?.name || subject || 'Untitled Opportunity';
+
+        // If there's a lead, use lead details for name and update lead status
+        if (leadId) {
+          const lead = await prisma.lead.findUnique({
+            where: { id: leadId },
+            select: { firstName: true, lastName: true, company: true, assignedTo: true },
+          });
+
+          opportunityName = lead?.company || `${lead?.firstName} ${lead?.lastName}` || opportunityName;
+
+          // Update lead status to CONVERTED_TO_OPPORTUNITY, preserving assignedTo
+          await prisma.lead.update({
+            where: { id: leadId },
+            data: {
+              status: 'CONVERTED_TO_OPPORTUNITY',
+              dealValue: subtotal + totalTax,
+              probability: 25, // Default probability when quote is sent
+              assignedTo: lead?.assignedTo || undefined, // Preserve assignedTo field
+            },
+          });
+        }
+
+        opportunity = await prisma.opportunity.create({
+          data: {
+            name: opportunityName,
+            stage: 'QUOTE_SENT',
+            value: subtotal + totalTax,
+            probability: 25,
+            accountId: accountId,
+            leadId: leadId || null,
+            ownerId: userId,
+          },
+        });
+
+        console.log('✅ Created opportunity from quotation:', opportunity.id);
+      }
+
+      // Link the quotation to the opportunity (if not already linked)
+      if (quotation.id && (!(quotation as any).opportunityId || (quotation as any).opportunityId !== opportunity.id)) {
+        await prisma.quotation.update({
+          where: { id: quotation.id },
+          data: { opportunityId: opportunity.id },
+        });
+      }
     } else if (leadId) {
-      // If no account yet, just update lead status and values
+      // If only leadId (no account), just update lead status and values
       await prisma.lead.update({
         where: { id: leadId },
         data: {

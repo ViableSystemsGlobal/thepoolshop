@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './button';
+import { useTheme } from '@/contexts/theme-context';
 
 interface DataTableProps<T = Record<string, unknown>> {
   data: T[];
@@ -43,6 +44,9 @@ export function DataTable<T extends { id?: string }>({
   totalItems: serverTotalItems,
   onPageChange
 }: DataTableProps<T>) {
+  const { getThemeColor } = useTheme();
+  const themeColor = getThemeColor() || '#dc2626'; // Fallback to red if not set
+  
   // Use server-side pagination if provided, otherwise use client-side
   const isServerSidePagination = serverCurrentPage !== undefined && serverTotalPages !== undefined;
   
@@ -63,6 +67,14 @@ export function DataTable<T extends { id?: string }>({
       return data.slice(startIndex, endIndex);
     }
   }, [data, currentPage, itemsPerPage, isServerSidePagination]);
+
+  const shouldIgnoreRowClick = (event: React.MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    if (!target) return false;
+    // Ignore clicks on interactive elements
+    const interactive = target.closest('button, a, input, select, textarea, [role="menu"], [role="menuitem"], [role="checkbox"], [data-stop-row-click]');
+    return Boolean(interactive);
+  };
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -191,10 +203,10 @@ export function DataTable<T extends { id?: string }>({
                 <tr 
                   key={item.id || index} 
                   className={`${finalClassName} ${onRowClick ? 'cursor-pointer' : ''}`}
-                  onClick={onRowClick ? () => onRowClick(item) : undefined}
+                  onClick={onRowClick ? (e) => { if (!shouldIgnoreRowClick(e)) { onRowClick(item); } } : undefined}
                 >
                 {enableSelection && (
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={item.id ? selectedItems.includes(item.id) : false}
@@ -258,7 +270,14 @@ export function DataTable<T extends { id?: string }>({
                     variant={currentPage === page ? "default" : "outline"}
                     size="sm"
                     onClick={() => goToPage(page)}
-                    className="w-8 h-8 p-0"
+                    className={`w-8 h-8 p-0 ${currentPage === page ? 'text-white border-0 hover:opacity-90' : ''}`}
+                    style={currentPage === page ? { backgroundColor: themeColor } : undefined}
+                    onMouseEnter={currentPage === page ? undefined : (e) => {
+                      e.currentTarget.style.opacity = '0.9';
+                    }}
+                    onMouseLeave={currentPage === page ? undefined : (e) => {
+                      e.currentTarget.style.opacity = '1';
+                    }}
                   >
                     {page}
                   </Button>

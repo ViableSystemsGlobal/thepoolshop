@@ -29,7 +29,6 @@ import Link from "next/link";
 import { AddPaymentModal } from "@/components/modals/add-payment-modal";
 import { CreditNoteModal } from "@/components/modals/credit-note-modal";
 import { Package, FileDown, Eye, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
 
 // Helper function to parse product images
 const parseProductImages = (images: string | null | undefined): string[] => {
@@ -99,6 +98,7 @@ interface Invoice {
   notes?: string;
   paymentTerms?: string;
   qrCodeData?: string;
+  currency?: string;
   accountId?: string;
   account?: {
     id: string;
@@ -151,6 +151,27 @@ interface Invoice {
       notes?: string;
     }>;
   }>;
+  payments?: Array<{
+    id: string;
+    amount: number;
+    notes?: string;
+    createdAt: string;
+    payment: {
+      id: string;
+      number: string;
+      amount: number;
+      method: string;
+      reference?: string;
+      receivedAt: string;
+      receiptUrl?: string;
+      notes?: string;
+      receiver?: {
+        id: string;
+        name: string;
+        email: string;
+      };
+    };
+  }>;
 }
 
 export default function ViewInvoicePage() {
@@ -165,25 +186,27 @@ export default function ViewInvoicePage() {
   const [activeTab, setActiveTab] = useState('invoice');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
-  const [currency, setCurrency] = useState('GHS');
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [sendingReceiptReminder, setSendingReceiptReminder] = useState(false);
 
   useEffect(() => {
     if (params.id) {
       loadInvoice();
-      fetchCurrencySettings();
     }
   }, [params.id]);
 
-  const fetchCurrencySettings = async () => {
-    try {
-      const response = await fetch('/api/settings/currency');
-      if (response.ok) {
-        const data = await response.json();
-        setCurrency(data.baseCurrency || 'GHS');
-      }
-    } catch (err) {
-      console.error('Error fetching currency settings:', err);
-    }
+  // Helper function to get currency symbol
+  const getCurrencySymbol = (code: string = 'GHS'): string => {
+    const symbols: { [key: string]: string } = {
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'NGN': '₦',
+      'KES': 'KSh',
+      'ZAR': 'R',
+      'GHS': 'GH₵'
+    };
+    return symbols[code] || code + ' ';
   };
 
   const loadInvoice = async () => {
@@ -307,6 +330,102 @@ export default function ViewInvoicePage() {
       default:
         return <Clock className="h-4 w-4" />;
     }
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setDeletingPaymentId(paymentId);
+      const response = await fetch(`/api/payments/${paymentId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        success('Payment deleted successfully');
+        loadInvoice(); // Reload invoice to update payment status
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to delete payment');
+      }
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      showError('Failed to delete payment');
+    } finally {
+      setDeletingPaymentId(null);
+    }
+  };
+
+  const handleReceiptReminder = async () => {
+    if (!invoice) return;
+
+    // Check if there are payments
+    const payments = invoice.payments || [];
+    if (payments.length === 0) {
+      showError('No payments found on this invoice');
+      return;
+    }
+
+    // Get customer contact info
+    const customerEmail = invoice.account?.email || invoice.distributor?.email || invoice.lead?.email;
+    const customerPhone = invoice.account?.phone || invoice.distributor?.phone || invoice.lead?.phone;
+    const customerName = invoice.account?.name || 
+                         invoice.distributor?.businessName || 
+                         (invoice.lead ? `${invoice.lead.firstName} ${invoice.lead.lastName}`.trim() : '') ||
+                         'Valued Customer';
+
+    if (!customerEmail && !customerPhone) {
+      showError('No email or phone number found for customer');
+      return;
+    }
+
+    try {
+      setSendingReceiptReminder(true);
+
+      const response = await fetch('/api/invoices/receipt-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          customerEmail,
+          customerPhone,
+          customerName,
+          invoiceNumber: invoice.number,
+          invoiceTotal: invoice.total,
+          amountPaid: invoice.amountPaid,
+          amountDue: invoice.amountDue,
+          currency: invoice.currency || 'GHS'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        success(data.message || 'Receipt reminder sent successfully');
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to send receipt reminder');
+      }
+    } catch (error) {
+      console.error('Error sending receipt reminder:', error);
+      showError('Failed to send receipt reminder');
+    } finally {
+      setSendingReceiptReminder(false);
+    }
+  };
+
+  const getPaymentMethodLabel = (method: string) => {
+    const methods: Record<string, string> = {
+      'CASH': 'Cash',
+      'BANK_TRANSFER': 'Bank Transfer',
+      'MOBILE_MONEY': 'Mobile Money',
+      'CHECK': 'Check',
+      'CARD': 'Card',
+      'OTHER': 'Other'
+    };
+    return methods[method] || method;
   };
 
   const REASON_LABELS: Record<string, string> = {
@@ -496,9 +615,14 @@ export default function ViewInvoicePage() {
               <CreditCard className="h-4 w-4 mr-2" />
               Create Credit Note
             </Button>
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleReceiptReminder}
+              disabled={sendingReceiptReminder || !invoice || (invoice.payments?.length || 0) === 0}
+            >
               <Receipt className="h-4 w-4 mr-2" />
-              Receipt Reminder
+              {sendingReceiptReminder ? 'Sending...' : 'Receipt Reminder'}
             </Button>
             <button 
               className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity"
@@ -580,6 +704,14 @@ export default function ViewInvoicePage() {
                           src={invoice.qrCodeData} 
                           alt="QR Code" 
                           className="w-full h-full object-contain"
+                          onError={(e) => {
+                            // If image fails to load, show placeholder
+                            e.currentTarget.style.display = 'none';
+                            const parent = e.currentTarget.parentElement;
+                            if (parent) {
+                              parent.innerHTML = '<div class="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center mx-auto"><svg class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg></div>';
+                            }
+                          }}
                         />
                 </div>
                     ) : (
@@ -599,7 +731,7 @@ export default function ViewInvoicePage() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="bg-blue-600">
+                      <tr style={{ backgroundColor: getThemeColor() || '#2563eb' }}>
                         <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">#</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ITEM TYPE</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ITEM</th>
@@ -623,35 +755,210 @@ export default function ViewInvoicePage() {
                             </div>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{line.quantity}</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">GH₵{line.unitPrice.toFixed(2)}</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">GH₵{line.discount.toFixed(2)}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{getCurrencySymbol(invoice.currency)}{line.unitPrice.toFixed(2)}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{getCurrencySymbol(invoice.currency)}{line.discount.toFixed(2)}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                            VAT (15%) GH₵{((line.lineTotal - line.discount) * 0.15).toFixed(2)}
+                            VAT (15%) {getCurrencySymbol(invoice.currency)}{((line.lineTotal - line.discount) * 0.15).toFixed(2)}
                           </td>
                           <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
                             {line.productName} - Professional service delivery
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            GH₵{line.lineTotal.toFixed(2)}
+                            {getCurrencySymbol(invoice.currency)}{line.lineTotal.toFixed(2)}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                
+                {/* Breakdown and Total Section */}
+                <div className="mt-6 flex justify-end">
+                  <div className="w-full max-w-md space-y-2">
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Subtotal:</span>
+                      <span className="font-medium text-gray-900">{getCurrencySymbol(invoice.currency)}{invoice.subtotal.toFixed(2)}</span>
+                    </div>
+                    {invoice.discount > 0 && (
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Discount:</span>
+                        <span className="font-medium text-green-600">-{getCurrencySymbol(invoice.currency)}{invoice.discount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {!invoice.taxInclusive && invoice.tax > 0 && (
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Tax:</span>
+                        <span className="font-medium text-gray-900">{getCurrencySymbol(invoice.currency)}{invoice.tax.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-gray-200 pt-2 mt-2">
+                      <div className="flex justify-between text-lg font-bold text-gray-900">
+                        <span>{invoice.taxInclusive ? 'Total (Tax Inclusive):' : 'Total:'}</span>
+                        <span>{getCurrencySymbol(invoice.currency)}{invoice.total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
+
+            {/* Payments Section */}
+            {invoice.payments && invoice.payments.length > 0 && (
+              <Card>
+                <CardContent className="p-6">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Payments</h2>
+                  <div className="space-y-4">
+                    {invoice.payments.map((paymentAllocation) => (
+                      <div key={paymentAllocation.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <Receipt className="h-5 w-5 text-gray-600" />
+                              <div>
+                                <h3 className="font-medium text-gray-900">{paymentAllocation.payment.number}</h3>
+                                <p className="text-sm text-gray-600">
+                                  {getPaymentMethodLabel(paymentAllocation.payment.method)} • 
+                                  {new Date(paymentAllocation.payment.receivedAt).toLocaleDateString('en-GB', { 
+                                    day: '2-digit', 
+                                    month: '2-digit', 
+                                    year: 'numeric' 
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="ml-8 space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">Amount:</span>
+                                <span className="font-medium text-gray-900">{getCurrencySymbol(invoice.currency)}{paymentAllocation.amount.toFixed(2)}</span>
+                              </div>
+                              {paymentAllocation.payment.reference && (
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Reference:</span>
+                                  <span className="text-gray-900">{paymentAllocation.payment.reference}</span>
+                                </div>
+                              )}
+                              {paymentAllocation.payment.receiver && (
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Received by:</span>
+                                  <span className="text-gray-900">{paymentAllocation.payment.receiver.name}</span>
+                                </div>
+                              )}
+                              {paymentAllocation.notes && (
+                                <div className="text-sm text-gray-600 mt-2">
+                                  <span className="font-medium">Notes:</span> {paymentAllocation.notes}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {paymentAllocation.payment.receiptUrl && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(paymentAllocation.payment.receiptUrl, '_blank')}
+                              >
+                                <FileDown className="h-4 w-4 mr-2" />
+                                View Receipt
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeletePayment(paymentAllocation.payment.id)}
+                              disabled={deletingPaymentId === paymentAllocation.payment.id}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              {deletingPaymentId === paymentAllocation.payment.id ? 'Deleting...' : 'Delete'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
-        {/* Other Tabs Content */}
+        {/* Receipt Summary Tab */}
         {activeTab === 'receipt' && (
-            <Card>
+          <Card>
             <CardContent className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Receipt Summary</h2>
-              <p className="text-gray-600">Receipt information will be displayed here.</p>
-              </CardContent>
-            </Card>
+              {invoice.payments && invoice.payments.length > 0 ? (
+                <div className="space-y-4">
+                  {invoice.payments.map((paymentAllocation) => (
+                    <div key={paymentAllocation.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <Receipt className="h-5 w-5 text-gray-600" />
+                          <div>
+                            <h3 className="font-medium text-gray-900">{paymentAllocation.payment.number}</h3>
+                            <p className="text-sm text-gray-600">
+                              {new Date(paymentAllocation.payment.receivedAt).toLocaleDateString('en-GB', { 
+                                day: '2-digit', 
+                                month: '2-digit', 
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-semibold text-gray-900">
+                            {getCurrencySymbol(invoice.currency)}{paymentAllocation.amount.toFixed(2)}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {getPaymentMethodLabel(paymentAllocation.payment.method)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        {paymentAllocation.payment.reference && (
+                          <div>
+                            <span className="text-gray-600">Reference:</span>
+                            <span className="ml-2 text-gray-900">{paymentAllocation.payment.reference}</span>
+                          </div>
+                        )}
+                        {paymentAllocation.payment.receiver && (
+                          <div>
+                            <span className="text-gray-600">Received by:</span>
+                            <span className="ml-2 text-gray-900">{paymentAllocation.payment.receiver.name}</span>
+                          </div>
+                        )}
+                      </div>
+                      {paymentAllocation.notes && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium">Notes:</span> {paymentAllocation.notes}
+                          </p>
+                        </div>
+                      )}
+                      {paymentAllocation.payment.receiptUrl && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(paymentAllocation.payment.receiptUrl, '_blank')}
+                          >
+                            <FileDown className="h-4 w-4 mr-2" />
+                            Download Receipt
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Receipt className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No payment receipts recorded for this invoice.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {activeTab === 'credit' && (
@@ -693,19 +1000,19 @@ export default function ViewInvoicePage() {
                         <div>
                           <p className="text-sm text-gray-600">Credit Amount</p>
                           <p className="font-medium text-gray-900">
-                            {formatCurrency(creditNote.amount, currency)}
+                            {getCurrencySymbol(invoice.currency)}{creditNote.amount.toFixed(2)}
                           </p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">Applied Amount</p>
                           <p className="font-medium text-green-600">
-                            {formatCurrency(creditNote.appliedAmount, currency)}
+                            {getCurrencySymbol(invoice.currency)}{creditNote.appliedAmount.toFixed(2)}
                           </p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">Remaining Amount</p>
                           <p className="font-medium text-orange-600">
-                            {formatCurrency(creditNote.remainingAmount, currency)}
+                            {getCurrencySymbol(invoice.currency)}{creditNote.remainingAmount.toFixed(2)}
                           </p>
                         </div>
                       </div>
@@ -731,7 +1038,7 @@ export default function ViewInvoicePage() {
                             {creditNote.applications.map((application) => (
                               <div key={application.id} className="flex items-center justify-between text-sm">
                                 <span className="text-gray-600">
-                                  Applied {formatCurrency(application.amount, currency)} on{' '}
+                                  Applied {getCurrencySymbol(invoice.currency)}{application.amount.toFixed(2)} on{' '}
                                   {new Date(application.appliedAt).toLocaleDateString()}
                                 </span>
                                 {application.notes && (
@@ -764,12 +1071,29 @@ export default function ViewInvoicePage() {
         )}
 
         {activeTab === 'attachment' && (
-            <Card>
+          <Card>
             <CardContent className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Attachments</h2>
-              <p className="text-gray-600">Invoice attachments will be displayed here.</p>
-              </CardContent>
-            </Card>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Attachments</h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // TODO: Implement attachment upload modal
+                    showError('Attachment upload feature coming soon');
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Attachment
+                </Button>
+              </div>
+              <div className="text-center py-8">
+                <Paperclip className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No attachments uploaded for this invoice.</p>
+                <p className="text-sm text-gray-500 mt-2">Upload receipts, documents, or other files related to this invoice.</p>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
 

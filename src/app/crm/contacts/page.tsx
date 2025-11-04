@@ -39,7 +39,7 @@ const accountTypeColors = {
 export default function ContactsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { success, error } = useToast();
 
@@ -219,7 +219,8 @@ export default function ContactsPage() {
           </div>
           <Button 
             onClick={() => setShowAddModal(true)}
-            className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+            className="text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: getThemeColor() }}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Contact
@@ -235,6 +236,8 @@ export default function ContactsPage() {
               subtitle="Your intelligent assistant for contact optimization"
               recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
+              page="contacts"
+              enableAI={true}
             />
           </div>
 
@@ -428,7 +431,6 @@ export default function ContactsPage() {
                           className: 'text-red-600',
                         },
                       ]}
-                      align="right"
                     />
                   )
                 }

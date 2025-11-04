@@ -65,7 +65,7 @@ interface PriceList {
 export default function PriceListDetailsPage() {
   const params = useParams();
   const router = useRouter();
-  const { getThemeClasses, customLogo } = useTheme();
+  const { getThemeClasses, getThemeColor, customLogo } = useTheme();
   const theme = getThemeClasses();
   const { currency, changeCurrency } = useCurrency();
   
@@ -386,7 +386,8 @@ export default function PriceListDetailsPage() {
             <Button 
               onClick={handleDownloadPDF}
               disabled={isDownloading}
-              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+              className="text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: getThemeColor() }}
             >
               <Download className="h-4 w-4 mr-2" />
               {isDownloading ? "Generating..." : "Download PDF"}

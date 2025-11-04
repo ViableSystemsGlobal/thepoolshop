@@ -14,7 +14,13 @@ import {
   BarChart3,
   Zap,
   Shield,
-  RefreshCw
+  RefreshCw,
+  Mail,
+  Send,
+  Clock,
+  Plus,
+  X,
+  User
 } from "lucide-react";
 
 interface AISettings {
@@ -30,6 +36,12 @@ interface AISettings {
   enableCharts: boolean;
   enableInsights: boolean;
   enableRecommendations: boolean;
+  businessReportEnabled: boolean;
+  businessReportFrequency: 'daily' | 'weekly' | 'monthly';
+  businessReportRecipients: string;
+  businessReportTime: string;
+  businessReportDay: string;
+  businessReportTimezone: string;
 }
 
 export default function AISettingsPage() {
@@ -51,12 +63,86 @@ export default function AISettingsPage() {
     conversationHistory: 5,
     enableCharts: true,
     enableInsights: true,
-    enableRecommendations: true
+    enableRecommendations: true,
+    businessReportEnabled: false,
+    businessReportFrequency: 'daily',
+    businessReportRecipients: '',
+    businessReportTime: '08:00',
+    businessReportDay: 'monday',
+    businessReportTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
   });
+  const [sendingReport, setSendingReport] = useState(false);
+  const [users, setUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [manualEmail, setManualEmail] = useState('');
+  const [recipientsList, setRecipientsList] = useState<string[]>([]);
 
   useEffect(() => {
     fetchSettings();
+    fetchUsers();
   }, []);
+
+  useEffect(() => {
+    // Parse recipients string to array when settings load
+    if (settings.businessReportRecipients) {
+      const emails = settings.businessReportRecipients
+        .split(',')
+        .map(email => email.trim())
+        .filter(Boolean);
+      setRecipientsList(emails);
+    } else {
+      setRecipientsList([]);
+    }
+  }, [settings.businessReportRecipients]);
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await fetch('/api/users/public', { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const addRecipient = (email: string) => {
+    if (email && !recipientsList.includes(email)) {
+      const newRecipients = [...recipientsList, email];
+      setRecipientsList(newRecipients);
+      setSettings({ ...settings, businessReportRecipients: newRecipients.join(', ') });
+      setManualEmail('');
+    }
+  };
+
+  const removeRecipient = (email: string) => {
+    const newRecipients = recipientsList.filter(r => r !== email);
+    setRecipientsList(newRecipients);
+    setSettings({ ...settings, businessReportRecipients: newRecipients.join(', ') });
+  };
+
+  const addUserAsRecipient = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (user && user.email) {
+      addRecipient(user.email);
+    }
+  };
+
+  const addManualEmail = () => {
+    if (manualEmail.trim()) {
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (emailRegex.test(manualEmail.trim())) {
+        addRecipient(manualEmail.trim());
+      } else {
+        error('Please enter a valid email address');
+      }
+    }
+  };
 
   // Get available models based on selected provider
   const getAvailableModels = (provider: string) => {
@@ -152,6 +238,58 @@ export default function AISettingsPage() {
       error(err instanceof Error ? err.message : 'Failed to save AI settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTriggerReport = async () => {
+    if (recipientsList.length === 0) {
+      error('Please add at least one recipient email address before triggering the report');
+      return;
+    }
+
+    setSendingReport(true);
+    console.log('📧 Triggering business report...');
+    console.log('📧 Recipients:', settings.businessReportRecipients);
+    
+    try {
+      // First save the current settings (including recipients) so the API uses them
+      const saveResponse = await fetch('/api/settings/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(settings)
+      });
+
+      if (!saveResponse.ok) {
+        const errorData = await saveResponse.json();
+        throw new Error(errorData.error || 'Failed to save settings');
+      }
+
+      // Then trigger the report
+      const response = await fetch('/api/ai/business-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+
+      console.log('📧 Response status:', response.status);
+      const result = await response.json();
+      console.log('📧 Response data:', result);
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send business report');
+      }
+
+      if (result.success) {
+        success(`Business report sent successfully to ${result.recipients?.successful || 0} recipient(s)!`);
+      } else {
+        error(result.error || 'Failed to send business report');
+      }
+    } catch (err) {
+      console.error('❌ Error triggering business report:', err);
+      error(err instanceof Error ? err.message : 'Failed to send business report');
+    } finally {
+      setSendingReport(false);
     }
   };
 
@@ -488,6 +626,248 @@ export default function AISettingsPage() {
                 <p className="text-xs text-gray-500 mt-1">last 30 days</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Business Report Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Mail className="h-5 w-5" />
+              <span>Automated Business Reports</span>
+            </CardTitle>
+            <p className="text-sm text-gray-600 mt-1">
+              Configure Jayne (AI Business Analyst) to send automated daily or weekly business reports via email
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Enable/Disable */}
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Enable Automated Reports</label>
+                <p className="text-xs text-gray-500">Send automated business reports via email</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.businessReportEnabled}
+                  onChange={(e) => setSettings({ ...settings, businessReportEnabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            {settings.businessReportEnabled && (
+              <>
+                {/* Frequency */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Frequency</label>
+                  <div className="flex space-x-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value="daily"
+                        checked={settings.businessReportFrequency === 'daily'}
+                        onChange={(e) => setSettings({ ...settings, businessReportFrequency: e.target.value as 'daily' | 'weekly' })}
+                        className="mr-2"
+                      />
+                      <span className="text-sm text-gray-700">Daily</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value="weekly"
+                        checked={settings.businessReportFrequency === 'weekly'}
+                        onChange={(e) => setSettings({ ...settings, businessReportFrequency: e.target.value as 'daily' | 'weekly' })}
+                        className="mr-2"
+                      />
+                      <span className="text-sm text-gray-700">Weekly</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Time */}
+                {(settings.businessReportFrequency === 'daily' || settings.businessReportFrequency === 'weekly') && (
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="reportTime" className="text-sm font-medium text-gray-700 mb-2 block">
+                        Send Time
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                        <input
+                          id="reportTime"
+                          type="time"
+                          value={settings.businessReportTime}
+                          onChange={(e) => setSettings({ ...settings, businessReportTime: e.target.value })}
+                          className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor="reportTimezone" className="text-sm font-medium text-gray-700 mb-2 block">
+                        Timezone
+                      </label>
+                      <select
+                        id="reportTimezone"
+                        value={settings.businessReportTimezone}
+                        onChange={(e) => setSettings({ ...settings, businessReportTimezone: e.target.value })}
+                        className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full"
+                      >
+                        {Intl.supportedValuesOf('timeZone').map((tz) => (
+                          <option key={tz} value={tz}>
+                            {tz.replace(/_/g, ' ')}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Time will be sent according to this timezone</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Day of Week */}
+                {settings.businessReportFrequency === 'weekly' && (
+                  <div>
+                    <label htmlFor="reportDay" className="text-sm font-medium text-gray-700 mb-2 block">
+                      Day of Week
+                    </label>
+                    <select
+                      id="reportDay"
+                      value={settings.businessReportDay}
+                      onChange={(e) => setSettings({ ...settings, businessReportDay: e.target.value })}
+                      className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full"
+                    >
+                      <option value="monday">Monday</option>
+                      <option value="tuesday">Tuesday</option>
+                      <option value="wednesday">Wednesday</option>
+                      <option value="thursday">Thursday</option>
+                      <option value="friday">Friday</option>
+                      <option value="saturday">Saturday</option>
+                      <option value="sunday">Sunday</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Recipients */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Recipient Email Addresses
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">Add users from your system or external email addresses</p>
+                  
+                  {/* Selected Recipients List */}
+                  {recipientsList.length > 0 && (
+                    <div className="mb-3 space-y-2">
+                      {recipientsList.map((email) => (
+                        <div
+                          key={email}
+                          className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <Mail className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-700">{email}</span>
+                            {users.some(u => u.email === email) && (
+                              <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">User</span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeRecipient(email)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add User from System */}
+                  <div className="mb-2">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          addUserAsRecipient(e.target.value);
+                          e.target.value = '';
+                        }
+                      }}
+                      className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full"
+                      disabled={loadingUsers}
+                    >
+                      <option value="">Select a user from your system...</option>
+                      {users
+                        .filter(user => user.email && !recipientsList.includes(user.email))
+                        .map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.name} ({user.email})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Add External Email */}
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={manualEmail}
+                      onChange={(e) => setManualEmail(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addManualEmail();
+                        }
+                      }}
+                      placeholder="Enter external email address..."
+                      className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={addManualEmail}
+                      className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Manual Trigger Button */}
+                <div className="pt-4 border-t">
+                  <button
+                    onClick={handleTriggerReport}
+                    disabled={sendingReport || recipientsList.length === 0}
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 text-white hover:opacity-90 transition-opacity border-0 shadow-sm hover:shadow-md gap-2"
+                    style={{ 
+                      backgroundColor: theme.primary.includes('purple') ? '#9333ea' :
+                                       theme.primary.includes('blue') ? '#2563eb' :
+                                       theme.primary.includes('green') ? '#16a34a' :
+                                       theme.primary.includes('orange') ? '#ea580c' :
+                                       theme.primary.includes('red') ? '#dc2626' : '#2563eb',
+                      color: '#ffffff'
+                    }}
+                  >
+                    {sendingReport ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Sending Report...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        Send Report Now
+                      </>
+                    )}
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Click to manually trigger and send a business report immediately
+                  </p>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 

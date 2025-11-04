@@ -14,11 +14,15 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Invoices API: GET request received');
     
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
@@ -76,7 +80,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Get paginated invoices
-    const invoices = await prisma.invoice.findMany({
+    let invoices = await prisma.invoice.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip,
@@ -124,6 +128,72 @@ export async function GET(request: NextRequest) {
       } as any,
     });
 
+    // Recalculate payment status for invoices on this page (fixes stale data)
+    // Run in parallel for better performance
+    await Promise.all(invoices.map(async (invoice) => {
+      try {
+        // Get both payment allocations AND credit note applications
+        const [allAllocations, creditNoteApplications] = await Promise.all([
+          prisma.paymentAllocation.findMany({
+            where: { invoiceId: invoice.id },
+            select: { amount: true }
+          }),
+          prisma.creditNoteApplication.findMany({
+            where: { invoiceId: invoice.id },
+            select: { amount: true }
+          })
+        ]);
+        
+        // Sum payments from allocations
+        const totalPaidFromPayments = allAllocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
+        
+        // Sum credit notes applied
+        const totalPaidFromCreditNotes = creditNoteApplications.reduce((sum, app) => sum + Number(app.amount), 0);
+        
+        // Total paid = payments + credit notes
+        const totalPaid = totalPaidFromPayments + totalPaidFromCreditNotes;
+        const amountDue = Math.max(0, invoice.total - totalPaid);
+        
+        let paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+        if (totalPaid === 0) {
+          paymentStatus = 'UNPAID';
+        } else if (Math.abs(totalPaid - invoice.total) < 0.01 || totalPaid >= invoice.total || amountDue <= 0.01) {
+          // Use small tolerance for floating point comparison
+          // If amountDue is <= 0.01, consider it PAID
+          paymentStatus = 'PAID';
+        } else {
+          paymentStatus = 'PARTIALLY_PAID';
+        }
+        
+        // Update invoice if payment status or amounts have changed
+        if (invoice.paymentStatus !== paymentStatus || 
+            Math.abs(invoice.amountPaid - totalPaid) > 0.01 || 
+            Math.abs(invoice.amountDue - amountDue) > 0.01) {
+          await prisma.invoice.update({
+            where: { id: invoice.id },
+            data: {
+              amountPaid: totalPaid,
+              amountDue: amountDue,
+              paymentStatus: paymentStatus,
+              paidDate: paymentStatus === 'PAID' ? (invoice.paidDate || new Date()) : null
+            }
+          });
+          
+          // Update the invoice object to return correct values
+          invoice.amountPaid = totalPaid;
+          invoice.amountDue = amountDue;
+          invoice.paymentStatus = paymentStatus;
+          if (paymentStatus === 'PAID' && !invoice.paidDate) {
+            invoice.paidDate = new Date();
+          }
+          
+          console.log(`✅ Recalculated invoice ${invoice.number}: ${paymentStatus} (Total: ${invoice.total}, Paid: ${totalPaid}, Due: ${amountDue})`);
+        }
+      } catch (error) {
+        console.error(`❌ Error recalculating invoice ${invoice.id}:`, error);
+      }
+    }));
+
     // Get all invoices for stats (without pagination)
     const allInvoices = await prisma.invoice.findMany({
       where,
@@ -162,11 +232,15 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔍 POST /api/invoices - Starting request');
     
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const body = await request.json();
     console.log('🔍 POST /api/invoices - Request body:', body);
@@ -346,7 +420,7 @@ export async function POST(request: NextRequest) {
         paymentTerms: paymentTerms || null,
         customerType: customerType || 'STANDARD',
         notes: notes || null,
-        ownerId: 'cmgxgoy9w00008z2z4ajxyw47', // TEMPORARY: Hardcoded user ID
+        ownerId: userId,
         lines: {
           create: lines.map((line: any) => ({
             productId: line.productId,

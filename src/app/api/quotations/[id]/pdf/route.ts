@@ -61,11 +61,33 @@ export async function GET(
     
     const hasDiscounts = quotation.lines?.some(line => line.discount > 0) || false;
     
-    // Get company logo from settings
-    const brandingSettings = await prisma.systemSettings.findFirst({
-      where: { key: 'company_logo' },
-    });
-    const customLogo = brandingSettings?.value || null;
+    // Get company logo and PDF images from settings
+    const [logoSetting, headerImageSetting, footerImageSetting] = await Promise.all([
+      prisma.systemSettings.findFirst({ where: { key: 'company_logo' } }),
+      prisma.systemSettings.findFirst({ where: { key: 'pdf_header_image' } }),
+      prisma.systemSettings.findFirst({ where: { key: 'pdf_footer_image' } })
+    ]);
+    
+    // Get the origin URL from the request for absolute image URLs
+    const origin = request.headers.get('origin') || request.headers.get('host') || 'http://localhost:3000';
+    const baseUrl = origin.startsWith('http') ? origin : `http://${origin}`;
+    
+    // Convert relative paths to absolute URLs
+    const convertToAbsoluteUrl = (path: string | null): string | null => {
+      if (!path) return null;
+      if (path.startsWith('http://') || path.startsWith('https://')) return path;
+      return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+    };
+    
+    const customLogo = convertToAbsoluteUrl(logoSetting?.value || null);
+    const pdfHeaderImage = convertToAbsoluteUrl(headerImageSetting?.value || null);
+    const pdfFooterImage = convertToAbsoluteUrl(footerImageSetting?.value || null);
+    
+    // Debug logging
+    console.log('📄 PDF Header Image:', pdfHeaderImage);
+    console.log('📄 PDF Footer Image:', pdfFooterImage);
+    console.log('📄 Raw Header Setting:', headerImageSetting?.value);
+    console.log('📄 Raw Footer Setting:', footerImageSetting?.value);
 
     // Generate HTML content for PDF
     const htmlContent = `
@@ -334,9 +356,26 @@ export async function GET(
               padding: 0;
             }
           }
+          .pdf-header-image {
+            width: 100%;
+            max-height: 150px;
+            object-fit: contain;
+            margin-bottom: 20px;
+          }
+          
+          .pdf-footer-image {
+            width: 100%;
+            max-height: 150px;
+            object-fit: contain;
+            margin-top: 30px;
+            border-top: 2px solid #e5e7eb;
+            padding-top: 20px;
+          }
         </style>
       </head>
       <body>
+        ${pdfHeaderImage ? `<img src="${pdfHeaderImage}" alt="PDF Header" class="pdf-header-image" />` : ''}
+        
         <!-- Company Header -->
         <div class="company-header">
           ${customLogo ? `<img src="${customLogo}" alt="Company Logo" class="logo" />` : ''}
@@ -453,6 +492,8 @@ export async function GET(
             <div class="notes-content">${quotation.notes}</div>
           </div>
         ` : ''}
+        
+        ${pdfFooterImage ? `<img src="${pdfFooterImage}" alt="PDF Footer" class="pdf-footer-image" />` : ''}
       </body>
       </html>
     `;

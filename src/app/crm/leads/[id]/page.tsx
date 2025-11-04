@@ -59,6 +59,40 @@ interface Lead {
   };
 }
 
+// Helper function to normalize status for display and filtering
+const normalizeLeadStatus = (status: string): string => {
+  // Map legacy QUOTE_SENT to CONVERTED_TO_OPPORTUNITY
+  if (status === 'QUOTE_SENT') {
+    return 'CONVERTED_TO_OPPORTUNITY';
+  }
+  // Map legacy CONVERTED to CONVERTED_TO_OPPORTUNITY
+  if (status === 'CONVERTED' || status === 'OPPORTUNITY' || status === 'NEW_OPPORTUNITY') {
+    return 'CONVERTED_TO_OPPORTUNITY';
+  }
+  return status;
+};
+
+// Helper function to get display label for status
+const getStatusLabel = (status: string): string => {
+  const normalized = normalizeLeadStatus(status);
+  if (normalized === 'CONVERTED_TO_OPPORTUNITY') {
+    return 'Converted';
+  }
+  return normalized.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+};
+
+// Status colors matching the leads page
+const statusColors = {
+  NEW: 'bg-blue-100 text-blue-800',
+  CONTACTED: 'bg-yellow-100 text-yellow-800',
+  QUALIFIED: 'bg-green-100 text-green-800',
+  QUOTE_SENT: 'bg-purple-100 text-purple-800', // Quote sent = converted
+  CONVERTED_TO_OPPORTUNITY: 'bg-purple-100 text-purple-800', // Main status when quote is sent
+  CONVERTED: 'bg-purple-100 text-purple-800', // Legacy status
+  LOST: 'bg-red-100 text-red-800',
+  UNQUALIFIED: 'bg-gray-100 text-gray-800',
+};
+
 export default function LeadDetailsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -72,6 +106,11 @@ export default function LeadDetailsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [taskInitialData, setTaskInitialData] = useState<{
+    title?: string;
+    description?: string;
+    dueDate?: string;
+  } | null>(null);
   const [showAddCommentModal, setShowAddCommentModal] = useState(false);
   const [showAddFileModal, setShowAddFileModal] = useState(false);
   const [showAddEmailModal, setShowAddEmailModal] = useState(false);
@@ -434,9 +473,11 @@ export default function LeadDetailsPage() {
     
     // Calculate conversion probability based on status and interactions
     let conversionProbability = 15; // Base probability
-    if (lead.status === 'QUALIFIED') conversionProbability = 75;
-    else if (lead.status === 'CONTACTED') conversionProbability = 45;
-    else if (lead.status === 'NEW') conversionProbability = 15;
+    const normalizedStatus = normalizeLeadStatus(lead.status);
+    if (normalizedStatus === 'CONVERTED_TO_OPPORTUNITY') conversionProbability = 100;
+    else if (normalizedStatus === 'QUALIFIED') conversionProbability = 75;
+    else if (normalizedStatus === 'CONTACTED') conversionProbability = 45;
+    else if (normalizedStatus === 'NEW') conversionProbability = 15;
     
     // Add bonus for interactions
     if (totalInteractions > 5) conversionProbability += 10;
@@ -615,9 +656,11 @@ export default function LeadDetailsPage() {
         
         // Calculate conversion probability based on status and interactions
         let conversionProbability = 15; // Base probability
-        if (leadData.status === 'QUALIFIED') conversionProbability = 75;
-        else if (leadData.status === 'CONTACTED') conversionProbability = 45;
-        else if (leadData.status === 'NEW') conversionProbability = 15;
+        const normalizedStatus = normalizeLeadStatus(leadData.status);
+        if (normalizedStatus === 'CONVERTED_TO_OPPORTUNITY') conversionProbability = 100;
+        else if (normalizedStatus === 'QUALIFIED') conversionProbability = 75;
+        else if (normalizedStatus === 'CONTACTED') conversionProbability = 45;
+        else if (normalizedStatus === 'NEW') conversionProbability = 15;
         
         // Add bonus for interactions
         if (totalInteractions > 5) conversionProbability += 10;
@@ -931,15 +974,16 @@ export default function LeadDetailsPage() {
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    const normalized = normalizeLeadStatus(status);
+    switch (normalized) {
       case 'NEW':
         return <Clock className="w-5 h-5 text-blue-500" />;
       case 'CONTACTED':
         return <Play className="w-5 h-5 text-yellow-500" />;
       case 'QUALIFIED':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'CONVERTED':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'CONVERTED_TO_OPPORTUNITY':
+        return <CheckCircle className="w-5 h-5 text-purple-600" />;
       case 'LOST':
         return <XCircle className="w-5 h-5 text-red-500" />;
       default:
@@ -948,20 +992,8 @@ export default function LeadDetailsPage() {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'NEW':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'CONTACTED':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'QUALIFIED':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'CONVERTED':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'LOST':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+    const normalized = normalizeLeadStatus(status);
+    return statusColors[normalized as keyof typeof statusColors] || statusColors.NEW;
   };
 
   if (loading) {
@@ -1015,7 +1047,7 @@ export default function LeadDetailsPage() {
                 </p>
                 
                 {/* Contact Information */}
-                <div className="flex items-center gap-4 mt-3 text-sm text-gray-600">
+                <div className="flex items-center gap-4 mt-3 text-sm text-gray-600 flex-wrap">
                   {lead.email && (
                     <div className="flex items-center gap-1">
                       <Mail className="w-4 h-4" />
@@ -1032,6 +1064,41 @@ export default function LeadDetailsPage() {
                     <div className="flex items-center gap-1">
                       <Building className="w-4 h-4" />
                       <span>{lead.company}</span>
+                    </div>
+                  )}
+                  {lead.followUpDate && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      <span className={new Date(lead.followUpDate) < new Date() ? 'text-red-600 font-medium' : ''}>
+                        Follow-up: {new Date(lead.followUpDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          // Pre-fill task form with follow-up date
+                          if (lead.followUpDate) {
+                            const followUpDateISO = new Date(lead.followUpDate).toISOString().slice(0, 16);
+                            // We'll handle this in the AddLeadTaskModal by passing initialData
+                            setTaskInitialData({
+                              dueDate: followUpDateISO,
+                              title: `Follow-up with ${lead.firstName} ${lead.lastName}`,
+                              description: `Follow-up task for ${lead.company || 'lead'}`,
+                            });
+                            setShowAddTaskModal(true);
+                          }
+                        }}
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Create Task
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1093,8 +1160,10 @@ export default function LeadDetailsPage() {
             <AIRecommendationCard
               title="Lead Intelligence"
               subtitle="AI-powered insights for this lead"
-              recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
+              page="leads"
+              enableAI={true}
+              context={{ leadId: params?.id }}
             />
           </div>
 
@@ -1118,14 +1187,9 @@ export default function LeadDetailsPage() {
                   <p className="text-sm font-medium text-gray-600">Current Stage</p>
                   <div className="flex items-center gap-2 mt-1">
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      lead?.status === 'NEW' ? 'bg-blue-100 text-blue-800' :
-                      lead?.status === 'CONTACTED' ? 'bg-yellow-100 text-yellow-800' :
-                      lead?.status === 'QUALIFIED' ? 'bg-green-100 text-green-800' :
-                      lead?.status === 'CONVERTED' ? 'bg-emerald-100 text-emerald-800' :
-                      lead?.status === 'LOST' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
+                      statusColors[normalizeLeadStatus(lead?.status || 'NEW') as keyof typeof statusColors] || statusColors.NEW
                     }`}>
-                      {lead?.status || 'NEW'}
+                      {getStatusLabel(lead?.status || 'NEW')}
                     </span>
                   </div>
                 </div>
@@ -1174,6 +1238,7 @@ export default function LeadDetailsPage() {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  setTaskInitialData(null);
                   setShowAddTaskModal(true);
                 }}
               >
@@ -1758,10 +1823,14 @@ export default function LeadDetailsPage() {
       {showAddTaskModal && (
         <AddLeadTaskModal
           isOpen={showAddTaskModal}
-          onClose={() => setShowAddTaskModal(false)}
+          onClose={() => {
+            setShowAddTaskModal(false);
+            setTaskInitialData(null);
+          }}
           onSave={handleAddTask}
           leadId={lead?.id || ''}
           leadName={lead ? `${lead.firstName} ${lead.lastName}` : ''}
+          initialData={taskInitialData || undefined}
         />
       )}
 

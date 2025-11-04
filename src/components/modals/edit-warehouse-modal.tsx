@@ -32,8 +32,9 @@ interface EditWarehouseModalProps {
 
 export function EditWarehouseModal({ isOpen, onClose, onSuccess, warehouse }: EditWarehouseModalProps) {
   const { success, error: showError } = useToast();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
+  const themeColor = getThemeColor();
   const [formData, setFormData] = useState({
     name: "",
     code: "",
@@ -327,15 +328,7 @@ export function EditWarehouseModal({ isOpen, onClose, onSuccess, warehouse }: Ed
               disabled={isLoading}
               className="text-white border-0"
               style={{ 
-                backgroundColor: theme.primary === 'purple-600' ? '#9333ea' : 
-                                theme.primary === 'blue-600' ? '#2563eb' :
-                                theme.primary === 'green-600' ? '#16a34a' :
-                                theme.primary === 'red-600' ? '#dc2626' :
-                                theme.primary === 'orange-600' ? '#ea580c' :
-                                theme.primary === 'pink-600' ? '#db2777' :
-                                theme.primary === 'indigo-600' ? '#4f46e5' :
-                                theme.primary === 'teal-600' ? '#0d9488' :
-                                '#2563eb' // default blue
+                backgroundColor: themeColor || '#2563eb'
               }}
               onMouseEnter={(e) => {
                 if (!isLoading) {

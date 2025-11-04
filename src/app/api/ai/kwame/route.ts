@@ -1,16 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AIService, KWAME_PROMPT } from '@/lib/ai-service';
+import { getCompanyName } from '@/lib/payment-order-notifications';
 
 export async function POST(request: NextRequest) {
   try {
     console.log('🤖 Kwame API: Request received');
+    
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      console.error('❌ Kwame API: Unauthorized - No session');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     const body = await request.json();
     const { message, conversationHistory = [] } = body;
     
     console.log('📝 Kwame API: Message:', message);
 
+    // Get company name from settings
+    const companyName = await getCompanyName() || 'AdPools Group';
+    
     // Get AI settings from database
     const aiSettings = await prisma.systemSettings.findMany({
       where: {
@@ -44,6 +56,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Replace company name in prompt
+    const promptWithCompanyName = KWAME_PROMPT.replace(/AdPools Group/g, companyName);
+
     // Initialize AI service with selected provider
     console.log(`💬 Kwame API: Calling ${provider}...`);
     const aiService = new AIService({
@@ -60,7 +75,7 @@ export async function POST(request: NextRequest) {
       message,
       {}, // Kwame doesn't need business data
       conversationHistory,
-      KWAME_PROMPT
+      promptWithCompanyName
     );
 
     console.log('✅ Kwame API: Response generated');

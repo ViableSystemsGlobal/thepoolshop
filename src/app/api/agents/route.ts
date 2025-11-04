@@ -12,7 +12,15 @@ async function generateAgentCode(): Promise<string> {
 
 export async function GET(request: NextRequest) {
   try {
-    // TEMPORARY: Skip authentication for testing
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // const session = await getServerSession(authOptions);
     // if (!session?.user?.id) {
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -134,15 +142,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // TEMPORARY: Skip authentication for testing
-    // const session = await getServerSession(authOptions);
-    // if (!session?.user?.id) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const authenticatedUserId = (session.user as any).id;
+    if (!authenticatedUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const body = await request.json();
     const {
-      userId,
+      userId: targetUserId,
       status = 'ACTIVE',
       hireDate,
       territory,
@@ -156,7 +168,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validation
-    if (!userId) {
+    if (!targetUserId) {
       return NextResponse.json(
         { error: 'User ID is required' },
         { status: 400 }
@@ -165,7 +177,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user exists
     const user = await prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: targetUserId }
     });
 
     if (!user) {
@@ -177,7 +189,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user is already an agent
     const existingAgent = await prisma.agent.findUnique({
-      where: { userId }
+      where: { userId: targetUserId }
     });
 
     if (existingAgent) {
@@ -193,7 +205,7 @@ export async function POST(request: NextRequest) {
     // Create agent
     const agent = await prisma.agent.create({
       data: {
-        userId,
+        userId: targetUserId,
         agentCode,
         status,
         hireDate: hireDate ? new Date(hireDate) : new Date(),

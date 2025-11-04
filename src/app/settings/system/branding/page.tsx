@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Upload, Star, Image, Globe } from "lucide-react";
+import { ArrowLeft, Upload, Star, Image, Globe, Mail } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/contexts/toast-context";
 
@@ -18,6 +18,11 @@ interface BrandingSettings {
   primaryColor: string;
   secondaryColor: string;
   description: string;
+  pdfHeaderImage: string;
+  pdfFooterImage: string;
+  chatButtonImage: string;
+  emailTemplateHeader: string;
+  emailTemplateFooter: string;
 }
 
 export default function BrandingSettingsPage() {
@@ -27,13 +32,18 @@ export default function BrandingSettingsPage() {
     favicon: "/uploads/branding/favicon_default.svg",
     primaryColor: "#3B82F6",
     secondaryColor: "#1E40AF",
-    description: "A practical, single-tenant system for sales and distribution management"
+    description: "A practical, single-tenant system for sales and distribution management",
+    pdfHeaderImage: "",
+    pdfFooterImage: "",
+    chatButtonImage: "",
+    emailTemplateHeader: "",
+    emailTemplateFooter: ""
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
-  const { showSuccess, showError } = useToast();
+  const { success, error } = useToast();
 
   useEffect(() => {
     loadSettings();
@@ -66,17 +76,17 @@ export default function BrandingSettingsPage() {
       });
 
       if (response.ok) {
-        showSuccess('Branding settings saved successfully!');
+        success('Branding settings saved successfully!');
         // Update favicon if changed
         if (settings.favicon) {
           updateFavicon(settings.favicon);
         }
       } else {
-        showError('Failed to save branding settings');
+        error('Failed to save branding settings');
       }
-    } catch (error) {
-      console.error('Error saving branding settings:', error);
-      showError('Failed to save branding settings');
+    } catch (err) {
+      console.error('Error saving branding settings:', err);
+      error('Failed to save branding settings');
     } finally {
       setSaving(false);
     }
@@ -97,7 +107,7 @@ export default function BrandingSettingsPage() {
     document.head.appendChild(link);
   };
 
-  const handleFileUpload = async (field: 'companyLogo' | 'favicon', file: File) => {
+  const handleFileUpload = async (field: 'companyLogo' | 'favicon' | 'pdfHeaderImage' | 'pdfFooterImage' | 'chatButtonImage', file: File) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -114,13 +124,20 @@ export default function BrandingSettingsPage() {
           ...prev,
           [field]: data.url
         }));
-        showSuccess(`${field === 'companyLogo' ? 'Company logo' : 'Favicon'} uploaded successfully!`);
+        const fieldNames: Record<string, string> = {
+          companyLogo: 'Company logo',
+          favicon: 'Favicon',
+          pdfHeaderImage: 'PDF header image',
+          pdfFooterImage: 'PDF footer image',
+          chatButtonImage: 'Chat button image'
+        };
+        success(`${fieldNames[field]} uploaded successfully!`);
       } else {
-        showError(`Failed to upload ${field}`);
+        error(`Failed to upload ${field}`);
       }
-    } catch (error) {
-      console.error(`Error uploading ${field}:`, error);
-      showError(`Failed to upload ${field}`);
+    } catch (err) {
+      console.error(`Error uploading ${field}:`, err);
+      error(`Failed to upload ${field}`);
     }
   };
 
@@ -323,6 +340,236 @@ export default function BrandingSettingsPage() {
                     </Label>
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* PDF Document Images */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Image className="h-5 w-5" />
+                <span>PDF Document Images</span>
+              </CardTitle>
+              <CardDescription>
+                Upload header and footer images for quotes and invoices PDFs
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* PDF Header Image */}
+              <div>
+                <Label>PDF Header Image</Label>
+                <p className="text-xs text-gray-500 mb-2">This image will appear at the top of all quote and invoice PDFs</p>
+                <div className="mt-2 space-y-3">
+                  {settings.pdfHeaderImage && (
+                    <div className="flex items-center space-x-3">
+                      <img 
+                        src={settings.pdfHeaderImage} 
+                        alt="PDF Header" 
+                        className="h-20 w-auto object-contain border rounded"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600">Current header image</p>
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleFileUpload('pdfHeaderImage', file);
+                        }
+                      }}
+                      className="hidden"
+                      id="header-upload"
+                    />
+                    <Label htmlFor="header-upload" className="cursor-pointer">
+                      <div className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors">
+                        <div className="text-center">
+                          <Upload className="h-6 w-6 mx-auto text-gray-400 mb-2" />
+                          <p className="text-sm text-gray-600">Click to upload header image</p>
+                          <p className="text-xs text-gray-500">Recommended width: 800-1200px</p>
+                        </div>
+                      </div>
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
+              {/* PDF Footer Image */}
+              <div>
+                <Label>PDF Footer Image</Label>
+                <p className="text-xs text-gray-500 mb-2">This image will appear at the bottom of all quote and invoice PDFs</p>
+                <div className="mt-2 space-y-3">
+                  {settings.pdfFooterImage && (
+                    <div className="flex items-center space-x-3">
+                      <img 
+                        src={settings.pdfFooterImage} 
+                        alt="PDF Footer" 
+                        className="h-20 w-auto object-contain border rounded"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600">Current footer image</p>
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleFileUpload('pdfFooterImage', file);
+                        }
+                      }}
+                      className="hidden"
+                      id="footer-upload"
+                    />
+                    <Label htmlFor="footer-upload" className="cursor-pointer">
+                      <div className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors">
+                        <div className="text-center">
+                          <Upload className="h-6 w-6 mx-auto text-gray-400 mb-2" />
+                          <p className="text-sm text-gray-600">Click to upload footer image</p>
+                          <p className="text-xs text-gray-500">Recommended width: 800-1200px</p>
+                        </div>
+                      </div>
+                    </Label>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Chat Button Image */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Chat Button Image</CardTitle>
+              <CardDescription>
+                Upload an image for the floating chat button (AI Assistant). This will be visible to all users.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {settings.chatButtonImage && (
+                <div className="flex items-center space-x-3">
+                  <img 
+                    src={settings.chatButtonImage} 
+                    alt="Chat Button" 
+                    className="h-20 w-20 object-cover rounded-full border"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-600">Current chat button image</p>
+                  </div>
+                </div>
+              )}
+              <div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleFileUpload('chatButtonImage', file);
+                    }
+                  }}
+                  className="hidden"
+                  id="chat-button-upload"
+                />
+                <Label htmlFor="chat-button-upload" className="cursor-pointer">
+                  <div className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors">
+                    <div className="text-center">
+                      <Upload className="h-6 w-6 mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-600">
+                        {settings.chatButtonImage ? 'Change chat button image' : 'Upload chat button image'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Recommended: Square image (200x200px)</p>
+                    </div>
+                  </div>
+                </Label>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Email Template */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Mail className="h-5 w-5" />
+                <span>Email Template</span>
+              </CardTitle>
+              <CardDescription>
+                Customize the header and footer HTML for all outgoing emails. Colors will automatically use your theme colors.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Available Variables */}
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <Label className="text-sm font-semibold mb-2 block">Available Variables</Label>
+                <p className="text-xs text-gray-600 mb-3">
+                  Use these variables in your HTML templates. They will be replaced with actual values when emails are sent.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  <code className="text-xs bg-white px-2 py-1 rounded border">{'{companyName}'}</code>
+                  <code className="text-xs bg-white px-2 py-1 rounded border">{'{companyAddress}'}</code>
+                  <code className="text-xs bg-white px-2 py-1 rounded border">{'{companyPhone}'}</code>
+                  <code className="text-xs bg-white px-2 py-1 rounded border">{'{companyEmail}'}</code>
+                  <code className="text-xs bg-white px-2 py-1 rounded border">{'{companyWebsite}'}</code>
+                  <code className="text-xs bg-white px-2 py-1 rounded border">{'{primaryColor}'}</code>
+                  <code className="text-xs bg-white px-2 py-1 rounded border">{'{secondaryColor}'}</code>
+                  <code className="text-xs bg-white px-2 py-1 rounded border">{'{currentYear}'}</code>
+                </div>
+                <p className="text-xs text-gray-500 mt-3">
+                  <strong>Example:</strong> <code className="bg-white px-1 py-0.5 rounded">{'{companyName}'}</code> will be replaced with your company name.
+                </p>
+              </div>
+
+              {/* Email Header */}
+              <div>
+                <Label htmlFor="email-header">Email Header (HTML)</Label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Custom HTML for the email header. Leave empty to use default header with company name.
+                  <br />
+                  <strong>Note:</strong> The primary theme color will be automatically applied to the header background.
+                </p>
+                <Textarea
+                  id="email-header"
+                  value={settings.emailTemplateHeader}
+                  onChange={(e) => setSettings({ ...settings, emailTemplateHeader: e.target.value })}
+                  placeholder={`<div style="background-color: {primaryColor}; padding: 20px; text-align: center;">
+  <h1 style="color: #ffffff; margin: 0;">{companyName}</h1>
+  <p style="color: #ffffff; margin: 8px 0 0; font-size: 14px;">{companyAddress}</p>
+</div>`}
+                  rows={8}
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              {/* Email Footer */}
+              <div>
+                <Label htmlFor="email-footer">Email Footer (HTML)</Label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Custom HTML for the email footer. Leave empty to use default footer with copyright.
+                  <br />
+                  <strong>Note:</strong> The footer will have a border in your primary theme color.
+                </p>
+                <Textarea
+                  id="email-footer"
+                  value={settings.emailTemplateFooter}
+                  onChange={(e) => setSettings({ ...settings, emailTemplateFooter: e.target.value })}
+                  placeholder={`<div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 3px solid {primaryColor};">
+  <p style="color: #6c757d; margin: 0 0 8px; font-size: 14px;">
+    © {currentYear} {companyName}. All rights reserved.
+  </p>
+  <p style="color: #6c757d; margin: 0; font-size: 12px;">
+    {companyAddress} | {companyPhone} | {companyEmail}
+  </p>
+</div>`}
+                  rows={8}
+                  className="font-mono text-sm"
+                />
               </div>
             </CardContent>
           </Card>

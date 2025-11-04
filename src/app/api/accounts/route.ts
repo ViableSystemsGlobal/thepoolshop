@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = (session.user as any).id;
+    const userRole = (session.user as any).role;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -19,9 +20,15 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type');
     const search = searchParams.get('search');
 
-    const where: any = {
-      ownerId: userId,
-    };
+    // Super Admins and Admins can see all accounts, others see only their own
+    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+    
+    const where: any = {};
+    
+    // Only filter by owner if user is not Super Admin or Admin
+    if (!isSuperAdmin) {
+      where.ownerId = userId;
+    }
 
     if (type) {
       where.type = type;

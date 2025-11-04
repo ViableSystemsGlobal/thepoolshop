@@ -634,8 +634,10 @@ export default function OpportunityDetailsPage() {
             <AIRecommendationCard
               title="Opportunity Intelligence"
               subtitle="AI-powered insights for this opportunity"
-              recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
+              page="opportunities"
+              enableAI={true}
+              context={{ opportunityId: params?.id }}
             />
           </div>
 

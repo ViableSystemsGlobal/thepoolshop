@@ -191,8 +191,18 @@ export async function POST(request: NextRequest) {
             }
           }
           
-          // Determine product type
-          const productType = (row.type || 'PRODUCT').toUpperCase();
+          // Determine product type - normalize to valid ItemType enum values
+          const rawType = (row.type || 'PRODUCT').toUpperCase().trim();
+          let productType: 'PRODUCT' | 'SERVICE' = 'PRODUCT';
+          
+          // Map CSV type values to valid ItemType enum
+          if (rawType === 'SERVICE' || rawType === 'SERVICES') {
+            productType = 'SERVICE';
+          } else {
+            // All other types (CHEMICALS, TESTING, HARDWARE, CLEANING, etc.) are PRODUCT
+            productType = 'PRODUCT';
+          }
+          
           const isService = productType === 'SERVICE';
           
           // Handle category lookup
@@ -207,7 +217,7 @@ export async function POST(request: NextRequest) {
           }
 
           const productData = {
-            type: productType as any,
+            type: productType,
             name: row.name || `Imported ${isService ? 'Service' : 'Product'} ${Date.now()}`,
             sku: isService ? null : productSku, // Services can have null SKU
             serviceCode: isService ? (row.service_code || row.sku || `SERV-${Date.now()}`) : null,

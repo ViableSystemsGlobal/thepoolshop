@@ -61,6 +61,25 @@ interface Account {
     total: number;
     createdAt: string;
   }>;
+  invoices: Array<{
+    id: string;
+    number: string;
+    status: string;
+    paymentStatus: string;
+    total: number;
+    amountPaid: number;
+    amountDue: number;
+    createdAt: string;
+  }>;
+  payments: Array<{
+    id: string;
+    number: string;
+    amount: number;
+    method: string;
+    reference?: string;
+    receivedAt: string;
+    createdAt: string;
+  }>;
 }
 
 const typeColors = {
@@ -73,7 +92,7 @@ export default function AccountDetailsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const params = useParams();
-  const { getThemeClasses } = useTheme();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { success, error } = useToast();
 
@@ -84,6 +103,7 @@ export default function AccountDetailsPage() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [editingAddress, setEditingAddress] = useState<any>(null);
+  const [baseCurrency, setBaseCurrency] = useState('GHS');
   const [aiRecommendations, setAiRecommendations] = useState([
     {
       id: '1',
@@ -121,6 +141,23 @@ export default function AccountDetailsPage() {
       loadAddresses();
     }
   }, [account]);
+
+  // Fetch currency settings
+  useEffect(() => {
+    fetchCurrencySettings();
+  }, []);
+
+  const fetchCurrencySettings = async () => {
+    try {
+      const response = await fetch('/api/settings/currency');
+      if (response.ok) {
+        const data = await response.json();
+        setBaseCurrency(data.baseCurrency || 'GHS');
+      }
+    } catch (error) {
+      console.error('Error fetching currency settings:', error);
+    }
+  };
 
   const fetchAccount = async () => {
     try {
@@ -262,10 +299,20 @@ export default function AccountDetailsPage() {
   };
 
   const formatCurrency = (amount?: number) => {
-    if (!amount) return '$0';
+    if (!amount) return baseCurrency === 'GHS' ? 'GH₵0' : `${baseCurrency} 0`;
+    
+    // Special handling for GHS (Ghana Cedis) to display as GH₵
+    if (baseCurrency === 'GHS') {
+      const formatted = new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount);
+      return `GH₵${formatted}`;
+    }
+    
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: baseCurrency,
     }).format(amount);
   };
 
@@ -370,8 +417,10 @@ export default function AccountDetailsPage() {
             <AIRecommendationCard
               title="Account Management AI"
               subtitle="Your intelligent assistant for account optimization"
-              recommendations={aiRecommendations}
               onRecommendationComplete={handleRecommendationComplete}
+              page="accounts"
+              enableAI={true}
+              context={{ accountId: params?.id }}
             />
           </div>
 
@@ -416,11 +465,40 @@ export default function AccountDetailsPage() {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Proformas</p>
-                  <p className="text-xl font-bold text-purple-600">{account.proformas?.length || 0}</p>
+                  <p className="text-sm font-medium text-gray-600">Invoices Value</p>
+                  <p className="text-xl font-bold text-purple-600">
+                    {formatCurrency(account.invoices?.reduce((sum, inv) => sum + (inv.total || 0), 0) || 0)}
+                  </p>
                 </div>
                 <div className="p-2 rounded-full bg-purple-100">
                   <Receipt className="w-5 h-5 text-purple-600" />
+                </div>
+              </div>
+            </Card>
+            
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Invoices</p>
+                  <p className="text-xl font-bold text-orange-600">{account.invoices?.length || 0}</p>
+                </div>
+                <div className="p-2 rounded-full bg-orange-100">
+                  <FileText className="w-5 h-5 text-orange-600" />
+                </div>
+              </div>
+            </Card>
+            
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Payments</p>
+                  <p className="text-xl font-bold text-indigo-600">
+                    {formatCurrency(account.payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{account.payments?.length || 0} payments</p>
+                </div>
+                <div className="p-2 rounded-full bg-indigo-100">
+                  <Receipt className="w-5 h-5 text-indigo-600" />
                 </div>
               </div>
             </Card>
@@ -430,7 +508,7 @@ export default function AccountDetailsPage() {
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Account Information */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
             {/* Contact Information */}
             <Card className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
@@ -508,16 +586,20 @@ export default function AccountDetailsPage() {
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Addresses</h3>
-                <button
+                <Button
                   onClick={() => {
                     setEditingAddress(null);
                     setShowAddressModal(true);
                   }}
-                  className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity bg-blue-600"
+                  style={{
+                    backgroundColor: getThemeColor(),
+                    color: 'white'
+                  }}
+                  className="px-4 py-2 text-sm font-medium rounded-md hover:opacity-90 transition-opacity"
                 >
                   <Plus className="w-4 h-4 mr-2 inline" />
                   Add Address
-                </button>
+                </Button>
               </div>
               
               {addresses.length === 0 ? (
@@ -632,6 +714,81 @@ export default function AccountDetailsPage() {
                       </div>
                       <div className="text-right">
                         <div className="font-semibold">{formatCurrency(proforma.total)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Recent Invoices */}
+            {account.invoices && account.invoices.length > 0 && (
+              <Card className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Recent Invoices</h3>
+                  <Button variant="outline" size="sm">
+                    <Plus className="w-4 h-4 mr-2" />
+                    New Invoice
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {account.invoices.slice(0, 5).map((invoice) => (
+                    <div key={invoice.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <div className="font-medium">{invoice.number}</div>
+                        <div className="text-sm text-gray-500">
+                          {formatDate(invoice.createdAt)} • {invoice.paymentStatus}
+                        </div>
+                        {invoice.amountDue > 0 && (
+                          <div className="text-xs text-orange-600 mt-1">
+                            Due: {formatCurrency(invoice.amountDue)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold">{formatCurrency(invoice.total)}</div>
+                        {invoice.paymentStatus === 'PAID' && (
+                          <div className="text-xs text-green-600 mt-1">Paid</div>
+                        )}
+                        {invoice.paymentStatus === 'PARTIALLY_PAID' && (
+                          <div className="text-xs text-yellow-600 mt-1">Partial</div>
+                        )}
+                        {invoice.paymentStatus === 'UNPAID' && (
+                          <div className="text-xs text-red-600 mt-1">Unpaid</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Recent Payments */}
+            {account.payments && account.payments.length > 0 && (
+              <Card className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Recent Payments</h3>
+                  <Button variant="outline" size="sm">
+                    <Plus className="w-4 h-4 mr-2" />
+                    New Payment
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {account.payments.slice(0, 5).map((payment) => (
+                    <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <div className="font-medium">{payment.number}</div>
+                        <div className="text-sm text-gray-500">
+                          {formatDate(payment.receivedAt || payment.createdAt)} • {payment.method}
+                        </div>
+                        {payment.reference && (
+                          <div className="text-xs text-gray-600 mt-1">
+                            Ref: {payment.reference}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold">{formatCurrency(payment.amount)}</div>
                       </div>
                     </div>
                   ))}

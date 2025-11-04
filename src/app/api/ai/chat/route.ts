@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AIService, BUSINESS_ANALYST_PROMPT } from '@/lib/ai-service';
+import { getCompanyName } from '@/lib/payment-order-notifications';
 
 // AI Query Processor - Truly conversational AI powered by GPT
 export async function POST(request: NextRequest) {
@@ -22,6 +23,8 @@ export async function POST(request: NextRequest) {
       console.error('❌ AI Chat API: No message provided');
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
+
+    const userId = (session.user as any).id;
 
     // Get AI settings from database
     const aiSettings = await prisma.systemSettings.findMany({
@@ -70,10 +73,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Get company name from settings
+    const companyName = await getCompanyName() || 'AdPools Group';
+    
     // Fetch comprehensive business data
     console.log('📊 AI Chat API: Fetching business data...');
-    const businessData = await fetchComprehensiveBusinessData();
+    const businessData = await fetchComprehensiveBusinessData(userId);
     console.log('✅ AI Chat API: Business data fetched');
+
+    // Replace company name in prompt
+    const promptWithCompanyName = BUSINESS_ANALYST_PROMPT.replace(/AdPools Group/g, companyName);
 
     // Initialize AI service with selected provider
     console.log(`💬 AI Chat API: Calling ${provider}...`);
@@ -91,7 +100,7 @@ export async function POST(request: NextRequest) {
       message,
       businessData,
       conversationHistory,
-      BUSINESS_ANALYST_PROMPT
+      promptWithCompanyName
     );
     console.log('✅ AI Chat API: AI response received');
 
@@ -112,7 +121,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Fetch all relevant business data
-async function fetchComprehensiveBusinessData() {
+async function fetchComprehensiveBusinessData(userId: string) {
   const now = new Date();
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
 
@@ -176,8 +185,11 @@ async function fetchComprehensiveBusinessData() {
         createdAt: true
       }
     }),
-    // Opportunities
+    // Opportunities (filtered by owner)
     prisma.opportunity.findMany({
+      where: {
+        ownerId: userId
+      },
       select: {
         id: true,
         name: true,

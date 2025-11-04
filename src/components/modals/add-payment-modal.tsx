@@ -245,8 +245,14 @@ export function AddPaymentModal({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to record payment');
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { error: `Server error: ${response.status} ${response.statusText}` };
+        }
+        console.error('Payment API error:', errorData);
+        throw new Error(errorData.error || errorData.details || 'Failed to record payment');
       }
 
       const payment = await response.json();
@@ -447,13 +453,14 @@ export function AddPaymentModal({
             >
               Cancel
             </Button>
-            <button
+            <Button
               type="submit"
               disabled={loading || !formData.amount || parseFloat(formData.amount) <= 0}
-              className="px-4 py-2 text-sm font-medium rounded-md text-white hover:opacity-90 transition-opacity bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+              style={{ backgroundColor: theme.primary, color: 'white' }}
             >
               {loading ? 'Recording...' : 'Record Payment'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

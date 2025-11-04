@@ -58,6 +58,7 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
     reason: "",
     notes: "",
     warehouseId: "",
+    supplierId: "",
     grnFile: null as File | null,
     purchaseOrderFile: null as File | null,
     transferDirection: "OUT" as "IN" | "OUT",
@@ -65,6 +66,7 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
     transferToWarehouse: "",
   });
   const [warehouses, setWarehouses] = useState<Array<{id: string, name: string, code: string}>>([]);
+  const [suppliers, setSuppliers] = useState<Array<{id: string, name: string}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { getThemeClasses } = useTheme();
   const theme = getThemeClasses();
@@ -94,6 +96,7 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
   useEffect(() => {
     if (isOpen) {
       fetchWarehouses();
+      fetchSuppliers();
     }
   }, [isOpen]);
 
@@ -110,6 +113,18 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
       }
     } catch (error) {
       console.error('Error fetching warehouses:', error);
+    }
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const response = await fetch('/api/suppliers');
+      if (response.ok) {
+        const data = await response.json();
+        setSuppliers(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
     }
   };
 
@@ -192,10 +207,16 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
       return;
     }
 
-    // Validate GRN file for RECEIPT type
-    if (formData.type === "RECEIPT" && !formData.grnFile) {
-      showError("Validation Error", "GRN (Goods Receipt Note) is required for stock receipts");
-      return;
+    // Validate GRN file and supplier for RECEIPT type
+    if (formData.type === "RECEIPT") {
+      if (!formData.grnFile) {
+        showError("Validation Error", "GRN (Goods Receipt Note) is required for stock receipts");
+        return;
+      }
+      if (!(formData as any).supplierId) {
+        showError("Validation Error", "Supplier is required for stock receipts");
+        return;
+      }
     }
 
     // Validate transfer fields for TRANSFER type
@@ -239,6 +260,11 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
       formDataToSend.append('reason', formData.reason);
       formDataToSend.append('notes', formData.notes);
       formDataToSend.append('warehouseId', formData.warehouseId);
+      // Supplier (optional except RECEIPT)
+      const supplierId = (formData as any).supplierId as string | undefined;
+      if (supplierId) {
+        formDataToSend.append('supplierId', supplierId);
+      }
       if (session?.user?.id) {
         formDataToSend.append('userId', session.user.id);
       }
@@ -493,6 +519,24 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
           {/* Unit Cost Field - Only show for stock IN movements */}
           {(["RECEIPT", "RETURN"].includes(formData.type) || (formData.type === "TRANSFER" && formData.transferDirection === "IN")) && (
             <div>
+              {formData.type === "RECEIPT" && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Supplier *
+                  </label>
+                  <select
+                    value={(formData as any).supplierId}
+                    onChange={(e) => setFormData({ ...formData, supplierId: e.target.value } as any)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select a supplier</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Unit Cost (Optional)
               </label>

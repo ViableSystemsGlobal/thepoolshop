@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import JsBarcode from 'jsbarcode';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, Printer, Copy } from 'lucide-react';
 import { useToast } from '@/contexts/toast-context';
@@ -19,6 +18,26 @@ interface BarcodeDisplayProps {
   price?: number;
 }
 
+// Valid barcode formats supported by JsBarcode
+const VALID_FORMATS = [
+  'CODE128',
+  'CODE128A',
+  'CODE128B',
+  'CODE128C',
+  'CODE39',
+  'EAN13',
+  'EAN8',
+  'UPC',
+  'ITF14',
+  'MSI',
+  'MSI10',
+  'MSI11',
+  'MSI1010',
+  'MSI1110',
+  'pharmacode',
+  'codabar'
+];
+
 export function BarcodeDisplay({
   value,
   format = 'EAN13',
@@ -33,23 +52,48 @@ export function BarcodeDisplay({
 }: BarcodeDisplayProps) {
   const barcodeRef = useRef<SVGSVGElement>(null);
   const { addToast } = useToast();
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     if (barcodeRef.current && value) {
-      try {
-        JsBarcode(barcodeRef.current, value, {
-          format: format === 'UPC' ? 'UPC' : format,
-          width,
-          height,
-          displayValue,
-          fontSize,
-          margin: 10,
-          background: '#ffffff',
-          lineColor: '#000000'
-        });
-      } catch (error) {
-        console.error('Error generating barcode:', error);
-      }
+      // Dynamically import JsBarcode on the client side
+      import('jsbarcode').then((JsBarcode) => {
+        try {
+          // Validate and normalize format
+          let normalizedFormat = format.toUpperCase();
+          
+          // Handle special cases
+          if (normalizedFormat === 'UPC') {
+            normalizedFormat = 'UPC';
+          } else if (!VALID_FORMATS.includes(normalizedFormat)) {
+            console.warn(`Invalid barcode format "${format}", using CODE128 instead`);
+            normalizedFormat = 'CODE128';
+          }
+          
+          // Get JsBarcode function (handle both default and named exports)
+          const JsBarcodeDefault = JsBarcode.default || JsBarcode;
+          
+          if (barcodeRef.current) {
+            JsBarcodeDefault(barcodeRef.current, value, {
+              format: normalizedFormat,
+              width,
+              height,
+              displayValue,
+              fontSize,
+              margin: 10,
+              background: '#ffffff',
+              lineColor: '#000000'
+            });
+            setError(null);
+          }
+        } catch (err) {
+          console.error('Error generating barcode:', err);
+          setError(err instanceof Error ? err.message : 'Failed to generate barcode');
+        }
+      }).catch((err) => {
+        console.error('Error loading JsBarcode:', err);
+        setError('Failed to load barcode library');
+      });
     }
   }, [value, format, width, height, displayValue, fontSize]);
   
@@ -168,7 +212,14 @@ export function BarcodeDisplay({
         </div>
       )}
       
-      <svg ref={barcodeRef}></svg>
+      {error ? (
+        <div className="flex flex-col items-center gap-2 p-4 border-2 border-dashed border-red-300 rounded">
+          <span className="text-sm text-red-600">Barcode Error</span>
+          <span className="text-xs text-red-400">{error}</span>
+        </div>
+      ) : (
+        <svg ref={barcodeRef}></svg>
+      )}
       
       {showActions && (
         <div className="flex gap-2 flex-wrap justify-center">

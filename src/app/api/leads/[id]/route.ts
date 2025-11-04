@@ -14,17 +14,23 @@ export async function GET(
     }
 
     const userId = (session.user as any).id;
+    const userRole = (session.user as any).role;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
 
+    // Super Admins and Admins can view any lead, others can only view their own
+    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+    
+    const whereClause: any = { id };
+    if (!isSuperAdmin) {
+      whereClause.ownerId = userId;
+    }
+
     const lead = await prisma.lead.findFirst({
-      where: {
-        id,
-        ownerId: userId,
-      },
+      where: whereClause,
       include: {
         owner: {
           select: { id: true, name: true, email: true },
@@ -52,6 +58,30 @@ export async function GET(
           return JSON.parse((lead as any).interestedProducts);
         } catch (e) {
           console.error('Error parsing interestedProducts:', e);
+          return null;
+        }
+      })() : null,
+      billingAddress: (lead as any).billingAddress ? (() => {
+        try {
+          // If it's already an object, return as is; otherwise parse JSON string
+          if (typeof (lead as any).billingAddress === 'object') {
+            return (lead as any).billingAddress;
+          }
+          return JSON.parse((lead as any).billingAddress);
+        } catch (e) {
+          console.error('Error parsing billingAddress:', e);
+          return null;
+        }
+      })() : null,
+      shippingAddress: (lead as any).shippingAddress ? (() => {
+        try {
+          // If it's already an object, return as is; otherwise parse JSON string
+          if (typeof (lead as any).shippingAddress === 'object') {
+            return (lead as any).shippingAddress;
+          }
+          return JSON.parse((lead as any).shippingAddress);
+        } catch (e) {
+          console.error('Error parsing shippingAddress:', e);
           return null;
         }
       })() : null,

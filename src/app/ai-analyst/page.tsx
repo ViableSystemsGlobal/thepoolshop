@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useTheme } from "@/contexts/theme-context";
 import { useToast } from "@/contexts/toast-context";
-import { Send, Bot, User, Sparkles } from "lucide-react";
+import { Send, Bot, User, Sparkles, MessageSquare, Clock, Plus } from "lucide-react";
 
 interface Message {
   id: string;
@@ -16,6 +16,14 @@ interface Message {
   timestamp: Date;
 }
 
+interface Conversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: Message[];
+}
+
 export default function AIAnalystPage() {
   const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
@@ -23,6 +31,9 @@ export default function AIAnalystPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [showPastChats, setShowPastChats] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -33,8 +44,47 @@ export default function AIAnalystPage() {
     scrollToBottom();
   }, [messages]);
 
+  // Load past conversations
   useEffect(() => {
-    // Add welcome message
+    const loadConversations = async () => {
+      try {
+        const response = await fetch('/api/ai/chat/conversations');
+        if (response.ok) {
+          const data = await response.json();
+          setConversations(data.conversations || []);
+        }
+      } catch (error) {
+        console.error('Error loading conversations:', error);
+      }
+    };
+    loadConversations();
+  }, []);
+
+  // Load conversation messages
+  const loadConversation = async (conversationId: string) => {
+    try {
+      const response = await fetch(`/api/ai/chat/conversations/${conversationId}`);
+      if (response.ok) {
+        const data = await response.json();
+        const convMessages = (data.conversation.messages as any[]).map((msg: any) => ({
+          id: msg.id || Date.now().toString(),
+          role: msg.role,
+          content: msg.content,
+          chart: msg.chart,
+          timestamp: new Date(msg.timestamp || Date.now())
+        }));
+        setMessages(convMessages);
+        setCurrentConversationId(conversationId);
+        setShowPastChats(false);
+      }
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      showError('Error', 'Failed to load conversation');
+    }
+  };
+
+  // Start new conversation
+  const startNewConversation = () => {
     setMessages([
       {
         id: "welcome",
@@ -43,6 +93,14 @@ export default function AIAnalystPage() {
         timestamp: new Date(),
       },
     ]);
+    setCurrentConversationId(null);
+    setShowPastChats(false);
+  };
+
+  useEffect(() => {
+    if (messages.length === 0 || (messages.length === 1 && messages[0].id === "welcome")) {
+      startNewConversation();
+    }
   }, []);
 
   const handleSend = async () => {
@@ -55,7 +113,6 @@ export default function AIAnalystPage() {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
@@ -75,7 +132,10 @@ export default function AIAnalystPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to get AI response");
+        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
+        const errorMessage = errorData.error || errorData.message || `Failed to get AI response: ${response.status} ${response.statusText}`;
+        console.error('AI Chat API Error:', errorMessage, errorData);
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -88,50 +148,211 @@ export default function AIAnalystPage() {
         timestamp: new Date(),
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      const updatedMessages = [...messages, userMessage, assistantMessage];
+      setMessages(updatedMessages);
+
+      // Save conversation
+      const conversationData = {
+        title: userMessage.content.substring(0, 50) || 'New Chat',
+        messages: updatedMessages.map(msg => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          chart: msg.chart,
+          timestamp: msg.timestamp.toISOString()
+        }))
+      };
+
+      if (currentConversationId) {
+        // Update existing conversation
+        await fetch(`/api/ai/chat/conversations/${currentConversationId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(conversationData)
+        });
+      } else {
+        // Create new conversation
+        const response = await fetch('/api/ai/chat/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(conversationData)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentConversationId(data.conversation.id);
+          // Reload conversations list
+          const convsResponse = await fetch('/api/ai/chat/conversations');
+          if (convsResponse.ok) {
+            const convsData = await convsResponse.json();
+            setConversations(convsData.conversations || []);
+          }
+        }
+      }
     } catch (error) {
       console.error("AI chat error:", error);
-      showError("Error", "Failed to process your question. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to process your question. Please try again.";
+      showError("Error", errorMessage);
+      
+      // Add error message to chat for user visibility
+      const errorChatMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: `⚠️ ${errorMessage}\n\nPlease check:\n- AI settings are configured correctly\n- API keys are valid\n- Network connection is stable`,
+        timestamp: new Date(),
+      };
+      setMessages([...messages, userMessage, errorChatMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+    // Shift+Enter allows new lines (default textarea behavior)
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  const deleteConversation = async (conversationId: string) => {
+    try {
+      const response = await fetch(`/api/ai/chat/conversations/${conversationId}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        setConversations(conversations.filter(c => c.id !== conversationId));
+        if (currentConversationId === conversationId) {
+          startNewConversation();
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      showError('Error', 'Failed to delete conversation');
     }
   };
 
   return (
     <>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <div className="flex items-center space-x-3">
-            <div
-              className="p-3 rounded-lg"
-              style={{ backgroundColor: `${getThemeColor()}20` }}
-            >
-              <Sparkles
-                className="h-6 w-6"
-                style={{ color: getThemeColor() }}
-              />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                AI Business Analyst
-              </h1>
-              <p className="text-gray-600">
-                Ask Jayne anything about your business data and get intelligent insights
-              </p>
-            </div>
-          </div>
+      <div className="flex space-x-6">
+        {/* Past Chats Sidebar */}
+        <div className={`w-64 flex-shrink-0 transition-all ${showPastChats ? '' : 'hidden lg:block'}`}>
+          <Card className="border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 2rem)' }}>
+            <CardHeader className="flex-shrink-0 pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <MessageSquare className="h-5 w-5" />
+                  <span>Past Chats</span>
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={startNewConversation}
+                  style={{ color: getThemeColor() }}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto overscroll-contain">
+                {conversations.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">
+                    No past conversations
+                  </div>
+                ) : (
+                  <div className="space-y-1 pb-2">
+                    {conversations.map((conv) => (
+                      <div
+                        key={conv.id}
+                        className={`p-3 mx-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
+                          currentConversationId === conv.id ? 'bg-blue-50 border border-blue-200' : ''
+                        }`}
+                        onClick={() => loadConversation(conv.id)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {conv.title || 'Untitled Chat'}
+                            </p>
+                            <p className="text-xs text-gray-500 flex items-center space-x-1 mt-1">
+                              <Clock className="h-3 w-3 flex-shrink-0" />
+                              <span>{formatDate(conv.updatedAt)}</span>
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-gray-400 hover:text-red-600 flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteConversation(conv.id);
+                            }}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Chat Interface */}
-        <Card className="border border-gray-200">
+        {/* Main Chat Area */}
+        <div className="flex-1 space-y-6">
+          {/* Header */}
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div
+                  className="p-3 rounded-lg"
+                  style={{ backgroundColor: `${getThemeColor()}20` }}
+                >
+                  <Sparkles
+                    className="h-6 w-6"
+                    style={{ color: getThemeColor() }}
+                  />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">
+                    Jayne (AI Business Analyst)
+                  </h1>
+                  <p className="text-gray-600">
+                    Ask Jayne anything about your business data and get intelligent insights
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPastChats(!showPastChats)}
+                className="lg:hidden"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Past Chats
+              </Button>
+            </div>
+          </div>
+
+          {/* Chat Interface */}
+          <Card className="border border-gray-200">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Bot className="h-5 w-5" />
@@ -227,14 +448,15 @@ export default function AIAnalystPage() {
               </div>
 
               {/* Input */}
-              <div className="flex items-center space-x-2">
-                <Input
+              <div className="flex items-end space-x-2">
+                <Textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask me anything about your business..."
+                  onKeyDown={handleKeyPress}
+                  placeholder="Ask me anything about your business... (Shift+Enter for new line)"
                   disabled={isLoading}
-                  className="flex-1"
+                  className="flex-1 min-h-[80px] max-h-[200px] resize-y"
+                  rows={3}
                 />
                 <Button
                   onClick={handleSend}
@@ -248,6 +470,7 @@ export default function AIAnalystPage() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     </>
   );

@@ -123,6 +123,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Import currency conversion function
+    const { convertCurrency } = await import('@/lib/currency');
+
     // Fetch all products (active or all based on includeInactive)
     const products = await prisma.product.findMany({
       where: includeInactive ? {} : { active: true },
@@ -132,32 +135,77 @@ export async function POST(request: NextRequest) {
         name: true,
         price: true,
         cost: true,
+        originalPrice: true,
+        originalCost: true,
+        originalPriceCurrency: true,
+        originalCostCurrency: true,
+        baseCurrency: true,
       },
     });
     
 
     // Calculate prices and create price list items for all products
-    const priceListItems = products.map((product) => {
-      // Determine base price
-      const originalPrice = basePrice === "COST" ? product.cost || 0 : product.price || 0;
+    const priceListItemsPromises = products.map(async (product) => {
+      // Determine which price to use and what currency it's in
+      let sourcePrice: number;
+      let sourceCurrency: string;
+      
+      if (basePrice === "COST") {
+        // Use cost - prefer original cost if available
+        if (product.originalCost && product.originalCostCurrency) {
+          sourcePrice = product.originalCost;
+          sourceCurrency = product.originalCostCurrency;
+        } else {
+          sourcePrice = product.cost || 0;
+          sourceCurrency = product.baseCurrency || 'USD';
+        }
+      } else {
+        // Use selling price - prefer original price if available
+        if (product.originalPrice && product.originalPriceCurrency) {
+          sourcePrice = product.originalPrice;
+          sourceCurrency = product.originalPriceCurrency;
+        } else {
+          sourcePrice = product.price || 0;
+          sourceCurrency = product.baseCurrency || 'USD';
+        }
+      }
+      
+      // Convert to price list currency if needed
+      let convertedPrice = sourcePrice;
+      if (sourceCurrency !== currency && sourcePrice > 0) {
+        try {
+          const conversion = await convertCurrency(sourceCurrency, currency, sourcePrice);
+          if (conversion) {
+            convertedPrice = conversion.convertedAmount;
+          } else {
+            console.warn(`Failed to convert ${sourceCurrency} to ${currency} for product ${product.id}, using original price`);
+          }
+        } catch (error) {
+          console.error(`Error converting price for product ${product.id}:`, error);
+          // Fallback to original price if conversion fails
+        }
+      }
       
       // Calculate unit price based on calculation type
       let unitPrice: number;
       if (calculationType === "MARKUP") {
         // Markup: increase price by percentage
-        unitPrice = originalPrice * (1 + numericPercentage / 100);
+        unitPrice = convertedPrice * (1 + numericPercentage / 100);
       } else {
         // Discount: decrease price by percentage
-        unitPrice = originalPrice * (1 - numericPercentage / 100);
+        unitPrice = convertedPrice * (1 - numericPercentage / 100);
       }
 
       return {
         priceListId: priceList.id,
         productId: product.id,
         unitPrice: Math.round(unitPrice * 100) / 100, // Round to 2 decimal places
-        basePrice: originalPrice,
+        basePrice: convertedPrice,
       };
     });
+
+    // Wait for all conversions to complete
+    const priceListItems = await Promise.all(priceListItemsPromises);
 
     // Bulk create price list items
     if (priceListItems.length > 0) {

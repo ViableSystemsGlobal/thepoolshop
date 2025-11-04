@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, Eye, Users, TrendingUp, Clock, CheckCircle, Grid, List, Upload, FileBarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,15 +59,40 @@ const statusColors = {
   NEW: 'bg-blue-100 text-blue-800',
   CONTACTED: 'bg-yellow-100 text-yellow-800',
   QUALIFIED: 'bg-green-100 text-green-800',
-  QUOTE_SENT: 'bg-indigo-100 text-indigo-800',
-  CONVERTED: 'bg-purple-100 text-purple-800',
+  QUOTE_SENT: 'bg-purple-100 text-purple-800', // Quote sent = converted
+  CONVERTED_TO_OPPORTUNITY: 'bg-purple-100 text-purple-800', // Main status when quote is sent
+  CONVERTED: 'bg-purple-100 text-purple-800', // Legacy status
   LOST: 'bg-red-100 text-red-800',
+  UNQUALIFIED: 'bg-gray-100 text-gray-800',
+};
+
+// Helper function to normalize status for display and filtering
+const normalizeLeadStatus = (status: string): string => {
+  // Map legacy QUOTE_SENT to CONVERTED_TO_OPPORTUNITY
+  if (status === 'QUOTE_SENT') {
+    return 'CONVERTED_TO_OPPORTUNITY';
+  }
+  // Map legacy CONVERTED to CONVERTED_TO_OPPORTUNITY
+  if (status === 'CONVERTED' || status === 'OPPORTUNITY' || status === 'NEW_OPPORTUNITY') {
+    return 'CONVERTED_TO_OPPORTUNITY';
+  }
+  return status;
+};
+
+// Helper function to get display label for status
+const getStatusLabel = (status: string): string => {
+  const normalized = normalizeLeadStatus(status);
+  if (normalized === 'CONVERTED_TO_OPPORTUNITY') {
+    return 'Converted';
+  }
+  return normalized.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 };
 
 export default function LeadsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { getThemeClasses } = useTheme();
+  const searchParams = useSearchParams();
+  const { getThemeClasses, getThemeColor } = useTheme();
   const theme = getThemeClasses();
   const { success, error } = useToast();
   
@@ -83,6 +108,14 @@ export default function LeadsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  // Auto-open Add Lead modal when navigated with ?new=1
+  useEffect(() => {
+    const isNew = searchParams?.get('new');
+    if (isNew === '1') {
+      setShowAddModal(true);
+    }
+  }, [searchParams]);
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -149,9 +182,9 @@ export default function LeadsPage() {
   };
 
   const calculateMetrics = (leadsData: Lead[]) => {
-    const newLeads = leadsData.filter(lead => lead.status === 'NEW').length;
-    const qualifiedLeads = leadsData.filter(lead => lead.status === 'QUALIFIED').length;
-    const convertedLeads = leadsData.filter(lead => lead.status === 'CONVERTED').length;
+    const newLeads = leadsData.filter(lead => normalizeLeadStatus(lead.status) === 'NEW').length;
+    const qualifiedLeads = leadsData.filter(lead => normalizeLeadStatus(lead.status) === 'QUALIFIED').length;
+    const convertedLeads = leadsData.filter(lead => normalizeLeadStatus(lead.status) === 'CONVERTED_TO_OPPORTUNITY').length;
     
     setMetrics({
       total: leadsData.length,
@@ -375,15 +408,22 @@ export default function LeadsPage() {
     e.preventDefault();
     const leadData = JSON.parse(e.dataTransfer.getData('application/json'));
     
-    if (leadData.status === newStatus) {
+    // Normalize both statuses for comparison
+    const currentNormalized = normalizeLeadStatus(leadData.status);
+    const newNormalized = normalizeLeadStatus(newStatus);
+    
+    if (currentNormalized === newNormalized) {
       return; // No change needed
     }
+
+    // Use CONVERTED_TO_OPPORTUNITY for CONVERTED status
+    const statusToSave = newStatus === 'CONVERTED' ? 'CONVERTED_TO_OPPORTUNITY' : newStatus;
 
     try {
       const response = await fetch(`/api/leads/${leadData.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...leadData, status: newStatus }),
+        body: JSON.stringify({ ...leadData, status: statusToSave }),
         credentials: 'include',
       });
 
@@ -391,13 +431,13 @@ export default function LeadsPage() {
         // Update local state
         setLeads(prevLeads => 
           prevLeads.map(lead => 
-            lead.id === leadData.id ? { ...lead, status: newStatus as any } : lead
+            lead.id === leadData.id ? { ...lead, status: statusToSave as any } : lead
           )
         );
         
         // Recalculate metrics
         const updatedLeads = leads.map(lead => 
-          lead.id === leadData.id ? { ...lead, status: newStatus as any } : lead
+          lead.id === leadData.id ? { ...lead, status: statusToSave as any } : lead
         );
         calculateMetrics(updatedLeads);
         
@@ -510,7 +550,8 @@ export default function LeadsPage() {
               variant={viewMode === 'list' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className={viewMode === 'list' ? `bg-${theme.primary} text-white hover:bg-${theme.primary} hover:text-white` : `hover:bg-gray-200`}
+              className={viewMode === 'list' ? 'text-white hover:opacity-90 transition-opacity' : 'hover:bg-gray-200'}
+              style={viewMode === 'list' ? { backgroundColor: getThemeColor() } : {}}
             >
               <List className="w-4 h-4" />
             </Button>
@@ -518,7 +559,8 @@ export default function LeadsPage() {
               variant={viewMode === 'kanban' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('kanban')}
-              className={viewMode === 'kanban' ? `bg-${theme.primary} text-white hover:bg-${theme.primary} hover:text-white` : `hover:bg-gray-200`}
+              className={viewMode === 'kanban' ? 'text-white hover:opacity-90 transition-opacity' : 'hover:bg-gray-200'}
+              style={viewMode === 'kanban' ? { backgroundColor: getThemeColor() } : {}}
             >
               <Grid className="w-4 h-4" />
             </Button>
@@ -533,7 +575,8 @@ export default function LeadsPage() {
           </Button>
           <Button 
             onClick={() => setShowAddModal(true)}
-            className={`bg-${theme.primary} hover:bg-${theme.primaryDark} text-white`}
+            className="text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: getThemeColor() }}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Lead
@@ -548,8 +591,9 @@ export default function LeadsPage() {
           <AIRecommendationCard
             title="Lead Management AI"
             subtitle="Your intelligent assistant for lead optimization"
-            recommendations={aiRecommendations}
             onRecommendationComplete={handleRecommendationComplete}
+            page="leads"
+            enableAI={true}
           />
         </div>
 
@@ -627,8 +671,7 @@ export default function LeadsPage() {
               <option value="">All Status</option>
               <option value="NEW">New</option>
               <option value="QUALIFIED">Qualified</option>
-              <option value="QUOTE_SENT">Quote Sent</option>
-              <option value="CONVERTED">Converted</option>
+              <option value="CONVERTED_TO_OPPORTUNITY">Converted (Quote Sent)</option>
               <option value="LOST">Lost</option>
             </select>
           </div>
@@ -684,8 +727,8 @@ export default function LeadsPage() {
                       {lead.subject || 'No Subject'}
                     </div>
                     <div className="flex items-center gap-1 mt-1">
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[lead.status]}`}>
-                        {lead.status}
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[normalizeLeadStatus(lead.status) as keyof typeof statusColors] || statusColors.NEW}`}>
+                        {getStatusLabel(lead.status)}
                       </span>
                       <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
                         lead.leadType === 'COMPANY' 
@@ -748,6 +791,30 @@ export default function LeadsPage() {
                 )
               },
               {
+                key: 'followUpDate',
+                label: 'Follow-up Date',
+                render: (lead) => (
+                  <div className="text-sm">
+                    {lead.followUpDate ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-900">
+                          {new Date(lead.followUpDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </span>
+                        {new Date(lead.followUpDate) < new Date() && (
+                          <span className="text-red-600 text-xs font-medium">Overdue</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </div>
+                )
+              },
+              {
                 key: 'actions',
                 label: 'Actions',
                 render: (lead) => (
@@ -788,13 +855,11 @@ export default function LeadsPage() {
                         className: 'text-red-600',
                       },
                     ]}
-                    align="right"
                     />
                   </div>
                 )
               }
             ]}
-            onRowClick={handleRowClick}
             itemsPerPage={10}
           />
         )}
@@ -821,8 +886,7 @@ export default function LeadsPage() {
               <option value="">All Status</option>
               <option value="NEW">New</option>
               <option value="QUALIFIED">Qualified</option>
-              <option value="QUOTE_SENT">Quote Sent</option>
-              <option value="CONVERTED">Converted</option>
+              <option value="CONVERTED_TO_OPPORTUNITY">Converted (Quote Sent)</option>
               <option value="LOST">Lost</option>
             </select>
           </div>
@@ -837,11 +901,11 @@ export default function LeadsPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-700">New Leads</h3>
               <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
-                {leads.filter(lead => lead.status === 'NEW').length}
+                {leads.filter(lead => normalizeLeadStatus(lead.status) === 'NEW').length}
               </span>
             </div>
             <div className="space-y-3">
-              {leads.filter(lead => lead.status === 'NEW').map((lead) => (
+              {leads.filter(lead => normalizeLeadStatus(lead.status) === 'NEW').map((lead) => (
                 <Card 
                   key={lead.id} 
                   className="p-4 cursor-move hover:shadow-md transition-shadow"
@@ -884,7 +948,7 @@ export default function LeadsPage() {
                           className: 'text-red-600',
                         },
                       ]}
-                      align="right"
+                      
                     />
                   </div>
                   <p className="text-sm text-gray-600 mb-2">{lead.company || 'No company'}</p>
@@ -910,11 +974,11 @@ export default function LeadsPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-700">Qualified</h3>
               <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
-                {leads.filter(lead => lead.status === 'QUALIFIED').length}
+                {leads.filter(lead => normalizeLeadStatus(lead.status) === 'QUALIFIED').length}
               </span>
             </div>
             <div className="space-y-3">
-              {leads.filter(lead => lead.status === 'QUALIFIED').map((lead) => (
+              {leads.filter(lead => normalizeLeadStatus(lead.status) === 'QUALIFIED').map((lead) => (
                 <Card 
                   key={lead.id} 
                   className="p-4 cursor-move hover:shadow-md transition-shadow"
@@ -957,7 +1021,7 @@ export default function LeadsPage() {
                           className: 'text-red-600',
                         },
                       ]}
-                      align="right"
+                      
                     />
                   </div>
                   <p className="text-sm text-gray-600 mb-2">{lead.company || 'No company'}</p>
@@ -978,16 +1042,16 @@ export default function LeadsPage() {
           <div 
             className="bg-gray-50 rounded-lg p-4 min-h-[400px]"
             onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, 'CONVERTED')}
+            onDrop={(e) => handleDrop(e, 'CONVERTED_TO_OPPORTUNITY')}
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-700">Converted</h3>
               <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-1 rounded-full">
-                {leads.filter(lead => lead.status === 'CONVERTED').length}
+                {leads.filter(lead => normalizeLeadStatus(lead.status) === 'CONVERTED_TO_OPPORTUNITY').length}
               </span>
             </div>
             <div className="space-y-3">
-              {leads.filter(lead => lead.status === 'CONVERTED').map((lead) => (
+              {leads.filter(lead => normalizeLeadStatus(lead.status) === 'CONVERTED_TO_OPPORTUNITY').map((lead) => (
                 <Card 
                   key={lead.id} 
                   className="p-4 cursor-move hover:shadow-md transition-shadow"
@@ -1030,7 +1094,7 @@ export default function LeadsPage() {
                           className: 'text-red-600',
                         },
                       ]}
-                      align="right"
+                      
                     />
                   </div>
                   <p className="text-sm text-gray-600 mb-2">{lead.company || 'No company'}</p>
@@ -1103,7 +1167,7 @@ export default function LeadsPage() {
                           className: 'text-red-600',
                         },
                       ]}
-                      align="right"
+                      
                     />
                   </div>
                   <p className="text-sm text-gray-600 mb-2">{lead.company || 'No company'}</p>

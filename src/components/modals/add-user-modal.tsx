@@ -72,6 +72,11 @@ export default function AddUserModal({ isOpen, onClose, onAddUser, roles = [] }:
       showError('Role is required');
       return;
     }
+    
+    if (!formData.password || formData.password.trim().length < 6) {
+      showError('Password is required and must be at least 6 characters');
+      return;
+    }
 
     setIsCreating(true);
     
@@ -210,7 +215,7 @@ export default function AddUserModal({ isOpen, onClose, onAddUser, roles = [] }:
             {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password
+                Password*
               </label>
               <div className="relative">
                 <Input
@@ -218,6 +223,8 @@ export default function AddUserModal({ isOpen, onClose, onAddUser, roles = [] }:
                   placeholder="Enter User Password"
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
+                  required
+                  minLength={6}
                 />
                 <button
                   type="button"
