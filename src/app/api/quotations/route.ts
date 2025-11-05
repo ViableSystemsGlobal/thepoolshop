@@ -6,13 +6,21 @@ import { generateQuoteQRData, generateQRCode } from '@/lib/qrcode';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 Quotations GET API - Starting request');
+    
     const session = await getServerSession(authOptions);
+    console.log('🔍 Session:', session ? 'Found' : 'Not found');
+    
     if (!session?.user) {
+      console.log('❌ No session or user');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const userId = (session.user as any).id;
+    console.log('🔍 User ID:', userId);
+    
     if (!userId) {
+      console.log('❌ No user ID');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -22,6 +30,7 @@ export async function GET(request: NextRequest) {
       select: { role: true }
     });
     
+    console.log('🔍 User role:', user?.role);
     const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
     const { searchParams } = new URL(request.url);
@@ -50,54 +59,58 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit;
     
+    console.log('🔍 Query parameters:', { where, skip, limit, page });
+    
     const [quotations, total] = await Promise.all([
       prisma.quotation.findMany({
         where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        number: true,
-        subject: true,
-        status: true,
-        total: true,
-        subtotal: true,
-        tax: true,
-        taxInclusive: true,
-        currency: true,
-        notes: true,
-        validUntil: true,
-        qrCodeData: true,
-        qrCodeGeneratedAt: true,
-        createdAt: true,
-        updatedAt: true,
-        owner: {
-          select: { id: true, name: true, email: true },
-        },
-        account: {
-          select: { id: true, name: true, type: true, email: true, phone: true },
-        },
-        distributor: {
-          select: { id: true, businessName: true, email: true, phone: true },
-        } as any,
-        lead: {
-          select: { id: true, firstName: true, lastName: true, email: true, phone: true, company: true },
-        },
-        lines: {
-          include: {
-            product: {
-              select: { id: true, name: true, sku: true, images: true },
+        select: {
+          id: true,
+          number: true,
+          subject: true,
+          status: true,
+          total: true,
+          subtotal: true,
+          tax: true,
+          taxInclusive: true,
+          currency: true,
+          notes: true,
+          validUntil: true,
+          qrCodeData: true,
+          qrCodeGeneratedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          owner: {
+            select: { id: true, name: true, email: true },
+          },
+          account: {
+            select: { id: true, name: true, type: true, email: true, phone: true },
+          },
+          distributor: {
+            select: { id: true, businessName: true, email: true, phone: true },
+          },
+          lead: {
+            select: { id: true, firstName: true, lastName: true, email: true, phone: true, company: true },
+          },
+          lines: {
+            include: {
+              product: {
+                select: { id: true, name: true, sku: true, images: true },
+              },
             },
           },
+          _count: {
+            select: { lines: true, proformas: true },
+          },
         },
-        _count: {
-          select: { lines: true, proformas: true },
-        },
-      },
-    } as any),
-    prisma.quotation.count({ where })
+      }),
+      prisma.quotation.count({ where })
     ]);
+    
+    console.log('✅ Found quotations:', quotations.length, 'Total:', total);
 
     return NextResponse.json({ 
       quotations,
@@ -108,10 +121,12 @@ export async function GET(request: NextRequest) {
         pages: Math.ceil(total / limit)
       }
     });
-  } catch (error) {
-    console.error('Error fetching quotations:', error);
+  } catch (error: any) {
+    console.error('❌ Error fetching quotations:', error);
+    console.error('❌ Error message:', error?.message);
+    console.error('❌ Error stack:', error?.stack);
     return NextResponse.json(
-      { error: 'Failed to fetch quotations' },
+      { error: 'Failed to fetch quotations', details: error?.message },
       { status: 500 }
     );
   }
