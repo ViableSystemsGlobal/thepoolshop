@@ -103,6 +103,19 @@ async function resetDatabase() {
     console.log(`   Password: admin123`);
     console.log(`   Role: ${adminUser.role}\n`);
     
+    // Step 5: Restore roles and abilities
+    console.log('📋 Step 5: Restoring roles and abilities...');
+    try {
+      execSync('node scripts/restore-roles-and-abilities.js', {
+        stdio: 'inherit',
+        env: { ...process.env }
+      });
+      console.log('✅ Roles and abilities restored\n');
+    } catch (error) {
+      console.error('⚠️  Warning: Could not restore roles and abilities automatically');
+      console.error('   Please run: node scripts/restore-roles-and-abilities.js manually');
+    }
+    
     console.log('🎉 Database reset complete!');
     console.log('\n📋 Next steps:');
     console.log('1. Restart your application');
