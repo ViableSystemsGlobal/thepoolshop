@@ -148,12 +148,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify customer exists (either account or distributor)
+    // Get user role first for Super Admin checks
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+    
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+    
     if (accountId) {
+      // Super Admins and Admins can access any account, others only their own
+      const accountWhere: any = { id: accountId };
+      if (!isSuperAdmin) {
+        accountWhere.ownerId = userId;
+      }
+      
       const account = await prisma.account.findFirst({
-        where: {
-          id: accountId,
-          ownerId: userId,
-        },
+        where: accountWhere,
       });
 
       if (!account) {
@@ -180,11 +191,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (leadId) {
+      // Super Admins and Admins can access any lead, others only their own
+      const leadWhere: any = { id: leadId };
+      if (!isSuperAdmin) {
+        leadWhere.ownerId = userId;
+      }
+      
       const lead = await prisma.lead.findFirst({
-        where: {
-          id: leadId,
-          ownerId: userId,
-        },
+        where: leadWhere,
       });
 
       if (!lead) {
