@@ -6,8 +6,23 @@ import { generateQuoteQRData, generateQRCode } from '@/lib/qrcode';
 
 export async function GET(request: NextRequest) {
   try {
-    // For now, allow reading quotations without authentication
-    // TODO: Add proper authentication if needed
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = (session.user as any).id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get user role for Super Admin checks
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+    
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
@@ -15,7 +30,12 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
 
+    // Super Admins can see all quotations, others only their own
     const where: any = {};
+    
+    if (!isSuperAdmin) {
+      where.ownerId = userId;
+    }
 
     if (status) {
       where.status = status;
@@ -23,8 +43,8 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       where.OR = [
-        { number: { contains: search } },
-        { subject: { contains: search } },
+        { number: { contains: search, mode: 'insensitive' } },
+        { subject: { contains: search, mode: 'insensitive' } },
       ];
     }
 
