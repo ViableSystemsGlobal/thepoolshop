@@ -304,25 +304,25 @@ export async function POST(request: NextRequest) {
           }
         });
         console.log(`✅ Created credit note ${creditNoteNumber} for return ${returnRecord.number}`);
+        
         // Send notifications if credit note was created
-        if (salesOrder?.invoiceId) {
-          try {
-            const account = await prisma.account.findUnique({
-              where: { id: accountId },
-              select: { name: true, email: true, phone: true }
+        try {
+          const account = await prisma.account.findUnique({
+            where: { id: accountId },
+            select: { name: true, email: true, phone: true }
+          });
+
+          if (account) {
+            const companyName = await getCompanyName();
+            const creditNote = await prisma.creditNote.findFirst({
+              where: { number: creditNoteNumber },
+              select: { number: true, amount: true }
             });
 
-            if (account) {
-              const companyName = await getCompanyName();
-              const creditNote = await prisma.creditNote.findFirst({
-                where: { number: creditNoteNumber },
-                select: { number: true, amount: true }
-              });
-
-              if (creditNote) {
-                // Send email notification
-                const emailSubject = `Return Approved - Credit Note ${creditNote.number}`;
-                const emailMessage = `Dear ${account.name},
+            if (creditNote) {
+              // Send email notification
+              const emailSubject = `Return Approved - Credit Note ${creditNote.number}`;
+              const emailMessage = `Dear ${account.name},
 
 Your return request (${returnRecord.number}) has been approved and a credit note has been issued.
 
@@ -339,25 +339,25 @@ Thank you for your business.
 Best regards,
 ${companyName || 'AdPools Group'}`;
 
-                // Send SMS notification
-                const smsMessage = `Your return ${returnRecord.number} has been approved. Credit Note ${creditNote.number} for GH₵${creditNote.amount.toFixed(2)} has been created. ${companyName || 'AdPools Group'}`;
+              // Send SMS notification
+              const smsMessage = `Your return ${returnRecord.number} has been approved. Credit Note ${creditNote.number} for GH₵${creditNote.amount.toFixed(2)} has been created. ${companyName || 'AdPools Group'}`;
 
-                // Send notifications asynchronously
-                await Promise.all([
-                  sendEmailViaSMTP(account.email || '', emailSubject, emailMessage),
-                  account.phone ? sendSmsViaDeywuro(account.phone, smsMessage) : Promise.resolve({ success: false, error: 'No phone number' })
-                ]);
+              // Send notifications asynchronously
+              await Promise.all([
+                sendEmailViaSMTP(account.email || '', emailSubject, emailMessage),
+                account.phone ? sendSmsViaDeywuro(account.phone, smsMessage) : Promise.resolve({ success: false, error: 'No phone number' })
+              ]);
 
-                console.log(`✅ Sent notifications for approved return ${returnRecord.number}`);
-              }
+              console.log(`✅ Sent notifications for approved return ${returnRecord.number}`);
             }
-          } catch (notificationError) {
-            console.error('Error sending return approval notifications:', notificationError);
-            // Don't fail the return creation if notifications fail
           }
-        } else {
-          console.log(`⚠️ No invoice found for sales order ${salesOrderId}, skipping credit note creation`);
+        } catch (notificationError) {
+          console.error('Error sending return approval notifications:', notificationError);
+          // Don't fail the return creation if notifications fail
         }
+      } else {
+        console.log(`⚠️ No invoice found for sales order ${salesOrderId}, skipping credit note creation`);
+      }
       } catch (error) {
         console.error('Error processing return approval:', error);
         // Don't fail the return creation, just log the error
