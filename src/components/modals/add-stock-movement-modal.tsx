@@ -68,12 +68,14 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
     reason: "",
     notes: "",
     warehouseId: "",
+    supplierId: "",
     transferDirection: "OUT" as "IN" | "OUT",
     transferFromWarehouse: "",
     transferToWarehouse: "",
   });
   const [products, setProducts] = useState<Product[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -104,8 +106,21 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
     if (isOpen) {
       fetchProducts();
       fetchWarehouses();
+      fetchSuppliers();
     }
   }, [isOpen]);
+
+  const fetchSuppliers = async () => {
+    try {
+      const response = await fetch('/api/suppliers');
+      if (response.ok) {
+        const data = await response.json();
+        setSuppliers(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+    }
+  };
 
   // Filter products based on search
   useEffect(() => {
@@ -330,6 +345,9 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
       formDataToSend.append('reason', formData.reason);
       formDataToSend.append('notes', formData.notes);
       formDataToSend.append('warehouseId', formData.warehouseId);
+      if (formData.supplierId) {
+        formDataToSend.append('supplierId', formData.supplierId);
+      }
       
       // Add transfer-specific fields
       if (formData.type === "TRANSFER") {
@@ -368,6 +386,7 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
           reason: "",
           notes: "",
           warehouseId: warehouses.length > 0 ? warehouses[0].id : "",
+          supplierId: "",
           transferDirection: "OUT",
           transferFromWarehouse: "",
           transferToWarehouse: "",
@@ -554,6 +573,30 @@ export function AddStockMovementModal({ isOpen, onClose, onSuccess }: AddStockMo
               ))}
             </select>
           </div>
+
+          {/* Supplier Selection - Only show for RECEIPT type */}
+          {formData.type === "RECEIPT" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Supplier
+              </label>
+              <select
+                value={formData.supplierId}
+                onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select a supplier (optional)</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Select the supplier this stock was received from
+              </p>
+            </div>
+          )}
 
           {/* Transfer Fields - Only show for TRANSFER type */}
           {formData.type === "TRANSFER" && (
