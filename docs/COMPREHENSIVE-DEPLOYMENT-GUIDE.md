@@ -283,12 +283,18 @@ npx prisma migrate deploy
 
 # Verify migrations were applied
 npx prisma migrate status
+
+# CRITICAL: Verify database schema after migrations
+node scripts/verify-database-schema.js
 ```
 
 **Expected Output:**
 ```
 ✅ All migrations have been successfully applied.
+✅ All required columns and tables exist!
 ```
+
+**⚠️ IMPORTANT:** If `verify-database-schema.js` shows missing columns, the migrations haven't been applied correctly. Fix the migrations before continuing.
 
 ### Step 7: Restore Roles and Abilities (CRITICAL)
 
