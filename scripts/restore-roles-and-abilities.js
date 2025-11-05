@@ -23,78 +23,83 @@ async function restoreRolesAndAbilities() {
     // Step 1: Create all abilities
     console.log('📋 Step 1: Creating all abilities...');
     
+    // All abilities from src/lib/permissions.ts - ABILITIES object
     const allAbilities = [
-      // Core navigation
+      // Dashboard
       'dashboard.view',
-      'crm.view', 'drm.view', 'sales.view', 'inventory.view',
-      'communication.view', 'agents.view', 'reports.view', 'settings.view', 'tasks.view',
-      'ai_analyst.access', 'ai-analyst.view',
       
       // Products
-      'products.view', 'products.create', 'products.edit', 'products.delete', 'products.manage',
-      'products.read', 'products.update',
-      
-      // Leads & CRM
-      'leads.view', 'leads.create', 'leads.edit', 'leads.delete', 'leads.manage',
-      'leads.read', 'leads.update', 'leads.bulk-delete', 'leads.bulk-export', 'leads.bulk-update',
-      'accounts.view', 'accounts.create', 'accounts.edit', 'accounts.delete', 'accounts.manage',
-      'accounts.read', 'accounts.update',
-      'opportunities.view', 'opportunities.create', 'opportunities.edit', 'opportunities.delete',
-      'opportunities.read', 'opportunities.update',
-      'contacts.view', 'contacts.create', 'contacts.edit', 'contacts.delete',
-      'contacts.read', 'contacts.update',
-      
-      // Sales
-      'invoices.view', 'invoices.create', 'invoices.edit', 'invoices.delete', 'invoices.manage',
-      'quotations.view', 'quotations.create', 'quotations.edit', 'quotations.delete',
-      'payments.view', 'payments.create', 'payments.edit', 'payments.delete',
-      'payments.read', 'payments.update',
-      'orders.view', 'orders.create', 'orders.edit', 'orders.delete', 'orders.manage',
-      'proformas.view', 'proformas.create', 'proformas.edit', 'proformas.delete',
-      'returns.view', 'returns.create', 'returns.edit', 'returns.delete',
-      'credit-notes.view', 'credit-notes.create', 'credit-notes.edit', 'credit-notes.delete',
+      'products.view', 'products.create', 'products.edit', 'products.delete',
       
       // Inventory
+      'inventory.view', 'stock.view', 'stock.create', 'stock.edit', 'stock.delete',
+      
+      // Warehouses
       'warehouses.view', 'warehouses.create', 'warehouses.edit', 'warehouses.delete',
-      'stock.view', 'stock.create', 'stock.edit', 'stock.delete',
-      'stock-movements.view', 'stock-movements.create', 'stock-movements.read',
-      'backorders.view', 'backorders.create', 'backorders.edit', 'backorders.delete',
+      
+      // Price Lists
       'price-lists.view', 'price-lists.create', 'price-lists.edit', 'price-lists.delete',
-      'inventory.manage', 'inventory.read', 'inventory.update',
+      
+      // CRM
+      'leads.view', 'leads.create', 'leads.edit', 'leads.delete', 'leads.manage',
+      'accounts.view', 'accounts.create', 'accounts.edit', 'accounts.delete',
+      'opportunities.view', 'opportunities.create', 'opportunities.edit', 'opportunities.delete',
+      'quotations.view', 'quotations.create', 'quotations.edit', 'quotations.delete',
+      'contacts.view', 'contacts.create', 'contacts.edit', 'contacts.delete',
+      
+      // Backorders
+      'backorders.view', 'backorders.create', 'backorders.edit', 'backorders.delete',
       
       // DRM
-      'distributor-leads.view', 'distributor-leads.create', 'distributor-leads.edit', 'distributor-leads.delete',
+      'drm.view', 'distributor-leads.view', 'distributor-leads.create', 'distributor-leads.edit', 'distributor-leads.delete',
       'distributors.view', 'distributors.create', 'distributors.edit', 'distributors.delete',
       'routes-mapping.view', 'routes-mapping.create', 'routes-mapping.edit', 'routes-mapping.delete',
       'engagement.view', 'engagement.create', 'engagement.edit', 'engagement.delete',
       'drm-orders.view',
       
+      // Sales
+      'sales.view', 'orders.view', 'proformas.view',
+      'invoices.view', 'invoices.create', 'invoices.edit', 'invoices.delete',
+      'payments.view', 'payments.create', 'payments.edit',
+      'returns.view',
+      'credit-notes.view', 'credit-notes.create', 'credit-notes.edit', 'credit-notes.delete',
+      
       // Communication
-      'email-campaigns.view', 'email-campaigns.create', 'email-campaigns.edit', 'email-campaigns.delete',
-      'sms-campaigns.view', 'sms-campaigns.create', 'sms-campaigns.edit', 'sms-campaigns.delete',
-      'notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete',
-      
-      // Agents
-      'agents.view', 'agents.create', 'agents.edit', 'agents.delete', 'agents.manage',
-      
-      // Reports
-      'reports.view', 'reports.financial', 'reports.sales', 'reports.inventory',
+      'communication.view', 'templates.view', 'communication-logs.view',
+      'sms.view', 'sms.send', 'sms.bulk_send', 'sms.history',
+      'email.view', 'email.send', 'email.bulk_send', 'email.history',
       
       // Tasks
-      'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.manage',
+      'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign',
+      'task-templates.view', 'task-templates.create', 'task-templates.edit', 'task-templates.delete',
+      'task-categories.view', 'task-categories.create', 'task-categories.edit', 'task-categories.delete',
+      'recurring-tasks.view', 'recurring-tasks.create', 'recurring-tasks.edit', 'recurring-tasks.delete', 'recurring-tasks.generate',
       
-      // Users & Roles
-      'users.view', 'users.create', 'users.edit', 'users.delete', 'users.manage',
-      'users.read', 'users.update',
-      'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
-      'roles.read', 'roles.update',
+      // Agents
+      'agents.view', 'agents.create', 'agents.edit', 'agents.delete',
+      'commissions.view', 'commissions.create', 'commissions.edit', 'commissions.delete',
+      
+      // Reports
+      'reports.view',
+      
+      // AI Analyst
+      'ai_analyst.access',
       
       // Settings
-      'settings.view', 'settings.read', 'settings.update',
-      'audit.read', 'audit.view',
-      
-      // Categories
-      'categories.view', 'categories.create', 'categories.edit', 'categories.delete',
+      'settings.view',
+      'users.view', 'users.create', 'users.edit', 'users.delete', 'users.manage',
+      'roles.view', 'roles.create', 'roles.edit', 'roles.delete', 'roles.manage',
+      'product-settings.view',
+      'currency-settings.view',
+      'business-settings.view',
+      'google-maps.view', 'google-maps.config',
+      'credit-monitoring.view', 'credit-monitoring.manage',
+      'backup-settings.view', 'backup-settings.manage',
+      'system-settings.view',
+      'notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.config',
+      'notification-templates.view', 'notification-templates.create', 'notification-templates.edit', 'notification-templates.delete',
+      'lead-sources.view', 'lead-sources.create', 'lead-sources.edit', 'lead-sources.delete',
+      'ai-settings.view', 'ai-settings.manage',
     ];
 
     const createdAbilities = [];
