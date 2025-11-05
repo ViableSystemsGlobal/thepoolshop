@@ -302,6 +302,7 @@ export function StockAdjustmentModal({ isOpen, onClose, product, onSuccess }: St
           reason: "",
           notes: "",
           warehouseId: warehouses.length > 0 ? warehouses[0].id : "",
+          supplierId: "",
           grnFile: null,
           purchaseOrderFile: null,
           transferDirection: "OUT",
