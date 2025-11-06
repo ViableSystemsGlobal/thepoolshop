@@ -34,15 +34,6 @@ export default function LeadSourcesPage() {
     isActive: true
   });
 
-  // Don't render if not authenticated
-  if (status === 'unauthenticated') {
-    return null;
-  }
-
-  useEffect(() => {
-    fetchSources();
-  }, []);
-
   const fetchSources = async () => {
     try {
       const response = await fetch('/api/lead-sources', {
@@ -61,6 +52,17 @@ export default function LeadSourcesPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchSources();
+    }
+  }, [status]);
+
+  // Don't render if not authenticated
+  if (status === 'unauthenticated') {
+    return null;
+  }
 
   const handleCreate = async () => {
     if (!formData.name.trim()) {
