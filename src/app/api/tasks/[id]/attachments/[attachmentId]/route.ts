@@ -78,7 +78,7 @@ export async function GET(
 // DELETE /api/tasks/[id]/attachments/[attachmentId] - Delete an attachment
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; attachmentId: string } }
+  { params }: { params: Promise<{ id: string; attachmentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -86,7 +86,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: taskId, attachmentId } = params;
+    const { id: taskId, attachmentId } = await params;
 
     // Verify attachment exists and user has access
     const attachment = await prisma.taskAttachment.findUnique({

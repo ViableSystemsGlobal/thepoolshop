@@ -77,7 +77,7 @@ export async function PUT(
 // DELETE /api/task-categories/[id] - Delete task category
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -85,7 +85,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Check if category has associated tasks or templates
     const category = await prisma.taskCategory.findUnique({
