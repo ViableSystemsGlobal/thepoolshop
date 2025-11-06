@@ -101,7 +101,7 @@ async function sendEmailViaSMTP(
 
     console.log('Sending credit alert email to:', recipient);
 
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       host: smtpHost,
       port: parseInt(smtpPort),
       secure: smtpEncryption === 'ssl',

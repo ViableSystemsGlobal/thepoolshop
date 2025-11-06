@@ -149,9 +149,10 @@ export async function POST(request: NextRequest) {
 
     // Send emails to each recipient
     for (const recipient of recipients) {
+      // Handle both string emails and object with email property
+      const emailAddress = typeof recipient === 'string' ? recipient : recipient.email;
+      
       try {
-        // Handle both string emails and object with email property
-        const emailAddress = typeof recipient === 'string' ? recipient : recipient.email;
         const emailResult = await sendEmailViaSMTP(emailAddress, subject, message, attachments);
         
         // Create email message record

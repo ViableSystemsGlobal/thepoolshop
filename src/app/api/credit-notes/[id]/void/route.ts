@@ -98,7 +98,7 @@ export async function POST(
       }
 
       // Log the activity
-      await tx.activityLog.create({
+      await tx.activity.create({
         data: {
           entityType: 'CREDIT_NOTE',
           entityId: id,
