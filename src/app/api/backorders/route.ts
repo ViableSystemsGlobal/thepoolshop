@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate summary statistics
-    let allBackorders = [];
+    let allBackorders: any[] = [];
     try {
       allBackorders = await prisma.backorder.findMany({
         where: {
