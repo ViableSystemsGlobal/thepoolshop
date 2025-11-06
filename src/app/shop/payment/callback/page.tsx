@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/contexts/toast-context";
 
-export default function PaymentCallbackPage() {
+function PaymentCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { success, error: showError } = useToast();
@@ -181,6 +181,24 @@ export default function PaymentCallbackPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PaymentCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading...</h2>
+            <p className="text-gray-600">Please wait</p>
+          </div>
+        </div>
+      }
+    >
+      <PaymentCallbackContent />
+    </Suspense>
   );
 }
 
