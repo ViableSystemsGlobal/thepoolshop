@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate metrics
-    const totalRevenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+    const totalRevenue = orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
     const totalOrders = orders.length;
     const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    const previousRevenue = previousOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+    const previousRevenue = previousOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
     const previousOrderCount = previousOrders.length;
     
     const revenueGrowth = previousRevenue > 0 
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
         const productId = item.productId;
         const productName = item.product.name;
         const quantity = item.quantity;
-        const revenue = item.quantity * (item.unitPrice || 0);
+        const revenue = item.quantity * Number(item.unitPrice || 0);
 
         if (productStats.has(productId)) {
           const existing = productStats.get(productId);
