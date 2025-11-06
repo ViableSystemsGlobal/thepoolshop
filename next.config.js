@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['localhost'],
+    domains: ['localhost', 'sms.thepoolshop.africa', 'thepoolshop.africa'],
     remotePatterns: [
       {
         protocol: 'http',
@@ -14,6 +14,15 @@ const nextConfig = {
         hostname: '**',
       },
     ],
+  },
+  // Rewrite /uploads/* to /api/uploads/* for serving uploaded files
+  async rewrites() {
+    return [
+      {
+        source: '/uploads/:path*',
+        destination: '/api/uploads/:path*',
+      },
+    ];
   },
   // Use separate build directories based on environment variable
   distDir: process.env.NEXT_BUILD_DIR || '.next',

@@ -6,7 +6,7 @@ type AppRouteHandlerRoutes = "/api/abilities" | "/api/abilities/public" | "/api/
 type PageRoutes = never
 type LayoutRoutes = "/" | "/crm" | "/crm/accounts" | "/crm/contacts" | "/crm/leads" | "/crm/opportunities" | "/drm" | "/products" | "/shop"
 type RedirectRoutes = never
-type RewriteRoutes = never
+type RewriteRoutes = "/uploads/[[...path]]"
 type Routes = AppRoutes | PageRoutes | LayoutRoutes | RedirectRoutes | RewriteRoutes | AppRouteHandlerRoutes
 
 
@@ -332,6 +332,7 @@ interface ParamMap {
   "/shop/products/[id]": { "id": string; }
   "/tasks": {}
   "/tasks/my": {}
+  "/uploads/[[...path]]": { "path"?: string[]; }
   "/warehouses": {}
   "/warehouses/[id]": { "id": string; }
 }
