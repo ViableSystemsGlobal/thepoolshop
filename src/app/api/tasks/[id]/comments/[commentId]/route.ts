@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 // PUT /api/tasks/[id]/comments/[commentId] - Update a comment
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; commentId: string } }
+  { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,7 +14,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { commentId } = params;
+    const { commentId } = await params;
     const body = await request.json();
     const { content } = body;
 
@@ -81,7 +81,7 @@ export async function PUT(
 // DELETE /api/tasks/[id]/comments/[commentId] - Delete a comment
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; commentId: string } }
+  { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -89,7 +89,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { commentId } = params;
+    const { commentId } = await params;
 
     // Verify comment exists and user owns it
     const existingComment = await prisma.taskComment.findUnique({

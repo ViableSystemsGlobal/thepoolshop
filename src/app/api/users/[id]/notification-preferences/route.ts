@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 // GET /api/users/[id]/notification-preferences - Get user's notification preferences
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Users can only access their own preferences unless they're admin
     if (session.user.id !== id && session.user.role !== 'ADMIN') {
@@ -93,7 +93,7 @@ export async function GET(
 // PUT /api/users/[id]/notification-preferences - Update user's notification preferences
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -101,7 +101,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Users can only update their own preferences unless they're admin
     if (session.user.id !== id && session.user.role !== 'ADMIN') {
@@ -207,7 +207,7 @@ export async function PUT(
 // POST /api/users/[id]/notification-preferences/test - Send test notification
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -215,7 +215,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Only admins can send test notifications
     if (session.user.role !== 'ADMIN') {

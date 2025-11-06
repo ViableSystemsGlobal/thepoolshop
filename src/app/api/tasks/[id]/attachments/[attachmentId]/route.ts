@@ -9,7 +9,7 @@ import { join } from 'path';
 // GET /api/tasks/[id]/attachments/[attachmentId] - Download an attachment
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; attachmentId: string } }
+  { params }: { params: Promise<{ id: string; attachmentId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: taskId, attachmentId } = params;
+    const { id: taskId, attachmentId } = await params;
 
     // Verify attachment exists and user has access
     const attachment = await prisma.taskAttachment.findUnique({

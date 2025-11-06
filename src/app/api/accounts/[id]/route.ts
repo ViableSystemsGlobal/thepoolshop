@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,9 +18,10 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const account = await prisma.account.findFirst({
       where: {
-        id: params.id,
+        id: id,
         ownerId: userId,
       },
       include: {
@@ -100,7 +101,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -113,6 +114,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const {
       name,
@@ -126,7 +128,7 @@ export async function PUT(
     // Check if account exists and belongs to user
     const existingAccount = await prisma.account.findFirst({
       where: {
-        id: params.id,
+        id: id,
         ownerId: userId,
       },
     });
@@ -136,7 +138,7 @@ export async function PUT(
     }
 
     const account = await prisma.account.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         name,
         type,
@@ -177,7 +179,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -190,10 +192,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     // Check if account exists and belongs to user
     const existingAccount = await prisma.account.findFirst({
       where: {
-        id: params.id,
+        id: id,
         ownerId: userId,
       },
     });
@@ -203,14 +206,14 @@ export async function DELETE(
     }
 
     await prisma.account.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     // Log activity
     await prisma.activity.create({
       data: {
         entityType: 'Account',
-        entityId: params.id,
+        entityId: id,
         action: 'deleted',
         details: { account: existingAccount },
         userId: userId,

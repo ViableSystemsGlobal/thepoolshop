@@ -99,10 +99,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('PUT /api/leads/[id] - Starting request for ID:', params.id);
+    const { id } = await params;
+    console.log('PUT /api/leads/[id] - Starting request for ID:', id);
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       console.log('No session or user found');
@@ -135,10 +136,10 @@ export async function PUT(
     } = body;
 
     // Check if lead exists and belongs to user
-    console.log('Checking if lead exists for ID:', params.id, 'and user:', userId);
+    console.log('Checking if lead exists for ID:', id, 'and user:', userId);
     const existingLead = await prisma.lead.findFirst({
       where: {
-        id: params.id,
+        id: id,
         ownerId: userId,
       },
     });
@@ -166,7 +167,7 @@ export async function PUT(
     });
 
     const lead = await prisma.lead.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         firstName,
         lastName,
@@ -238,7 +239,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -251,10 +252,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     // Check if lead exists and belongs to user
     const existingLead = await prisma.lead.findFirst({
       where: {
-        id: params.id,
+        id: id,
         ownerId: userId,
       },
     });
@@ -264,14 +266,14 @@ export async function DELETE(
     }
 
     await prisma.lead.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     // Log activity
     await prisma.activity.create({
       data: {
         entityType: 'Lead',
-        entityId: params.id,
+        entityId: id,
         action: 'deleted',
         details: { lead: existingLead },
         userId: userId,

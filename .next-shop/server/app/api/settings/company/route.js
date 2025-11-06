@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/settings/company/route.js")
+R.c("server/chunks/0030b_next_1243d4ed._.js")
+R.c("server/chunks/0030b_next-auth_69a48375._.js")
+R.c("server/chunks/0030b_openid-client_64596144._.js")
+R.c("server/chunks/0030b_jose_dist_node_cjs_d6172a07._.js")
+R.c("server/chunks/0030b_381a5212._.js")
+R.c("server/chunks/[root-of-the-server]__5f797674._.js")
+R.m("[project]/Desktop/adpoolsgroup/.next-internal/server/app/api/settings/company/route/actions.js [app-rsc] (server actions loader, ecmascript)")
+R.m("[project]/Desktop/adpoolsgroup/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/Desktop/adpoolsgroup/src/app/api/settings/company/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)")
+module.exports=R.m("[project]/Desktop/adpoolsgroup/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/Desktop/adpoolsgroup/src/app/api/settings/company/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)").exports

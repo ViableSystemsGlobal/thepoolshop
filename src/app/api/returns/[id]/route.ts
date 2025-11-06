@@ -8,7 +8,7 @@ import { sendEmailViaSMTP, sendSmsViaDeywuro, getCompanyName } from '@/lib/payme
 // Get a single return
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const returnRecord = await prisma.return.findUnique({
       where: { id },
       include: {
@@ -56,7 +56,7 @@ export async function GET(
 // Update a return
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -65,7 +65,7 @@ export async function PUT(
     }
 
     const userId = session.user.id;
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { status, refundAmount, refundMethod, notes } = body;
 
@@ -318,7 +318,7 @@ ${companyName || 'AdPools Group'}`;
 // Delete a return
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -326,7 +326,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Get return details before deleting
     const returnToDelete = await prisma.return.findUnique({

@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 // PUT /api/lead-sources/[id] - Update a lead source
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,6 +14,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
     const { name, description, isActive } = await request.json();
 
     if (!name || name.trim() === '') {
@@ -25,7 +26,7 @@ export async function PUT(
 
     // Check if source exists
     const existingSource = await prisma.systemSettings.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     });
 
     if (!existingSource) {
@@ -43,7 +44,7 @@ export async function PUT(
         },
         value: name.trim(),
         id: {
-          not: params.id
+          not: id
         }
       }
     });
@@ -57,7 +58,7 @@ export async function PUT(
 
     // Update the source
     const updatedSource = await prisma.systemSettings.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         value: name.trim(),
         description: description?.trim() || null,
@@ -87,7 +88,7 @@ export async function PUT(
 // DELETE /api/lead-sources/[id] - Delete a lead source
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -95,9 +96,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
     // Check if source exists
     const existingSource = await prisma.systemSettings.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     });
 
     if (!existingSource) {
@@ -123,7 +125,7 @@ export async function DELETE(
 
     // Delete the source
     await prisma.systemSettings.delete({
-      where: { id: params.id }
+      where: { id: id }
     });
 
     return NextResponse.json({ message: "Lead source deleted successfully" });

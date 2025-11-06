@@ -6,7 +6,7 @@ import { generateInvoiceQRData, generateQRCode } from '@/lib/qrcode';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,7 +14,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const quotationId = params.id;
+    const { id: quotationId } = await params;
     const userId = (session.user as any).id;
 
     console.log('🔄 Converting quotation to invoice:', quotationId);
