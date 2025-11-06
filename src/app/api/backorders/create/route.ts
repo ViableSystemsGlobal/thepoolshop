@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       }
 
       orderLines = quotation.lines;
-      accountId = quotation.accountId;
+      accountId = quotation.accountId || '';
       ownerId = quotation.ownerId;
     } else if (orderType === 'PROFORMA') {
       const proforma = await prisma.proforma.findUnique({
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       }
 
       orderLines = proforma.lines;
-      accountId = proforma.accountId;
+      accountId = proforma.accountId || '';
       ownerId = proforma.ownerId;
     } else {
       return NextResponse.json(
