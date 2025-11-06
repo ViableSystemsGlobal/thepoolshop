@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Direct debug error:', error);
     return NextResponse.json(
-      { error: "Direct debug failed", details: error.message },
+      { error: "Direct debug failed", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
