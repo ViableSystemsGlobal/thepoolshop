@@ -100,7 +100,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -117,6 +117,7 @@ export async function PUT(
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
 
+    const { id } = await params;
     const body = await request.json();
     const {
       status,
@@ -128,7 +129,7 @@ export async function PUT(
 
     // Check if commission exists
     const existingCommission = await prisma.commission.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     });
 
     if (!existingCommission) {
@@ -140,7 +141,7 @@ export async function PUT(
 
     // Update commission
     const commission = await prisma.commission.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         ...(status && { status }),
         ...(paidDate !== undefined && { 
@@ -179,7 +180,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -196,9 +197,10 @@ export async function DELETE(
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // }
 
+    const { id } = await params;
     // Check if commission exists
     const commission = await prisma.commission.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     });
 
     if (!commission) {
@@ -218,7 +220,7 @@ export async function DELETE(
 
     // Delete commission
     await prisma.commission.delete({
-      where: { id: params.id }
+      where: { id: id }
     });
 
     console.log(`✅ Commission deleted: ${commission.id}`);
