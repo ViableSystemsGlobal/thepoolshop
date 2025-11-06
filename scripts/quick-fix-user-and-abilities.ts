@@ -162,7 +162,7 @@ async function main() {
     });
 
     if (userWithRoles) {
-      const abilities = [];
+      const abilities: string[] = [];
       userWithRoles.userRoles.forEach(assignment => {
         assignment.role.roleAbilities.forEach(roleAbility => {
           if (!abilities.includes(roleAbility.ability.name)) {

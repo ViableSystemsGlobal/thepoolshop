@@ -26,6 +26,15 @@ async function main() {
   
   for (const product of productsWithoutBarcodes) {
     try {
+      // Skip if SKU is null
+      if (!product.sku) {
+        errorCount++;
+        const errorMsg = `✗ Product ${product.id}: No SKU available`;
+        errors.push(errorMsg);
+        console.error(errorMsg);
+        continue;
+      }
+      
       // Generate barcode from SKU
       let barcode = generateBarcode(product.sku, 'EAN13');
       let attempts = 0;
@@ -64,11 +73,11 @@ async function main() {
       });
       
       successCount++;
-      console.log(`✓ ${product.sku.padEnd(20)} → ${barcode} | ${product.name.slice(0, 40)}`);
+      console.log(`✓ ${product.sku.padEnd(20)} → ${barcode} | ${product.name?.slice(0, 40) || ''}`);
       
     } catch (error) {
       errorCount++;
-      const errorMsg = `✗ ${product.sku}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const errorMsg = `✗ ${product.sku || product.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
       errors.push(errorMsg);
       console.error(errorMsg);
     }
