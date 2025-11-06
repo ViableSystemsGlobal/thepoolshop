@@ -4,10 +4,11 @@ import { join } from 'path';
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const relPath = (params.path || []).join('/');
+    const { path } = await params;
+    const relPath = (path || []).join('/');
     console.log('🔍 Uploads API - Requested path:', relPath);
     
     if (!relPath) {
