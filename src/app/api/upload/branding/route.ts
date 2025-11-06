@@ -21,15 +21,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    if (!type || !['companyLogo', 'favicon', 'pdfHeaderImage', 'pdfFooterImage', 'chatButtonImage'].includes(type)) {
+    if (!type || !['companyLogo', 'favicon', 'pdfHeaderImage', 'pdfFooterImage', 'chatButtonImage', 'heroVideo', 'banner'].includes(type)) {
       return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });
     }
 
     // Create uploads directory - use public/uploads for development, /app/uploads for production
     const isProduction = process.env.NODE_ENV === 'production';
+    const uploadsSubDir = type === 'banner' ? 'banners' : 'branding';
     const uploadsDir = isProduction 
-      ? join('/app', 'uploads', 'branding')
-      : join(process.cwd(), 'public', 'uploads', 'branding');
+      ? join('/app', 'uploads', uploadsSubDir)
+      : join(process.cwd(), 'public', 'uploads', uploadsSubDir);
     console.log('🔍 Branding Upload API - Upload directory:', uploadsDir);
     console.log('🔍 Branding Upload API - Environment:', isProduction ? 'production' : 'development');
     
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ Branding Upload API - File saved successfully');
 
     // Return the public URL (always use /uploads path for serving)
-    const publicUrl = `/uploads/branding/${fileName}`;
+    const publicUrl = `/uploads/${uploadsSubDir}/${fileName}`;
 
     return NextResponse.json({ 
       success: true, 

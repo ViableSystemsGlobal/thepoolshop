@@ -14,8 +14,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user's role assignments
-    const userRoleAssignments = await prisma.userRoleAssignment.findMany({
+    // If no role in session, use fallback immediately
+    if (!session.user.role) {
+      console.log('🔍 No role in session, using fallback');
+      const fallbackAbilities = ROLE_ABILITIES['SUPER_ADMIN'] || [];
+      return NextResponse.json({
+        success: true,
+        abilities: fallbackAbilities,
+        source: 'fallback-no-role'
+      });
+    }
+
+    // Try to get user's role assignments from database
+    let userRoleAssignments = [];
+    try {
+      userRoleAssignments = await prisma.userRoleAssignment.findMany({
       where: {
         userId: session.user.id,
         isActive: true,
@@ -24,28 +37,52 @@ export async function GET(request: NextRequest) {
           { expiresAt: { gt: new Date() } }
         ]
       },
-      include: {
-        role: {
-          include: {
-            roleAbilities: {
-              include: {
-                ability: true
+        include: {
+          role: {
+            include: {
+              roleAbilities: {
+                include: {
+                  ability: true
+                }
               }
             }
           }
         }
-      }
-    });
+      });
+    } catch (dbError) {
+      console.error('🔍 Database query failed, using fallback:', dbError);
+      // If database query fails, use fallback
+      const userRole = session.user.role as Role;
+      const fallbackAbilities = ROLE_ABILITIES[userRole] || ROLE_ABILITIES['SUPER_ADMIN'] || [];
+      return NextResponse.json({
+        success: true,
+        abilities: fallbackAbilities,
+        source: 'fallback-db-error'
+      });
+    }
 
     // Extract all abilities from all assigned roles
     const abilities: string[] = [];
-    userRoleAssignments.forEach(assignment => {
-      assignment.role.roleAbilities.forEach(roleAbility => {
-        if (!abilities.includes(roleAbility.ability.name)) {
-          abilities.push(roleAbility.ability.name);
+    try {
+      userRoleAssignments.forEach(assignment => {
+        if (assignment?.role?.roleAbilities) {
+          assignment.role.roleAbilities.forEach(roleAbility => {
+            if (roleAbility?.ability?.name && !abilities.includes(roleAbility.ability.name)) {
+              abilities.push(roleAbility.ability.name);
+            }
+          });
         }
       });
-    });
+    } catch (extractError) {
+      console.error('🔍 Error extracting abilities, using fallback:', extractError);
+      const userRole = session.user.role as Role;
+      const fallbackAbilities = ROLE_ABILITIES[userRole] || ROLE_ABILITIES['SUPER_ADMIN'] || [];
+      return NextResponse.json({
+        success: true,
+        abilities: fallbackAbilities,
+        source: 'fallback-extract-error'
+      });
+    }
 
     // If no abilities found from database, fall back to hardcoded role-based abilities
     if (abilities.length === 0) {
@@ -249,6 +286,27 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Error fetching user abilities:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    // Fallback to hardcoded abilities if database query fails
+    try {
+      const session = await getServerSession(authOptions);
+      if (session?.user?.role) {
+        const userRole = session.user.role as Role;
+        const fallbackAbilities = ROLE_ABILITIES[userRole] || [];
+        console.log('🔍 Using fallback abilities due to error, role:', userRole, 'count:', fallbackAbilities.length);
+        return NextResponse.json({
+          success: true,
+          abilities: fallbackAbilities,
+          source: 'fallback-error',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    } catch (fallbackError) {
+      console.error('Error in fallback:', fallbackError);
+    }
+    
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

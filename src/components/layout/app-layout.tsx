@@ -14,6 +14,21 @@ export function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname()
   const { isLoading } = useLoading()
   const [isRouteChanging, setIsRouteChanging] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [isShopDomain, setIsShopDomain] = useState(false)
+  
+  // Detect if we're on shop domain/port (only on client after mount)
+  useEffect(() => {
+    setMounted(true)
+    
+    if (typeof window === 'undefined') return
+    
+    const hostname = window.location.hostname
+    const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
+    const isAdminDomain = hostname.includes('sms.') || hostname.includes('admin.')
+    const isAdminPort = port === '3001'
+    setIsShopDomain(port === '3000' || (!isAdminDomain && !isAdminPort))
+  }, [])
   
   // Show loading bar on route changes
   useEffect(() => {
@@ -25,12 +40,39 @@ export function AppLayout({ children }: AppLayoutProps) {
     return () => clearTimeout(timer)
   }, [pathname])
   
-  // Don't show layout on auth pages
-  if (pathname.startsWith('/auth/')) {
+  // Don't show admin layout on:
+  // - Auth pages
+  // - Shop pages (/shop/*)
+  // - Root path (/) when on shop domain (only after mounted)
+  const isShopRoute = pathname.startsWith('/shop') || (pathname === '/' && mounted && isShopDomain)
+  const isAuthRoute = pathname.startsWith('/auth/')
+  
+  // Before mounted, assume we're not on shop domain to match server render
+  // This prevents hydration mismatch
+  if (!mounted) {
+    // On server or initial render, check if it's a shop route (without domain check)
+    if (pathname.startsWith('/shop') || isAuthRoute) {
+      return <>{children}</>
+    }
+    // Default to admin layout for root path until we know the domain
+    if (pathname === '/') {
+      // Show a simple loading state that matches what the page will show
+      return <>{children}</>
+    }
+    // For other routes, show admin layout
+    return (
+      <>
+        <LoadingBar isLoading={isLoading || isRouteChanging} />
+        <MainLayout>{children}</MainLayout>
+      </>
+    )
+  }
+  
+  if (isAuthRoute || isShopRoute) {
     return <>{children}</>
   }
   
-  // Show layout for all other pages
+  // Show admin layout for all other pages (dashboard, CRM, etc.)
   return (
     <>
       <LoadingBar isLoading={isLoading || isRouteChanging} />

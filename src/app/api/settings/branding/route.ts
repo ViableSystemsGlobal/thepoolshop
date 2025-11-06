@@ -26,7 +26,8 @@ export async function GET() {
             'pdf_footer_image',
             'chat_button_image',
             'email_template_header',
-            'email_template_footer'
+            'email_template_footer',
+            'ecommerce_hero_video'
           ]
         }
       }
@@ -44,7 +45,8 @@ export async function GET() {
       pdfFooterImage: settings.find(s => s.key === 'pdf_footer_image')?.value || '',
       chatButtonImage: settings.find(s => s.key === 'chat_button_image')?.value || '',
       emailTemplateHeader: settings.find(s => s.key === 'email_template_header')?.value || '',
-      emailTemplateFooter: settings.find(s => s.key === 'email_template_footer')?.value || ''
+      emailTemplateFooter: settings.find(s => s.key === 'email_template_footer')?.value || '',
+      heroVideo: settings.find(s => s.key === 'ecommerce_hero_video')?.value || ''
     };
 
     return NextResponse.json(brandingSettings);
@@ -78,7 +80,8 @@ export async function POST(request: NextRequest) {
       pdfFooterImage,
       chatButtonImage,
       emailTemplateHeader,
-      emailTemplateFooter
+      emailTemplateFooter,
+      heroVideo
     } = body;
 
     // Validate required fields
@@ -101,7 +104,8 @@ export async function POST(request: NextRequest) {
       { key: 'pdf_footer_image', value: pdfFooterImage || '' },
       { key: 'chat_button_image', value: chatButtonImage || '' },
       { key: 'email_template_header', value: emailTemplateHeader || '' },
-      { key: 'email_template_footer', value: emailTemplateFooter || '' }
+      { key: 'email_template_footer', value: emailTemplateFooter || '' },
+      { key: 'ecommerce_hero_video', value: heroVideo || '' }
     ];
 
     for (const setting of settingsToUpdate) {

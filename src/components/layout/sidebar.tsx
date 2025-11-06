@@ -39,6 +39,13 @@ import {
   Printer,
   FileDown,
   Database,
+  Store,
+  Tag,
+  Megaphone,
+  Truck,
+  Globe,
+  Video,
+  Image,
 } from "lucide-react";
 
 const navigation = [
@@ -106,6 +113,22 @@ const navigation = [
       { name: "Warehouses", href: "/warehouses", icon: Building, module: "warehouses" },
       { name: "Suppliers", href: "/inventory/suppliers", icon: Users, module: "inventory" },
       { name: "Backorders", href: "/backorders", icon: Package, module: "backorders" },
+    ]
+  },
+  { 
+    name: "Ecommerce", 
+    href: null, 
+    icon: Store,
+    badge: null,
+    module: "ecommerce",
+    children: [
+      { name: "Dashboard", href: "/ecommerce/dashboard", icon: LayoutDashboard, module: "ecommerce" },
+      { name: "Orders", href: "/ecommerce/orders", icon: ShoppingCart, module: "ecommerce-orders" },
+      { name: "Customers", href: "/ecommerce/customers", icon: Users, module: "ecommerce-customers" },
+      { name: "Categories", href: "/ecommerce/categories", icon: Tag, module: "ecommerce-categories" },
+      { name: "Banners", href: "/ecommerce/banners", icon: Image, module: "ecommerce-marketing" },
+      { name: "Marketing", href: "/ecommerce/marketing", icon: Megaphone, module: "ecommerce-marketing" },
+      { name: "Settings", href: "/ecommerce/settings", icon: Settings, module: "ecommerce-settings" },
     ]
   },
         { 

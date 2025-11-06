@@ -14,7 +14,8 @@ export async function GET() {
             'primary_color',
             'secondary_color',
             'company_description',
-            'chat_button_image'
+            'chat_button_image',
+            'ecommerce_hero_video'
           ]
         }
       }
@@ -28,7 +29,8 @@ export async function GET() {
       primaryColor: settings.find(s => s.key === 'primary_color')?.value || '#dc2626',
       secondaryColor: settings.find(s => s.key === 'secondary_color')?.value || '#b91c1c',
       description: settings.find(s => s.key === 'company_description')?.value || 'A practical, single-tenant system for sales and distribution management',
-      chatButtonImage: settings.find(s => s.key === 'chat_button_image')?.value || ''
+      chatButtonImage: settings.find(s => s.key === 'chat_button_image')?.value || '',
+      heroVideo: settings.find(s => s.key === 'ecommerce_hero_video')?.value || ''
     };
 
     return NextResponse.json(brandingSettings);
@@ -42,7 +44,8 @@ export async function GET() {
       favicon: '/uploads/branding/favicon_default.svg',
       primaryColor: '#dc2626',
       secondaryColor: '#b91c1c',
-      description: 'A practical, single-tenant system for sales and distribution management'
+      description: 'A practical, single-tenant system for sales and distribution management',
+      heroVideo: ''
     });
   }
 }

@@ -12,6 +12,7 @@ import { TaskNotificationStarter } from "@/components/task-notification-starter"
 import { DynamicFavicon } from "@/components/dynamic-favicon";
 import { AppLayout } from "@/components/layout/app-layout";
 import { InitialLoader } from "@/components/initial-loader";
+import { ConditionalAdminComponents } from "@/components/conditional-admin-components";
 
 export const metadata: Metadata = {
   title: "Sales Management System",
@@ -37,7 +38,9 @@ export default function RootLayout({
                         <CompanyProvider>
                           <AuthSessionProvider>
                             <InitialLoader />
+                            <ConditionalAdminComponents>
                             <TaskNotificationStarter />
+                            </ConditionalAdminComponents>
                             <DynamicFavicon />
                             <AppLayout>
                               {children}

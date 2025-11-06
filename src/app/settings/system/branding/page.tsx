@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Upload, Star, Image, Globe, Mail } from "lucide-react";
+import { ArrowLeft, Upload, Star, Image, Globe, Mail, Video } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/contexts/toast-context";
+import { isYouTubeUrl, getYouTubeEmbedUrl } from "@/lib/youtube-utils";
 
 interface BrandingSettings {
   companyName: string;
@@ -23,6 +24,7 @@ interface BrandingSettings {
   chatButtonImage: string;
   emailTemplateHeader: string;
   emailTemplateFooter: string;
+  heroVideo: string;
 }
 
 export default function BrandingSettingsPage() {
@@ -37,7 +39,8 @@ export default function BrandingSettingsPage() {
     pdfFooterImage: "",
     chatButtonImage: "",
     emailTemplateHeader: "",
-    emailTemplateFooter: ""
+    emailTemplateFooter: "",
+    heroVideo: ""
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -107,7 +110,7 @@ export default function BrandingSettingsPage() {
     document.head.appendChild(link);
   };
 
-  const handleFileUpload = async (field: 'companyLogo' | 'favicon' | 'pdfHeaderImage' | 'pdfFooterImage' | 'chatButtonImage', file: File) => {
+  const handleFileUpload = async (field: 'companyLogo' | 'favicon' | 'pdfHeaderImage' | 'pdfFooterImage' | 'chatButtonImage' | 'heroVideo', file: File) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -129,7 +132,8 @@ export default function BrandingSettingsPage() {
           favicon: 'Favicon',
           pdfHeaderImage: 'PDF header image',
           pdfFooterImage: 'PDF footer image',
-          chatButtonImage: 'Chat button image'
+          chatButtonImage: 'Chat button image',
+          heroVideo: 'Hero video'
         };
         success(`${fieldNames[field]} uploaded successfully!`);
       } else {
@@ -489,6 +493,88 @@ export default function BrandingSettingsPage() {
                     </div>
                   </div>
                 </Label>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Ecommerce Hero Video */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Video className="h-5 w-5" />
+                <span>Ecommerce Hero Video</span>
+              </CardTitle>
+              <CardDescription>
+                Upload a video file or enter a YouTube URL to display as the background of the e-commerce homepage hero section. Supported: MP4 files or YouTube URLs (e.g., https://youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {settings.heroVideo && (
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    {isYouTubeUrl(settings.heroVideo) ? (
+                      <iframe
+                        src={getYouTubeEmbedUrl(settings.heroVideo) || ''}
+                        className="h-32 w-56 object-cover border rounded"
+                        allow="autoplay; encrypted-media"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video 
+                        src={settings.heroVideo} 
+                        className="h-32 w-auto object-cover border rounded"
+                        controls
+                        muted
+                      />
+                    )}
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-600">Current hero video</p>
+                      <p className="text-xs text-gray-500 mt-1 break-all">{settings.heroVideo}</p>
+                      {isYouTubeUrl(settings.heroVideo) && (
+                        <p className="text-xs text-blue-600 mt-1">YouTube video detected</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleFileUpload('heroVideo', file);
+                    }
+                  }}
+                  className="hidden"
+                  id="hero-video-upload"
+                />
+                <Label htmlFor="hero-video-upload" className="cursor-pointer">
+                  <div className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors">
+                    <div className="text-center">
+                      <Upload className="h-6 w-6 mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-600">
+                        {settings.heroVideo ? 'Change hero video' : 'Upload hero video'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Recommended: MP4 format, optimized for web</p>
+                    </div>
+                  </div>
+                </Label>
+              </div>
+              <div>
+                <Label htmlFor="hero-video-url">Or enter video URL</Label>
+                <Input
+                  id="hero-video-url"
+                  type="url"
+                  value={settings.heroVideo}
+                  onChange={(e) => setSettings(prev => ({ ...prev, heroVideo: e.target.value }))}
+                  placeholder="https://youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID or https://example.com/video.mp4"
+                  className="mt-2"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter a YouTube URL (youtube.com/watch?v=... or youtu.be/...) or a direct URL to a video file (MP4)
+                </p>
               </div>
             </CardContent>
           </Card>

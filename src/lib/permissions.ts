@@ -205,6 +205,27 @@ export const ABILITIES = {
   
   'ai-settings.view': 'View AI settings',
   'ai-settings.manage': 'Manage AI settings',
+  
+  // Ecommerce
+  'ecommerce.view': 'View ecommerce',
+  'ecommerce-orders.view': 'View ecommerce orders',
+  'ecommerce-orders.create': 'Create ecommerce orders',
+  'ecommerce-orders.edit': 'Edit ecommerce orders',
+  'ecommerce-orders.delete': 'Delete ecommerce orders',
+  'ecommerce-customers.view': 'View ecommerce customers',
+  'ecommerce-customers.create': 'Create ecommerce customers',
+  'ecommerce-customers.edit': 'Edit ecommerce customers',
+  'ecommerce-customers.delete': 'Delete ecommerce customers',
+  'ecommerce-categories.view': 'View ecommerce categories',
+  'ecommerce-categories.create': 'Create ecommerce categories',
+  'ecommerce-categories.edit': 'Edit ecommerce categories',
+  'ecommerce-categories.delete': 'Delete ecommerce categories',
+  'ecommerce-marketing.view': 'View ecommerce marketing',
+  'ecommerce-marketing.create': 'Create ecommerce marketing',
+  'ecommerce-marketing.edit': 'Edit ecommerce marketing',
+  'ecommerce-marketing.delete': 'Delete ecommerce marketing',
+  'ecommerce-settings.view': 'View ecommerce settings',
+  'ecommerce-settings.manage': 'Manage ecommerce settings',
 } as const;
 
 // Define module access mappings - what abilities are required for each module
@@ -262,6 +283,12 @@ export const MODULE_ACCESS = {
   'notification-templates': ['notification-templates.view'],
   'lead-sources': ['lead-sources.view'],
   'ai-settings': ['ai-settings.view'],
+  'ecommerce': ['ecommerce.view'],
+  'ecommerce-orders': ['ecommerce-orders.view'],
+  'ecommerce-customers': ['ecommerce-customers.view'],
+  'ecommerce-categories': ['ecommerce-categories.view'],
+  'ecommerce-marketing': ['ecommerce-marketing.view'],
+  'ecommerce-settings': ['ecommerce-settings.view'],
 } as const;
 
 // Define role-based abilities - single source of truth
@@ -335,6 +362,13 @@ export const ROLE_ABILITIES = {
     'notification-templates.view', 'notification-templates.create', 'notification-templates.edit', 'notification-templates.delete',
     'lead-sources.view', 'lead-sources.create', 'lead-sources.edit', 'lead-sources.delete',
     'ai-settings.view', 'ai-settings.manage',
+    
+    // Ecommerce
+    'ecommerce.view', 'ecommerce-orders.view', 'ecommerce-orders.create', 'ecommerce-orders.edit', 'ecommerce-orders.delete',
+    'ecommerce-customers.view', 'ecommerce-customers.create', 'ecommerce-customers.edit', 'ecommerce-customers.delete',
+    'ecommerce-categories.view', 'ecommerce-categories.create', 'ecommerce-categories.edit', 'ecommerce-categories.delete',
+    'ecommerce-marketing.view', 'ecommerce-marketing.create', 'ecommerce-marketing.edit', 'ecommerce-marketing.delete',
+    'ecommerce-settings.view', 'ecommerce-settings.manage',
   ],
   
   'ADMIN': [

@@ -100,7 +100,16 @@ export async function convertCurrency(
     const exchangeRate = await getExchangeRate(fromCurrency, toCurrency, date);
     
     if (!exchangeRate) {
-      throw new Error(`No exchange rate found for ${fromCurrency} to ${toCurrency}`);
+      console.warn(`No exchange rate found for ${fromCurrency} to ${toCurrency}, using amount as-is`);
+      // Return original amount if no exchange rate found (fallback)
+      return {
+        fromCurrency,
+        toCurrency,
+        amount,
+        convertedAmount: amount,
+        exchangeRate: 1,
+        source: 'fallback'
+      };
     }
 
     const convertedAmount = amount * exchangeRate;

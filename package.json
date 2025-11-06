@@ -4,8 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:shop": "NEXT_BUILD_DIR=.next-shop next dev --turbopack --port 3000",
+    "dev:admin": "NEXT_BUILD_DIR=.next-admin next dev --turbopack --port 3001",
+    "dev:all": "npm run dev:shop & npm run dev:admin",
+    "clean": "rm -rf .next .next-shop .next-admin node_modules/.cache .turbo",
     "build": "next build --turbopack",
+    "build:shop": "NEXT_PUBLIC_APP_MODE=shop next build --turbopack",
+    "build:admin": "NEXT_PUBLIC_APP_MODE=admin next build --turbopack",
     "start": "next start",
+    "start:shop": "next start --port 3000",
+    "start:admin": "next start --port 3001",
     "lint": "eslint",
     "db:seed": "tsx scripts/seed.ts",
     "db:seed-currencies": "tsx scripts/seed-currencies.ts"
@@ -32,6 +40,7 @@
     "clsx": "^2.1.1",
     "html2canvas": "^1.4.1",
     "jsbarcode": "^3.12.1",
+    "jsonwebtoken": "^9.0.2",
     "jspdf": "^3.0.3",
     "lucide-react": "^0.544.0",
     "next": "15.5.3",
@@ -51,6 +60,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -10,6 +10,7 @@ interface BrandingSettings {
   secondaryColor: string;
   description: string;
   chatButtonImage?: string;
+  heroVideo?: string;
 }
 
 interface BrandingContextType {
