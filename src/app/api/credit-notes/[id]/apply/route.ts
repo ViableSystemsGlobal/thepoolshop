@@ -145,9 +145,9 @@ export async function POST(
           entityType: 'CREDIT_NOTE',
           entityId: id,
           action: 'APPLIED',
-          description: `Credit note ${creditNote.number} applied ${applyAmount} to invoice ${targetInvoice.number}`,
-          performedBy: session.user.id,
-          metadata: {
+          userId: session.user.id,
+          details: {
+            description: `Credit note ${creditNote.number} applied ${applyAmount} to invoice ${targetInvoice.number}`,
             applicationId: application.id,
             targetInvoiceId: invoiceId,
             amount: applyAmount,

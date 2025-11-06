@@ -103,9 +103,9 @@ export async function POST(
           entityType: 'CREDIT_NOTE',
           entityId: id,
           action: 'VOIDED',
-          description: `Credit note ${creditNote.number} voided${reason ? `: ${reason}` : ''}`,
-          performedBy: session.user.id,
-          metadata: {
+          userId: session.user.id,
+          details: {
+            description: `Credit note ${creditNote.number} voided${reason ? `: ${reason}` : ''}`,
             reason: reason || null,
             applicationsReversed: creditNote.applications.length,
           },
