@@ -68,8 +68,8 @@ async function addCurrentUserAsAdmin() {
           role: 'ADMIN', // This is the legacy role field
           isActive: true,
           lastLoginAt: new Date(),
-          emailVerified: true,
-          phoneVerified: false,
+          emailVerified: new Date(),
+          phoneVerified: null,
           preferences: {}
         }
       });
