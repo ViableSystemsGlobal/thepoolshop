@@ -74,12 +74,12 @@ export async function GET(
     }
 
     // Get customer info
-    const customerName = invoice.account?.name || 
-                        invoice.distributor?.businessName || 
+    const customerName = (invoice.account as any)?.name || 
+                        (invoice.distributor as any)?.businessName || 
                         (invoice.lead ? `${invoice.lead.firstName} ${invoice.lead.lastName}`.trim() : '') ||
                         'No customer';
-    const customerEmail = invoice.account?.email || invoice.distributor?.email || invoice.lead?.email || '';
-    const customerPhone = invoice.account?.phone || invoice.distributor?.phone || invoice.lead?.phone || '';
+    const customerEmail = (invoice.account as any)?.email || (invoice.distributor as any)?.email || invoice.lead?.email || '';
+    const customerPhone = (invoice.account as any)?.phone || (invoice.distributor as any)?.phone || invoice.lead?.phone || '';
     
     const hasDiscounts = invoice.lines?.some(line => line.discount > 0) || false;
     
@@ -458,17 +458,17 @@ export async function GET(
             <div class="info-value">${invoice.number}</div>
             <div class="info-sub">
               <div class="info-sub-label">Due Date</div>
-              <div>${new Date(invoice.dueDate).toLocaleDateString()}</div>
+              <div>${new Date(invoice.dueDate as any).toLocaleDateString()}</div>
             </div>
           </div>
           <div>
             <div class="info-label">DATE</div>
-            <div class="info-value">${new Date(invoice.issueDate).toLocaleDateString()}</div>
+            <div class="info-value">${new Date(invoice.issueDate as any).toLocaleDateString()}</div>
             <div class="info-sub">
               <div class="info-sub-label">Status</div>
               <div>
-                <span class="status-badge status-${invoice.status.toLowerCase()}">
-                  ${invoice.status.toLowerCase()}
+                <span class="status-badge status-${(invoice.status as any).toLowerCase()}">
+                  ${(invoice.status as any).toLowerCase()}
                 </span>
               </div>
             </div>
@@ -486,8 +486,8 @@ export async function GET(
         <!-- Payment Status -->
         <div class="payment-info">
           <h3>Payment Information</h3>
-          <p><strong>Payment Status:</strong> <span class="status-badge payment-status-${invoice.paymentStatus.toLowerCase()}">${invoice.paymentStatus.toLowerCase().replace('_', ' ')}</span></p>
-          <p><strong>Amount Due:</strong> GH₵${invoice.amountDue.toFixed(2)}</p>
+          <p><strong>Payment Status:</strong> <span class="status-badge payment-status-${(invoice.paymentStatus as any).toLowerCase()}">${(invoice.paymentStatus as any).toLowerCase().replace('_', ' ')}</span></p>
+          <p><strong>Amount Due:</strong> GH₵${Number(invoice.amountDue as any).toFixed(2)}</p>
           ${invoice.amountPaid > 0 ? `<p><strong>Amount Paid:</strong> GH₵${invoice.amountPaid.toFixed(2)}</p>` : ''}
           ${invoice.paymentTerms ? `<p><strong>Payment Terms:</strong> ${invoice.paymentTerms}</p>` : ''}
         </div>
