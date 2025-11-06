@@ -67,7 +67,7 @@ async function main() {
       const leadCount = await prisma.lead.count();
       console.log(`✅ Lead model accessible, current count: ${leadCount}`);
     } catch (error) {
-      console.log(`❌ Lead model error:`, error.message);
+      console.log(`❌ Lead model error:`, error instanceof Error ? error.message : String(error));
     }
 
     // Step 3: Check foreign key constraints
@@ -95,9 +95,9 @@ async function main() {
       console.log(`✅ Test lead cleaned up`);
       
     } catch (error) {
-      console.log(`❌ Foreign key constraint test failed:`, error.message);
+      console.log(`❌ Foreign key constraint test failed:`, error instanceof Error ? error.message : String(error));
       
-      if (error.code === 'P2003') {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2003') {
         console.log('🔍 P2003 error means the foreign key constraint is violated');
         console.log('This means the ownerId does not exist in the users table');
         
@@ -120,7 +120,7 @@ async function main() {
       await prisma.$queryRaw`SELECT 1 as test`;
       console.log('✅ Database connection working');
     } catch (error) {
-      console.log('❌ Database connection error:', error.message);
+      console.log('❌ Database connection error:', error instanceof Error ? error.message : String(error));
     }
 
     // Step 5: Check if there are any existing leads
