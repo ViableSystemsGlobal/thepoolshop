@@ -151,7 +151,7 @@ async function fixMissingUserPermanent() {
     const verifyUser = await prisma.user.findUnique({
       where: { id: missingUserId },
       include: {
-        roleAssignments: {
+        userRoles: {
           where: { isActive: true },
           include: {
             role: {
@@ -170,7 +170,7 @@ async function fixMissingUserPermanent() {
       throw new Error('User verification failed - user not found');
     }
 
-    const userAbilities = verifyUser.roleAssignments.flatMap(ra =>
+    const userAbilities = verifyUser.userRoles.flatMap(ra =>
       ra.role.roleAbilities.map(rA => rA.ability.name)
     );
 
