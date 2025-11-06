@@ -210,7 +210,7 @@ async function main() {
     });
 
     if (verifyUser) {
-      const userAbilities = [];
+      const userAbilities: string[] = [];
       verifyUser.userRoles.forEach(assignment => {
         assignment.role.roleAbilities.forEach(roleAbility => {
           if (!userAbilities.includes(roleAbility.ability.name)) {
