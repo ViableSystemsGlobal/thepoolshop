@@ -14,7 +14,7 @@ async function main() {
       await prisma.$connect();
       console.log('✅ Database connected successfully');
     } catch (error) {
-      console.log('❌ Database connection failed:', error.message);
+      console.log('❌ Database connection failed:', error instanceof Error ? error.message : String(error));
       return;
     }
 
@@ -144,7 +144,7 @@ async function main() {
       // console.log('Session:', session ? 'Found' : 'Not found');
       console.log('⚠️  Session test skipped (requires Next.js context)');
     } catch (error) {
-      console.log('⚠️  Session test failed (expected in script context):', error.message);
+      console.log('⚠️  Session test failed (expected in script context):', error instanceof Error ? error.message : String(error));
     }
 
     console.log('\n🎉 Debug completed!');
